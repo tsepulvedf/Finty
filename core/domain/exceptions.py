@@ -55,3 +55,17 @@ class PermissionDeniedError(DomainError):
 
     default_code = "permission_denied"
     default_message = "No tienes acceso a este recurso."
+
+
+class CurrencyMismatchError(ValidationError):
+    """Se intento operar dos cantidades en monedas distintas (INV-11)."""
+
+    default_code = "currency_mismatch"
+    default_message = "No se pueden operar cantidades en monedas distintas."
+
+
+class AuthenticationError(DomainError):
+    """Las credenciales presentadas no identifican a ningun usuario activo."""
+
+    default_code = "authentication_error"
+    default_message = "Credenciales invalidas."

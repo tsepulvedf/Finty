@@ -335,3 +335,32 @@ class AICategorizer(Categorizer):
         return CategorySuggestion(
             category_name.strip(), clamped, CategorizationSource.AI
         )
+
+
+class MockCategorizer(Categorizer):
+    """Devuelve una sugerencia fija y configurable, para desarrollo y pruebas.
+
+    Sin red, sin base de datos y sin estado mutable. Existe para que desarrollar y
+    probar no consuma cuota de inferencia (restriccion HC-06 de Phase 0) ni
+    dependa de que un proveedor externo este disponible.
+    """
+
+    def __init__(
+        self,
+        category_name=None,
+        confidence=CONFIDENCE_CEILING,
+        source=CategorizationSource.RULE,
+    ):
+        self._category_name = category_name
+        self._confidence = confidence
+        self._source = CategorizationSource(source)
+
+    def categorize(self, description, amount, transaction_type):
+        """Devuelve siempre la misma sugerencia configurada."""
+        resolved_type = _coerce_transaction_type(transaction_type)
+        name = (
+            self._category_name
+            if self._category_name is not None
+            else FALLBACK_BY_TYPE[resolved_type]
+        )
+        return CategorySuggestion(name, self._confidence, self._source)

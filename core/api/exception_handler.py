@@ -10,6 +10,7 @@ from rest_framework.views import exception_handler as drf_exception_handler
 from rest_framework.views import set_rollback
 
 from core.domain.exceptions import (
+    AuthenticationError,
     BusinessRuleError,
     DomainError,
     NotFoundError,
@@ -24,6 +25,9 @@ DOMAIN_ERROR_STATUS = (
     (BusinessRuleError, status.HTTP_409_CONFLICT),
     (NotFoundError, status.HTTP_404_NOT_FOUND),
     (PermissionDeniedError, status.HTTP_403_FORBIDDEN),
+    # Un fallo de credenciales no es un conflicto ni una peticion malformada:
+    # es una peticion no autenticada.
+    (AuthenticationError, status.HTTP_401_UNAUTHORIZED),
 )
 
 

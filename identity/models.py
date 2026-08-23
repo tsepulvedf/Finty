@@ -56,3 +56,36 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class UserProfile(models.Model):
+    """Preferencias y datos de presentacion del usuario.
+
+    Excepcion deliberada a la convencion de UUID como clave primaria: la clave
+    de `UserProfile` **es** la clave de su `User`. El perfil no tiene identidad
+    propia, existe solo como extension del usuario, y una clave sustituta
+    adicional seria redundante y permitiria estados imposibles (dos perfiles
+    para un mismo usuario).
+
+    Modelo anemico (ADR-03): lo crea `ProfileService` dentro de la misma
+    transaccion que el `User`, nunca un signal `post_save`.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile",
+        primary_key=True,
+    )
+    display_name = models.CharField(max_length=120)
+    preferred_currency = models.CharField(max_length=3, default="COP")
+    onboarding_completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "perfil de usuario"
+        verbose_name_plural = "perfiles de usuario"
+
+    def __str__(self):
+        return f"{self.display_name} ({self.user_id})"

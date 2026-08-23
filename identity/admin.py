@@ -2,7 +2,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from identity.models import User
+from identity.models import User, UserProfile
 
 
 @admin.register(User)
@@ -38,3 +38,13 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    """Admin del perfil de usuario."""
+
+    list_display = ("user", "display_name", "preferred_currency", "onboarding_completed")
+    list_filter = ("onboarding_completed", "preferred_currency")
+    search_fields = ("display_name", "user__email")
+    readonly_fields = ("created_at", "updated_at")

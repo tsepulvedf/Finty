@@ -26,8 +26,8 @@ from datetime import date
 from enum import StrEnum
 from uuid import UUID
 
-from core.domain.exceptions import ValidationError
-from core.domain.value_objects import Money
+from core.domain.exceptions import CurrencyMismatchError, ValidationError
+from core.domain.value_objects import Money, validate_currency_code
 from finance.domain.exceptions import InvalidTransactionTypeError
 
 CONFIDENCE_FLOOR = 0.0
@@ -227,3 +227,49 @@ class AccountDraft:
     name: str
     account_type: AccountType
     initial_balance: Money
+
+
+@dataclass(frozen=True)
+class AccountSnapshot:
+    """Lectura de la raiz de agregado en un instante dado.
+
+    Es la pieza simetrica del `TransactionDraft`. Los builders necesitan datos de
+    la cuenta para verificar INV-11 y el estado de archivo, pero el dominio no
+    puede recibir una instancia del ORM sin arrastrar persistencia hacia adentro
+    y romper el ADR-01. El snapshot resuelve la tension: transporta exactamente
+    los cinco datos que las reglas necesitan, y nada mas.
+
+    Quien lo construye desde la fila persistida es el Service (M5), que si vive en
+    la capa externa. El dominio solo lo consume.
+
+    Se llama *snapshot* y no *account* a proposito: es una foto, no la entidad. Si
+    otra escritura concurrente cambia el saldo, esta instancia queda obsoleta y no
+    se entera. Por eso INV-14 se verifica en el Service bajo bloqueo, no aqui.
+    """
+
+    account_id: UUID
+    currency: str
+    account_type: AccountType
+    is_archived: bool
+    balance: Money
+
+    def __post_init__(self):
+        """Normaliza el tipo de cuenta y exige coherencia de moneda."""
+        object.__setattr__(
+            self, "account_type", AccountType.from_value(self.account_type)
+        )
+        object.__setattr__(self, "currency", validate_currency_code(self.currency))
+
+        if not isinstance(self.balance, Money):
+            raise ValidationError(
+                f"El balance del snapshot debe ser un Money, no "
+                f"{type(self.balance).__name__}."
+            )
+
+        if self.balance.currency != self.currency:
+            raise CurrencyMismatchError(
+                f"La cuenta declara moneda {self.currency} pero su balance esta "
+                f"en {self.balance.currency}."
+            )
+
+        object.__setattr__(self, "is_archived", bool(self.is_archived))

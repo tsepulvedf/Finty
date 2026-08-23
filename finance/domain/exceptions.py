@@ -100,3 +100,16 @@ class CategoryNotFoundError(NotFoundError):
 
     default_code = "category_not_found"
     default_message = "La categoria solicitada no existe."
+
+
+class NegativeAmountError(ValidationError):
+    """El monto de una transaccion llego en negativo.
+
+    Los montos se almacenan siempre positivos y el signo lo aporta
+    `TransactionType.sign()`. Un `Money(-500)` con tipo `EXPENSE` produciria un
+    doble negativo, asi que se rechaza en vez de normalizarse con `abs()` en
+    silencio: es un error de quien llama, no algo que el dominio deba adivinar.
+    """
+
+    default_code = "negative_amount"
+    default_message = "El monto de la transaccion no puede ser negativo."

@@ -233,3 +233,105 @@ class RuleBasedCategorizer(Categorizer):
             FALLBACK_CONFIDENCE,
             CategorizationSource.RULE,
         )
+
+
+class SuggestionClient(Protocol):
+    """Forma esperada de un cliente de proveedor externo de clasificacion.
+
+    Se declara como `Protocol` y no como clase base para documentar el contrato
+    sin obligar a heredar: cualquier objeto con este metodo sirve, incluido un
+    doble de prueba.
+    """
+
+    def suggest_category(self, description, amount, transaction_type):
+        """Devuelve `(nombre_de_categoria, confianza)`."""
+        ...
+
+
+class AICategorizer(Categorizer):
+    """Envuelve un proveedor externo y garantiza el contrato pase lo que pase.
+
+    **En esta entrega no se implementa ningun cliente concreto de proveedor.**
+    `client` es una costura deliberada: no hay dependencias de red, ni claves de
+    API, ni llamadas salientes en todo el proyecto. Sin cliente configurado, esta
+    clase opera en modo degradado y delega en el respaldo determinista.
+
+    Eso no es una limitacion del diseno: es exactamente el requisito de Phase 0 de
+    que toda funcionalidad AI-powered tenga respaldo determinista, demostrado en
+    codigo y no prometido en un documento. El dia que exista un cliente real, se
+    inyecta por constructor y ni el Service ni las views cambian una linea.
+
+    Las cuatro degradaciones posibles terminan todas en el respaldo: sin cliente,
+    cliente que falla, categoria alucinada fuera del catalogo, o respuesta con
+    forma inesperada. La confianza fuera de rango se recorta en vez de descartarse,
+    porque el nombre de la categoria sigue siendo utilizable.
+    """
+
+    def __init__(self, client=None, fallback=None, allowed_categories=None):
+        self._client = client
+        self._fallback = fallback if fallback is not None else RuleBasedCategorizer()
+        self._allowed_categories = (
+            frozenset(allowed_categories)
+            if allowed_categories is not None
+            else ALL_CATEGORY_NAMES
+        )
+
+    @property
+    def allowed_categories(self):
+        """Conjunto de nombres que este categorizador acepta del proveedor."""
+        return self._allowed_categories
+
+    def categorize(self, description, amount, transaction_type):
+        """Consulta al proveedor y degrada al respaldo ante cualquier problema."""
+        if self._client is None:
+            return self._fallback.categorize(description, amount, transaction_type)
+
+        try:
+            category_name, confidence = self._client.suggest_category(
+                description, amount, transaction_type
+            )
+        except BaseException as exc:
+            # Se captura `BaseException` y no `Exception` a proposito: algunas
+            # bibliotecas de cliente senalan expiracion de tiempo con excepciones
+            # que no derivan de `Exception`. El contrato de `Categorizer` dice
+            # "nunca propaga", y nunca no admite excepciones.
+            logger.warning(
+                "El proveedor de clasificacion fallo con %s: %s. "
+                "Se usa el respaldo determinista.",
+                type(exc).__name__,
+                exc,
+            )
+            return self._fallback.categorize(description, amount, transaction_type)
+
+        return self._suggestion_or_fallback(
+            category_name, confidence, description, amount, transaction_type
+        )
+
+    def _suggestion_or_fallback(
+        self, category_name, confidence, description, amount, transaction_type
+    ):
+        """Valida la respuesta del proveedor o degrada al respaldo."""
+        if not isinstance(category_name, str) or category_name.strip() not in (
+            self._allowed_categories
+        ):
+            logger.warning(
+                "El proveedor de clasificacion devolvio la categoria %r, que no "
+                "esta en el catalogo. Se usa el respaldo determinista.",
+                category_name,
+            )
+            return self._fallback.categorize(description, amount, transaction_type)
+
+        try:
+            numeric_confidence = float(confidence)
+        except (TypeError, ValueError):
+            logger.warning(
+                "El proveedor de clasificacion devolvio la confianza %r, que no "
+                "es numerica. Se usa el respaldo determinista.",
+                confidence,
+            )
+            return self._fallback.categorize(description, amount, transaction_type)
+
+        clamped = min(max(numeric_confidence, CONFIDENCE_FLOOR), CONFIDENCE_CEILING)
+        return CategorySuggestion(
+            category_name.strip(), clamped, CategorizationSource.AI
+        )

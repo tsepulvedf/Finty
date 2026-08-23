@@ -251,3 +251,127 @@ class TransactionBuilder:
             )
 
         return None, None, None
+
+
+class AccountBuilder:
+    """Construye un `AccountDraft` valido mediante una interfaz fluida.
+
+    Mas simple que `TransactionBuilder`, y esa es justamente su razon de existir:
+    demuestra que el patron responde a un problema recurrente de construccion y no
+    a un caso aislado forzado para cumplir una rubrica.
+
+        draft = (
+            AccountBuilder()
+            .for_user(user_id)
+            .named("Cuenta de ahorros")
+            .of_type(AccountType.BANK)
+            .with_initial_balance(Money("1000000", "COP"))
+            .build()
+        )
+
+    **Aqui si se verifica INV-14**, a diferencia de `TransactionBuilder`: en la
+    creacion el saldo inicial es el unico dato en juego, no hay balance previo que
+    leer ni carrera posible con otra escritura. El builder tiene toda la
+    informacion necesaria para decidir.
+
+    **No es de un solo uso.** `TransactionBuilder` lo es porque invoca un
+    colaborador externo durante `build()`; este no invoca a nadie, asi que
+    reconstruir es inofensivo y no hay razon para prohibirlo.
+    """
+
+    def __init__(self):
+        self._user_id = None
+        self._name = None
+        self._account_type = None
+        self._initial_balance = None
+        self._currency = None
+
+    def for_user(self, user_id):
+        """Fija el propietario de la cuenta."""
+        if user_id is None:
+            raise ValidationError("La cuenta necesita un propietario.")
+        self._user_id = user_id
+        return self
+
+    def named(self, name):
+        """Fija el nombre visible de la cuenta."""
+        if not isinstance(name, str):
+            raise ValidationError(
+                f"El nombre de la cuenta debe ser texto, no "
+                f"{type(name).__name__}."
+            )
+        self._name = name
+        return self
+
+    def of_type(self, account_type):
+        """Fija el tipo de cuenta, normalizandolo."""
+        self._account_type = AccountType.from_value(account_type)
+        return self
+
+    def with_initial_balance(self, balance):
+        """Fija el saldo con que arranca la cuenta."""
+        if not isinstance(balance, Money):
+            raise ValidationError(
+                f"El balance inicial debe ser un Money, no "
+                f"{type(balance).__name__}."
+            )
+        self._initial_balance = balance
+        return self
+
+    def in_currency(self, currency):
+        """Fija la moneda de la cuenta. Opcional si se dio balance inicial."""
+        self._currency = validate_currency_code(currency)
+        return self
+
+    def build(self):
+        """Valida y devuelve el `AccountDraft`."""
+        if self._user_id is None:
+            raise ValidationError("La cuenta necesita un propietario.")
+        if self._name is None:
+            raise ValidationError("La cuenta necesita un nombre.")
+        if self._account_type is None:
+            raise ValidationError("La cuenta necesita un tipo.")
+
+        cleaned_name = self._name.strip()
+        if not cleaned_name:
+            raise ValidationError("El nombre de la cuenta no puede estar vacio.")
+        if len(cleaned_name) > MAX_ACCOUNT_NAME_LENGTH:
+            raise ValidationError(
+                f"El nombre de la cuenta no puede superar "
+                f"{MAX_ACCOUNT_NAME_LENGTH} caracteres."
+            )
+
+        initial_balance = self._resolve_initial_balance()
+
+        # INV-14: en la creacion el saldo inicial es el unico dato en juego.
+        if (
+            initial_balance.is_negative()
+            and not self._account_type.allows_negative_balance()
+        ):
+            raise NegativeBalanceNotAllowedError(
+                f"Una cuenta de tipo '{self._account_type.value}' no puede "
+                f"abrirse con saldo {initial_balance}."
+            )
+
+        return AccountDraft(
+            user_id=self._user_id,
+            name=cleaned_name,
+            account_type=self._account_type,
+            initial_balance=initial_balance,
+        )
+
+    def _resolve_initial_balance(self):
+        """Concilia el balance inicial y la moneda declarada."""
+        if self._initial_balance is None:
+            if self._currency is None:
+                raise ValidationError(
+                    "La cuenta necesita una moneda: pasa un balance inicial o "
+                    "declara la moneda con in_currency()."
+                )
+            return Money.zero(self._currency)
+
+        if self._currency is not None:
+            TransactionRules.ensure_currency_matches(
+                self._currency, self._initial_balance
+            )
+        return self._initial_balance

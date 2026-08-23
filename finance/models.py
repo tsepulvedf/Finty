@@ -14,12 +14,17 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Length
 
 from finance.domain.value_objects import (
     AccountType,
     CategorizationSource,
     TransactionType,
 )
+
+# Habilita el lookup `__length` en las constraints de longitud de moneda. Es la
+# forma que documenta Django para usar `Length` dentro de un `CheckConstraint`.
+models.CharField.register_lookup(Length)
 
 # Los valores validos tienen una sola fuente de verdad: los enums del dominio.
 # Aqui solo se les asocia una etiqueta legible, que es responsabilidad de la capa
@@ -45,6 +50,12 @@ CATEGORIZATION_SOURCE_CHOICES = [
 
 CURRENCY_CODE_LENGTH = 3
 
+ACCOUNT_TYPE_VALUES = [value for value, _ in ACCOUNT_TYPE_CHOICES]
+TRANSACTION_TYPE_VALUES = [value for value, _ in TRANSACTION_TYPE_CHOICES]
+
+CONFIDENCE_FLOOR = 0.0
+CONFIDENCE_CEILING = 1.0
+
 
 class Category(models.Model):
     """Categoria de transaccion. Catalogo global de solo lectura.
@@ -63,6 +74,12 @@ class Category(models.Model):
         ordering = ["applies_to", "name"]
         verbose_name = "categoria"
         verbose_name_plural = "categorias"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(applies_to__in=TRANSACTION_TYPE_VALUES),
+                name="ck_category_applies_to_valid",
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -102,6 +119,23 @@ class Account(models.Model):
         ordering = ["name"]
         verbose_name = "cuenta"
         verbose_name_plural = "cuentas"
+        constraints = [
+            # Integridad de datos, no invariante de negocio: impide dos cuentas
+            # homonimas del mismo usuario porque serian indistinguibles en el
+            # dashboard. No entra al catalogo INV de ARCHITECTURE.md 7.
+            models.UniqueConstraint(
+                fields=["user", "name"],
+                name="uniq_account_name_per_user",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(type__in=ACCOUNT_TYPE_VALUES),
+                name="ck_account_type_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(currency__length=CURRENCY_CODE_LENGTH),
+                name="ck_account_currency_length",
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -162,6 +196,41 @@ class Transaction(models.Model):
         ordering = ["-occurred_on", "-created_at"]
         verbose_name = "transaccion"
         verbose_name_plural = "transacciones"
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(amount=0),
+                name="ck_transaction_amount_not_zero",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(type__in=TRANSACTION_TYPE_VALUES),
+                name="ck_transaction_type_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(categorization_confidence__isnull=True)
+                | models.Q(
+                    categorization_confidence__gte=CONFIDENCE_FLOOR,
+                    categorization_confidence__lte=CONFIDENCE_CEILING,
+                ),
+                name="ck_transaction_confidence_range",
+            ),
+        ]
+        # INV-12 (fecha no futura) NO tiene constraint y no debe intentarse:
+        # PostgreSQL rechaza funciones no inmutables como CURRENT_DATE dentro de
+        # un CHECK, porque una fila valida hoy dejaria de serlo manana y la
+        # constraint no podria revalidarse. Esa invariante vive solo en el
+        # dominio, en `TransactionRules.ensure_date_not_future`.
+        indexes = [
+            # El dashboard consulta los movimientos recientes de una cuenta.
+            models.Index(
+                fields=["account", "-occurred_on"],
+                name="ix_transaction_account_date",
+            ),
+            # Agregacion por categoria dentro de una cuenta.
+            models.Index(
+                fields=["account", "category"],
+                name="ix_transaction_category",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.type} {self.amount} {self.occurred_on}"

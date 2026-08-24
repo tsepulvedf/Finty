@@ -48,9 +48,7 @@ pytestmark = pytest.mark.django_db
 
 PASSWORD = "Contrasena-Segura-2026"
 TODAY = date.today()
-# Saldo con que arranca la cuenta bancaria de las pruebas. Se fija por fiat, como
-# lo haria una carga inicial de datos, y hay que recordarlo aparte porque el
-# modelo no tiene columna de saldo de apertura.
+# Saldo con que se abre la cuenta bancaria de las pruebas.
 OPENING_BALANCE = "1000000.00"
 YESTERDAY = TODAY - timedelta(days=1)
 TOMORROW = TODAY + timedelta(days=1)
@@ -87,11 +85,13 @@ def accounts():
 
 @pytest.fixture
 def account(user, accounts):
-    """Cuenta bancaria con saldo, del usuario principal."""
-    created = accounts.create_account(user, "Cuenta corriente", "bank", currency="COP")
-    created.balance = Decimal(OPENING_BALANCE)
-    created.save(update_fields=["balance"])
-    return created
+    """Cuenta bancaria abierta con saldo, del usuario principal."""
+    return accounts.create_account(
+        user,
+        "Cuenta corriente",
+        "bank",
+        initial_balance=Money(OPENING_BALANCE, "COP"),
+    )
 
 
 @pytest.fixture
@@ -124,19 +124,20 @@ def registrar(service, user, account, amount, transaction_type="expense", **extr
     )
 
 
-def balance_esperado(account, opening="0"):
+def balance_esperado(account):
     """Recalcula el balance con el dominio, como referencia de INV-07.
 
-    `opening` es el saldo con que se abrio la cuenta. Hay que pasarlo aparte
-    porque el modelo no lo guarda en una columna propia: `balance` es el saldo
-    actual, no el de apertura. Ver la limitacion documentada en
-    `AccountService.recompute_balance`.
+    Parte de `account.opening_balance`, que es el termino independiente de la
+    invariante en su formulacion corregida (C-17):
+    `balance = opening_balance + suma de movimientos`.
     """
     movimientos = [
         (Money(row.amount, account.currency), TransactionType.from_value(row.type))
         for row in account.transactions.all()
     ]
-    return BalanceCalculator.recompute(Money(opening, account.currency), movimientos)
+    return BalanceCalculator.recompute(
+        Money(account.opening_balance, account.currency), movimientos
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +344,7 @@ class TestRegistroYBalance:
         account.refresh_from_db()
 
         assert account.transactions.count() == 6
-        assert account.balance == balance_esperado(account, OPENING_BALANCE).amount
+        assert account.balance == balance_esperado(account).amount
 
     def test_los_decimales_no_se_pierden(self, user, account, service):
         for monto in ["0.01", "0.02", "0.03", "1234.56"]:
@@ -356,18 +357,17 @@ class TestRegistroYBalance:
 class TestRecomputeBalance:
     """`recompute_balance` es la operacion de reparacion."""
 
-    def test_repara_un_balance_corrompido(self, user, accounts, cash_account, service):
-        """La cuenta abre en cero, asi que el recuento desde cero es exacto."""
-        registrar(service, user, cash_account, "500000", "income", category_name="Salario")
-        registrar(service, user, cash_account, "120000", "expense")
-        cash_account.refresh_from_db()
-        correcto = cash_account.balance
+    def test_repara_un_balance_corrompido(self, user, accounts, account, service):
+        """La reparacion restituye la apertura, no solo la suma de movimientos."""
+        registrar(service, user, account, "120000", "expense")
+        account.refresh_from_db()
+        correcto = account.balance
 
-        Account.objects.filter(pk=cash_account.pk).update(balance=Decimal("999.99"))
+        Account.objects.filter(pk=account.pk).update(balance=Decimal("999.99"))
 
-        reparada = accounts.recompute_balance(user, cash_account.pk)
+        reparada = accounts.recompute_balance(user, account.pk)
 
-        assert reparada.balance == correcto == Decimal("380000.00")
+        assert reparada.balance == correcto == Decimal("880000.00")
 
     def test_coincide_con_el_dominio(self, user, accounts, cash_account, service):
         registrar(service, user, cash_account, "5000", "income", category_name="Salario")
@@ -839,7 +839,7 @@ class TestEliminarTransaccion:
         service.delete_transaction(user, primera.pk)
 
         account.refresh_from_db()
-        assert account.balance == balance_esperado(account, OPENING_BALANCE).amount
+        assert account.balance == balance_esperado(account).amount
 
     def test_eliminar_un_ingreso_puede_rechazarse(self, user, cash_account, service):
         """Contraintuitivo pero correcto: dejaria la cuenta en un estado invalido."""

@@ -122,3 +122,93 @@ class AccountViewSet(viewsets.ModelViewSet):
         """`POST /accounts/{id}/archive/` — archiva sin borrar."""
         account = AccountService().archive_account(request.user, pk)
         return Response(AccountOutputSerializer(account).data)
+
+
+class TransactionsAPIView(APIView):
+    """`/api/v1/transactions/` — listado y registro.
+
+    `POST` es el flujo completo del diagrama de secuencia de ARCHITECTURE.md 9.2.
+    """
+
+    def build_service(self):
+        """Construye el servicio inyectandole el categorizador de la fabrica.
+
+        **Aqui se cierra la inversion de dependencias del entregable.** La vista
+        es el unico punto del sistema que conoce `CategorizerFactory`;
+        `TransactionService` solo conoce la ABC `Categorizer` y no puede nombrar
+        una implementacion concreta ni la fabrica. Esa asimetria es lo que hace
+        que cambiar `CATEGORIZER_PROVIDER` altere el comportamiento del sistema
+        sin tocar una linea de la capa de servicios ni del dominio.
+        """
+        return TransactionService(CategorizerFactory.get_categorizer())
+
+    def get(self, request):
+        """Lista las transacciones del usuario, con filtros opcionales."""
+        filters = TransactionFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+
+        movements = self.build_service().list_transactions(
+            request.user, **filters.validated_data
+        )
+
+        # Paginacion explicita en cuatro lineas, en vez de heredar de un generico:
+        # la APIView da control, que es justo lo que ADR-05 busca en este endpoint.
+        paginator = PageNumberPagination()
+        page = paginator.paginate_queryset(movements, request, view=self)
+        return paginator.get_paginated_response(
+            TransactionOutputSerializer(page, many=True).data
+        )
+
+    def post(self, request):
+        """Registra una transaccion y devuelve 201."""
+        serializer = TransactionInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        movement = self.build_service().register_transaction(
+            user=request.user,
+            account_id=serializer.validated_data["account_id"],
+            amount=serializer.validated_data["amount"],
+            transaction_type=serializer.validated_data["type"],
+            occurred_on=serializer.validated_data["occurred_on"],
+            description=serializer.validated_data["description"],
+            category_name=serializer.validated_data.get("category_name"),
+        )
+        return Response(
+            TransactionOutputSerializer(movement).data, status=status.HTTP_201_CREATED
+        )
+
+
+class TransactionDetailAPIView(APIView):
+    """`/api/v1/transactions/{id}/` — consulta y eliminacion."""
+
+    def build_service(self):
+        """Construye el servicio con el categorizador de la fabrica."""
+        return TransactionService(CategorizerFactory.get_categorizer())
+
+    def get(self, request, pk):
+        """Devuelve una transaccion del usuario."""
+        movement = self.build_service().get_transaction(request.user, pk)
+        return Response(TransactionOutputSerializer(movement).data)
+
+    def delete(self, request, pk):
+        """Elimina la transaccion y deshace su efecto sobre el balance."""
+        self.build_service().delete_transaction(request.user, pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TransactionCategorizeAPIView(APIView):
+    """`/api/v1/transactions/{id}/categorize/` — reclasificacion manual."""
+
+    def build_service(self):
+        """Construye el servicio con el categorizador de la fabrica."""
+        return TransactionService(CategorizerFactory.get_categorizer())
+
+    def post(self, request, pk):
+        """Reasigna la categoria de la transaccion. No mueve el balance."""
+        serializer = RecategorizeInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        movement = self.build_service().recategorize(
+            request.user, pk, serializer.validated_data["category_name"]
+        )
+        return Response(TransactionOutputSerializer(movement).data)

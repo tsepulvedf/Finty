@@ -18,6 +18,9 @@ from rest_framework.routers import DefaultRouter
 from finance.api.views import (
     AccountViewSet,
     CategoryViewSet,
+    TransactionCategorizeAPIView,
+    TransactionDetailAPIView,
+    TransactionsAPIView,
 )
 
 router = DefaultRouter()
@@ -26,4 +29,15 @@ router.register("accounts", AccountViewSet, basename="account")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("transactions/", TransactionsAPIView.as_view(), name="transaction-list"),
+    path(
+        "transactions/<uuid:pk>/",
+        TransactionDetailAPIView.as_view(),
+        name="transaction-detail",
+    ),
+    path(
+        "transactions/<uuid:pk>/categorize/",
+        TransactionCategorizeAPIView.as_view(),
+        name="transaction-categorize",
+    ),
 ]

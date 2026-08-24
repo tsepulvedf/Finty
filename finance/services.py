@@ -300,6 +300,61 @@ class TransactionService:
 
             return created
 
+    def recategorize(self, user, transaction_id, category_name):
+        """Reasigna manualmente la categoria de una transaccion.
+
+        **No toca el balance.** Cambiar de categoria reclasifica un movimiento, no
+        mueve dinero: el monto y el tipo siguen siendo los mismos, asi que el
+        saldo de la cuenta no puede cambiar.
+        """
+        with db_transaction.atomic():
+            movement = self.get_transaction(user, transaction_id)
+            transaction_type = TransactionType.from_value(movement.type)
+
+            TransactionRules.ensure_categorized(category_name)
+            category = self._resolve_category(category_name, transaction_type)
+
+            movement.category = category
+            movement.categorization_source = CategorizationSource.MANUAL.value
+            movement.categorization_confidence = MANUAL_CATEGORY_CONFIDENCE
+            movement.save(
+                update_fields=[
+                    "category",
+                    "categorization_source",
+                    "categorization_confidence",
+                    "updated_at",
+                ]
+            )
+            return movement
+
+    def delete_transaction(self, user, transaction_id):
+        """Elimina una transaccion y deshace su efecto sobre el balance.
+
+        **La operacion puede rechazarse, y es correcto aunque sorprenda.**
+        Eliminar un ingreso resta ese dinero del saldo; si eso deja negativa una
+        cuenta que no admite numeros rojos, se viola INV-14 y la eliminacion no
+        procede. El estado resultante seria invalido, y borrar un registro no es
+        excusa para dejar la cuenta en un estado imposible.
+        """
+        with db_transaction.atomic():
+            movement = self.get_transaction(user, transaction_id)
+            account = self._accounts.get_locked_account(user, movement.account_id)
+            snapshot = self._accounts.build_snapshot(account)
+
+            reverted = BalanceCalculator.revert(
+                snapshot.balance,
+                Money(movement.amount, account.currency),
+                TransactionType.from_value(movement.type),
+            )
+            TransactionRules.ensure_balance_allowed(
+                snapshot.account_type, reverted
+            )
+
+            movement.delete()
+
+            account.balance = reverted.amount
+            account.save(update_fields=["balance", "updated_at"])
+
     def list_transactions(
         self, user, account_id=None, category_id=None, date_from=None, date_to=None
     ):

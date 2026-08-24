@@ -922,3 +922,84 @@ class TestListarTransacciones:
                 _ = movimiento.category.name if movimiento.category else None
 
         assert len(consultas.captured_queries) == 1
+
+
+# ---------------------------------------------------------------------------
+# LSP en el servicio
+# ---------------------------------------------------------------------------
+
+
+CATEGORIZADORES = [
+    pytest.param(RuleBasedCategorizer, id="RuleBased"),
+    pytest.param(MockCategorizer, id="Mock"),
+    pytest.param(lambda: AICategorizer(client=None), id="AI-sin-cliente"),
+]
+
+
+@pytest.mark.parametrize("factory", CATEGORIZADORES)
+class TestLSPEnElServicio:
+    """Criterio A-08: el servicio funciona igual con las tres implementaciones.
+
+    Ni `TransactionService` ni estos tests contienen una sola linea condicional
+    sobre que categorizador se inyecto. Eso es lo que significa que sean
+    sustituibles.
+    """
+
+    def test_registra_una_transaccion_valida(self, user, account, factory):
+        service = TransactionService(factory())
+
+        movimiento = registrar(
+            service, user, account, "120000", description="Mercado de la semana"
+        )
+
+        assert Transaction.objects.filter(pk=movimiento.pk).exists()
+
+    def test_la_categoria_queda_resuelta(self, user, account, factory):
+        service = TransactionService(factory())
+
+        movimiento = registrar(
+            service, user, account, "120000", description="Mercado de la semana"
+        )
+
+        assert movimiento.category is not None
+        assert Category.objects.filter(pk=movimiento.category_id).exists()
+
+    def test_la_categoria_corresponde_al_tipo(self, user, account, factory):
+        service = TransactionService(factory())
+
+        movimiento = registrar(
+            service, user, account, "500000", "income", description="Pago de nomina"
+        )
+
+        assert movimiento.category.applies_to == "income"
+
+    def test_la_fuente_y_la_confianza_quedan_registradas(self, user, account, factory):
+        service = TransactionService(factory())
+
+        movimiento = registrar(service, user, account, "120000", description="Taxi")
+
+        assert movimiento.categorization_source in {"ai", "rule", "manual"}
+        assert 0.0 <= movimiento.categorization_confidence <= 1.0
+
+    def test_el_balance_queda_correcto(self, user, account, factory):
+        service = TransactionService(factory())
+
+        registrar(service, user, account, "120000", description="Mercado")
+
+        account.refresh_from_db()
+        assert account.balance == Decimal("880000.00")
+
+    def test_las_invariantes_siguen_aplicando(self, user, account, factory):
+        service = TransactionService(factory())
+
+        with pytest.raises(ZeroAmountError):
+            registrar(service, user, account, "0")
+
+    def test_una_descripcion_hostil_no_rompe_el_registro(self, user, account, factory):
+        service = TransactionService(factory())
+
+        movimiento = registrar(
+            service, user, account, "1000", description="'; DROP TABLE x; --🍔"
+        )
+
+        assert movimiento.category is not None

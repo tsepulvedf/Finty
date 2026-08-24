@@ -20,10 +20,12 @@ Los servicios no capturan excepciones de dominio para traducirlas: las dejan
 subir y el handler global de `core/api/exception_handler.py` las convierte a HTTP.
 Lo que si traducen son las excepciones del ORM, que no deben escapar de aqui.
 """
+from dataclasses import dataclass
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from django.db import transaction as db_transaction
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Q
 
 from core.domain.value_objects import Money
 from finance.domain.builders import AccountBuilder, TransactionBuilder
@@ -53,6 +55,58 @@ UNIQUE_ACCOUNT_NAME_CONSTRAINT = "uniq_account_name_per_user"
 # Moneda por defecto de una cuenta. Se lee de la columna para que el default viva
 # en un solo sitio: ARCHITECTURE.md 5.2 lo declara como propiedad del modelo.
 DEFAULT_ACCOUNT_CURRENCY = Account._meta.get_field("currency").get_default()
+
+# Motivos por los que una transaccion queda en un estado de categorizacion
+# incoherente. Se declaran como constantes para que el comando de auditoria no
+# compare cadenas literales.
+MISSING_CATEGORY = "procedencia sin categoria"
+MISSING_SOURCE = "categoria sin procedencia"
+
+
+@dataclass(frozen=True)
+class BalanceAuditResult:
+    """Resultado de auditar el balance de una cuenta (INV-07).
+
+    Es una estructura de **reporte**, no un concepto del dominio: nadie razona
+    sobre "resultados de auditoria" al hablar del negocio. Por eso vive aqui y no
+    en `finance/domain/`, donde solo entra el lenguaje ubicuo del glosario.
+    """
+
+    account_id: object
+    account_name: str
+    owner_email: str
+    persisted: Money
+    calculated: Money
+
+    def is_consistent(self):
+        """Indica si el balance persistido coincide con el recalculado.
+
+        Es un metodo y no una `@property` a proposito. Los modelos tienen
+        prohibidas las propiedades calculadas (ADR-03) y una `@property` aqui
+        invitaria a replicar ese estilo al otro lado de la frontera, donde cuesta
+        la mitad de la nota de esa seccion.
+        """
+        return self.persisted == self.calculated
+
+    def difference(self):
+        """Devuelve cuanto se desvio el balance persistido del real."""
+        return self.persisted.subtract(self.calculated)
+
+
+@dataclass(frozen=True)
+class CategorizationAuditResult:
+    """Transaccion cuyo estado de categorizacion es incoherente.
+
+    Igual que `BalanceAuditResult`, es una estructura de reporte y no un concepto
+    del dominio.
+    """
+
+    transaction_id: object
+    account_name: str
+    owner_email: str
+    reason: str
+    category_name: str | None
+    categorization_source: str | None
 
 
 class AccountService:
@@ -197,6 +251,106 @@ class AccountService:
             raise
 
         return account
+
+    def audit_balances(self, user=None):
+        """Audita INV-07 sobre las cuentas y devuelve las desviaciones.
+
+        **Vive en `AccountService` y no en `TransactionService` porque `Account`
+        es la raiz del agregado** (ARCHITECTURE.md 5.1). La consistencia de las
+        entidades que viven dentro del agregado se gobierna desde la raiz: son las
+        transacciones las que se auditan, pero es la cuenta la que responde por
+        que su balance las refleje.
+
+        Sin `user` recorre todas las cuentas; con `user`, solo las suyas.
+
+        **No reimplementa la aritmetica.** El calculo lo hace
+        `BalanceCalculator.recompute`, el mismo que usa `recompute_balance`. Si la
+        auditoria duplicara la formula, podria estar de acuerdo con un error del
+        servicio y no detectar nada: una auditoria que comparte el defecto del
+        auditado no audita.
+
+        Solo lee. No escribe nada.
+        """
+        results = []
+        for account in self._accounts_to_audit(user):
+            calculated = BalanceCalculator.recompute(
+                Money(account.opening_balance, account.currency),
+                [
+                    (
+                        Money(row.amount, account.currency),
+                        TransactionType.from_value(row.type),
+                    )
+                    for row in account.transactions.all()
+                ],
+            )
+            results.append(
+                BalanceAuditResult(
+                    account_id=account.pk,
+                    account_name=account.name,
+                    owner_email=account.user.email,
+                    persisted=Money(account.balance, account.currency),
+                    calculated=calculated,
+                )
+            )
+        return results
+
+    def audit_categorization(self, user=None):
+        """Audita el estado de categorizacion de las transacciones (INV-08).
+
+        Vive aqui por la misma razon que `audit_balances`: `Transaction` es una
+        entidad dentro del agregado `Account` y no se gobierna sin pasar por la
+        raiz.
+
+        Detecta dos incoherencias, y la segunda es la interesante:
+
+        - **Procedencia sin categoria.** Se registro que algo clasifico la
+          transaccion pero no quedo categoria asignada: INV-08 violada.
+        - **Categoria sin procedencia.** Hay categoria pero nadie declara haberla
+          puesto. Ninguna ruta de la capa de servicios produce ese estado, asi que
+          delata una escritura que evadio los servicios: el shell, una migracion
+          de datos o SQL directo.
+
+        Solo lee. No escribe nada, y `--fix` tampoco corrige esto.
+        """
+        movements = Transaction.objects.select_related("account", "account__user", "category")
+        if user is not None:
+            movements = movements.filter(account__user=user)
+
+        incoherent = movements.filter(
+            Q(categorization_source__isnull=False, category__isnull=True)
+            | Q(categorization_source__isnull=True, category__isnull=False)
+        ).order_by("account__name", "occurred_on")
+
+        return [
+            CategorizationAuditResult(
+                transaction_id=row.pk,
+                account_name=row.account.name,
+                owner_email=row.account.user.email,
+                reason=(
+                    MISSING_CATEGORY if row.category_id is None else MISSING_SOURCE
+                ),
+                category_name=row.category.name if row.category_id else None,
+                categorization_source=row.categorization_source,
+            )
+            for row in incoherent
+        ]
+
+    @staticmethod
+    def _accounts_to_audit(user):
+        """Cuentas a auditar, con sus relaciones ya resueltas.
+
+        `select_related` trae al propietario en la misma consulta y
+        `prefetch_related` las transacciones en una sola adicional: sin ellos, una
+        base con miles de cuentas dispararia dos consultas por fila.
+        """
+        accounts = (
+            Account.objects.select_related("user")
+            .prefetch_related("transactions")
+            .order_by("user__email", "name")
+        )
+        if user is not None:
+            accounts = accounts.filter(user=user)
+        return accounts
 
     @staticmethod
     def _resolve_currency(currency, initial_balance):

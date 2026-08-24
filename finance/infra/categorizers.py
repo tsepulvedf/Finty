@@ -343,13 +343,19 @@ class MockCategorizer(Categorizer):
     Sin red, sin base de datos y sin estado mutable. Existe para que desarrollar y
     probar no consuma cuota de inferencia (restriccion HC-06 de Phase 0) ni
     dependa de que un proveedor externo este disponible.
+
+    Reporta `CategorizationSource.MOCK` y no `RULE` (A-14): una transaccion
+    clasificada por un doble de pruebas debe quedar registrada como tal, o la
+    traza de auditoria miente sobre que mecanismo decidio la categoria. El
+    parametro sigue siendo configurable para los casos en que un test necesite
+    simular otra procedencia.
     """
 
     def __init__(
         self,
         category_name=None,
         confidence=CONFIDENCE_CEILING,
-        source=CategorizationSource.RULE,
+        source=CategorizationSource.MOCK,
     ):
         self._category_name = category_name
         self._confidence = confidence

@@ -707,7 +707,7 @@ class TestCategorizacion:
         movimiento = registrar(service, user, account, "20000")
 
         assert movimiento.category.name == "Transporte"
-        assert movimiento.categorization_source == CategorizationSource.RULE.value
+        assert movimiento.categorization_source == CategorizationSource.MOCK.value
         assert movimiento.categorization_confidence == 0.65
 
     def test_con_categoria_manual_la_fuente_es_manual(self, user, account, service):
@@ -978,7 +978,7 @@ class TestLSPEnElServicio:
 
         movimiento = registrar(service, user, account, "120000", description="Taxi")
 
-        assert movimiento.categorization_source in {"ai", "rule", "manual"}
+        assert movimiento.categorization_source in {"ai", "rule", "manual", "mock"}
         assert 0.0 <= movimiento.categorization_confidence <= 1.0
 
     def test_el_balance_queda_correcto(self, user, account, factory):

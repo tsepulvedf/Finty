@@ -674,3 +674,94 @@ class TestContratoDeSerializacion:
 
         assert set(cuerpo) == {"error"}
         assert set(cuerpo["error"]) == {"code", "message"}
+
+
+class TestFactoryPorHttpConMock:
+    """El mismo request con el proveedor conmutado a MOCK.
+
+    El decorador va por metodo y no sobre la clase: `override_settings` solo
+    acepta clases que hereden de `SimpleTestCase`, y estas son clases planas de
+    pytest.
+    """
+
+    @override_settings(CATEGORIZER_PROVIDER="MOCK")
+    def test_la_categoria_la_pone_el_mock(self, ana, cuenta):
+        creada = crear_transaccion(
+            ana, cuenta["id"], description="Almuerzo en el restaurante"
+        ).json()
+
+        assert creada["category_name"] == "Otros gastos"
+        assert creada["categorization_confidence"] == 1.0
+
+    @override_settings(CATEGORIZER_PROVIDER="MOCK")
+    def test_un_ingreso_cae_en_el_respaldo_de_ingresos(self, ana, cuenta):
+        creada = crear_transaccion(
+            ana, cuenta["id"], "500000", "income", description="Pago de nomina"
+        ).json()
+
+        assert creada["category_name"] == "Otros ingresos"
+
+
+class TestFactoryPorHttpConReglas:
+    """El mismo request con el proveedor en RULE."""
+
+    @override_settings(CATEGORIZER_PROVIDER="RULE")
+    def test_la_categoria_la_ponen_las_reglas(self, ana, cuenta):
+        creada = crear_transaccion(
+            ana, cuenta["id"], description="Almuerzo en el restaurante"
+        ).json()
+
+        assert creada["category_name"] == "Alimentación"
+        assert creada["categorization_source"] == "rule"
+        assert creada["categorization_confidence"] == 0.75
+
+    @override_settings(CATEGORIZER_PROVIDER="RULE")
+    def test_un_ingreso_se_clasifica_con_el_mapa_de_ingresos(self, ana, cuenta):
+        creada = crear_transaccion(
+            ana, cuenta["id"], "500000", "income", description="Pago de nomina"
+        ).json()
+
+        assert creada["category_name"] == "Salario"
+
+
+class TestFactoryMismoRequestDistintoResultado:
+    """La evidencia end-to-end del Factory Method.
+
+    Exactamente el mismo cuerpo de peticion, exactamente el mismo codigo, y dos
+    resultados distintos segun una variable de configuracion. Nadie toco una linea
+    entre una corrida y la otra.
+    """
+
+    PAYLOAD_DESCRIPTION = "Almuerzo en el restaurante"
+
+    def _categoria_con(self, provider, ana, cuenta):
+        with override_settings(CATEGORIZER_PROVIDER=provider):
+            return crear_transaccion(
+                ana, cuenta["id"], description=self.PAYLOAD_DESCRIPTION
+            ).json()["category_name"]
+
+    def test_el_resultado_cambia_con_el_proveedor(self, ana, cuenta):
+        con_reglas = self._categoria_con("RULE", ana, cuenta)
+        con_mock = self._categoria_con("MOCK", ana, cuenta)
+
+        assert con_reglas == "Alimentación"
+        assert con_mock == "Otros gastos"
+        assert con_reglas != con_mock
+
+    @override_settings(CATEGORIZER_PROVIDER="AI")
+    def test_con_ai_sin_cliente_degrada_al_respaldo_determinista(self, ana, cuenta):
+        """Sin cliente configurado, el resultado es el del respaldo."""
+        creada = crear_transaccion(
+            ana, cuenta["id"], description=self.PAYLOAD_DESCRIPTION
+        ).json()
+
+        assert creada["category_name"] == "Alimentación"
+        assert creada["categorization_source"] == "rule"
+
+    @override_settings(CATEGORIZER_PROVIDER="PROVEEDOR_INEXISTENTE")
+    def test_un_proveedor_desconocido_falla_ruidosamente(self, ana, cuenta):
+        """No degrada en silencio: revienta antes de clasificar nada."""
+        from django.core.exceptions import ImproperlyConfigured
+
+        with pytest.raises(ImproperlyConfigured):
+            crear_transaccion(ana, cuenta["id"])

@@ -32,6 +32,7 @@
 | C-16 | Cliente de IA | Implícitamente asumido | **Costura inyectada, sin implementación concreta** | Sin dependencias de red ni claves de API en el entregable; el respaldo determinista queda demostrado en código |
 | C-17 | Formulación de INV-07 | `balance = SUM(transacciones)` | **`balance = opening_balance + SUM(transacciones)`** | La fórmula original asumía tácitamente que toda cuenta abre en cero; con saldo de apertura, recalcular desde cero destruye dinero |
 | C-18 | Acceso a cuenta ajena | `AccountNotOwnedError` (403) | **`AccountNotFoundError` (404) en ambos casos** | Un 403 confirmaría que ese identificador existe en el sistema |
+| C-19 | `CategorizationSource` | Tres valores: `ai`, `rule`, `manual` | **Cuatro: se agrega `mock`** | El mock reportándose como `rule` violaba A-14; no hay constraint de base sobre la columna, así que el costo es un `AlterField` de `choices` |
 
 ---
 
@@ -942,17 +943,20 @@ flowchart TB
 | # | Criterio | Cómo se verifica |
 |---|----------|------------------|
 | A-01 | `domain/` no depende de Django | `grep -rn "django" finance/domain/ core/domain/` devuelve vacío |
-| A-02 | Vistas sin lógica de negocio | Ninguna view contiene `if` sobre reglas de dominio, cálculos ni queries complejas |
+| A-02 | Vistas sin lógica de negocio | `grep -rnE "^[[:space:]]*(try:\|except[[:space:]])" */api/views.py` devuelve vacío. El grep debe ir **anclado a inicio de sentencia**: sin anclar, `raise_exception=True` de DRF produce falsos positivos por la subcadena `except`. Ninguna view contiene además `if` sobre reglas de dominio ni cálculos |
 | A-03 | Modelos sin lógica de negocio | `models.py` solo tiene campos, `Meta`, `__str__` |
 | A-04 | Factory conmutable por entorno | `CATEGORIZER_PROVIDER=MOCK` cambia el comportamiento sin tocar código |
 | A-05 | Builder valida antes de construir | Existe test que verifica que `.build()` con monto 0 lanza `DomainError` |
-| A-06 | Balance consistente | Test que registra N transacciones y compara `account.balance` con la suma |
+| A-06 | Balance consistente | Test que registra N transacciones y compara `account.balance` con `opening_balance + Σ movimientos` (INV-07 según C-17) |
 | A-07 | Ownership aplicado | Test que verifica que el usuario B no puede operar sobre la cuenta de A |
 | A-08 | LSP en categorizadores | La suite de `TransactionService` pasa con las tres implementaciones |
 | A-09 | Builder no conoce el ORM | `grep -rnE "finance\.(models\|infra)" finance/domain/` devuelve vacío |
 | A-10 | Servicio no conoce implementaciones concretas | `grep -rnE "AICategorizer\|RuleBasedCategorizer\|MockCategorizer" finance/services.py` devuelve vacío |
 | A-11 | Escritura bajo bloqueo | El SQL de `register_transaction` contiene `FOR UPDATE` |
 | A-12 | Categoría emitida siempre existe | Test de contrato entre el mapa de reglas y la tabla `Category` |
+| A-13 | El Factory es observable desde fuera | El mismo `POST /transactions/` con `CATEGORIZER_PROVIDER` en `RULE` y en `MOCK` produce categoría y procedencia distintas |
+| A-14 | La procedencia registrada es veraz | `categorization_source` identifica el mecanismo que realmente clasificó, sin que una implementación se haga pasar por otra |
+| A-15 | Reglas de capas verificadas en la suite | `core/tests/test_architecture.py` recorre el AST de cada módulo. Sustituye a los `grep` como criterio autoritativo: un regex sobre texto no distingue un `except` real de una subcadena |
 
 ---
 

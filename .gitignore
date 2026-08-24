@@ -13,6 +13,8 @@ staticfiles/
 
 # Tests
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Editores
 .idea/

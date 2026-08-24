@@ -1,0 +1,26 @@
+# Configuracion de medicion de cobertura.
+#
+# Se excluyen las capas que no contienen decisiones propias del entregable: las
+# migraciones son artefactos historicos generados, los tests son el instrumento
+# de medida y no el objeto medido, y `config/` y `manage.py` son configuracion
+# del framework.
+[run]
+source = .
+branch = True
+omit =
+    */migrations/*
+    */tests/*
+    config/*
+    manage.py
+    conftest.py
+    */__init__.py
+    venv/*
+    .venv/*
+
+[report]
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError

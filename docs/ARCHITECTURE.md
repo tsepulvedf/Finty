@@ -1,8 +1,9 @@
 # Finty — Documentación Consolidada de Arquitectura y Dominio
 
-**Versión:** 2.0
-**Fecha:** 2026-08-21
+**Versión:** 2.1
+**Fecha:** 2026-08-23
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
+**Cambios de v2.1:** correcciones derivadas de la implementación de los módulos M0–M4 (ver §0, filas C-11 a C-16)
 **Alcance:** Documento único de referencia para la implementación en Django + Django REST Framework
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -23,6 +24,12 @@
 | C-08 | API Gateway | No contemplado | **Etapa 1: `urls.py` de Django; producción: Nginx; futuro: Kong/KrakenD** | Requisito de la Wiki |
 | C-09 | Alcance de implementación | 100% conceptual | **Corte del 50–60% del diagrama de clases** | Definición de la Entrega 1 |
 | C-10 | Invariantes | Clasificadas por capa abstracta | **Mapeadas a mecanismos concretos de Django/DRF** | Ejecutabilidad |
+| C-11 | Retorno de `TransactionBuilder.build()` | Devolvía `Transaction` (modelo) | **Devuelve `TransactionDraft`** (objeto de valor) | Un builder en `domain/` que importe modelos arrastra el ORM al núcleo por transitividad y rompe el ADR-01 |
+| C-12 | Entrada del builder | Recibía `Account` (modelo) | **Recibe `AccountSnapshot`** (objeto de valor) | Misma razón que C-11, en sentido de entrada |
+| C-13 | Invariantes | 13 | **14** — se formaliza INV-14 | El catálogo DDD anotaba `balance >= 0 (dependiendo tipo)` sin identificador |
+| C-14 | `Transaction` | Sin registro de confianza | **Campo `categorization_confidence`** | Phase 0 exige explicabilidad con indicadores de confianza (mitigación de R-02) |
+| C-15 | Tipos enumerados del dominio | `@dataclass(frozen=True)` | **`enum.StrEnum`** | Inmutabilidad y conjunto cerrado por construcción; `.value` mapea directo a los `choices` del ORM |
+| C-16 | Cliente de IA | Implícitamente asumido | **Costura inyectada, sin implementación concreta** | Sin dependencias de red ni claves de API en el entregable; el respaldo determinista queda demostrado en código |
 
 ---
 
@@ -230,6 +237,21 @@ Se implementa el **camino crítico completo de extremo a extremo** en lugar de f
 
 **Cobertura: 11 de 20 clases = 55%.** Dentro del rango 50–60% exigido.
 
+### 4.2.1 Clases de soporte arquitectónico
+
+Durante la implementación aparecieron cuatro clases adicionales que **no forman parte del modelo de dominio del mapa de bounded contexts** y por tanto no entran al denominador de la cobertura. Existen para sostener la frontera entre capas:
+
+| Clase | Ubicación | Función |
+|-------|-----------|---------|
+| `CategorizationSource` | `finance/domain/value_objects.py` | Enumeración del origen de una categorización (`ai` / `rule` / `manual`) |
+| `TransactionDraft` | `finance/domain/value_objects.py` | Salida validada de `TransactionBuilder`; cruza del dominio hacia la persistencia |
+| `AccountDraft` | `finance/domain/value_objects.py` | Salida validada de `AccountBuilder` |
+| `AccountSnapshot` | `finance/domain/value_objects.py` | Lectura inmutable de la raíz de agregado que entra al dominio desde la persistencia |
+
+Los drafts y el snapshot son las dos direcciones de la misma frontera: el snapshot entra al dominio, el draft sale. Ninguno conoce el ORM.
+
+Tampoco entran al denominador los builders, la factory, los categorizadores concretos ni los servicios: son mecanismos de construcción y orquestación, no conceptos del lenguaje ubicuo.
+
 ### 4.3 Fuera de alcance, declarado
 
 - Analítica, insights y detección de patrones.
@@ -277,7 +299,8 @@ Se implementa el **camino crítico completo de extremo a extremo** en lugar de f
 | `category` | `ForeignKey(Category, PROTECT, null=True)` | No | INV-08 tras categorizar |
 | `description` | `CharField(255)` | No | — |
 | `occurred_on` | `DateField` | Sí | No futura |
-| `categorization_source` | `CharField(choices)` | Sí | `ai` / `rule` / `manual` |
+| `categorization_source` | `CharField(choices, null=True)` | No | `ai` / `rule` / `manual` |
+| `categorization_confidence` | `FloatField(null=True)` | No | `0.0 ≤ x ≤ 1.0` (constraint DB) |
 | `created_at` | `DateTimeField(auto_now_add)` | Sí | Automático |
 
 **Ciclo de vida:** `Created → Categorized`. El estado `IncludedInAggregation` del modelo v1 **se elimina del alcance de la Entrega 1** porque pertenece a `AnalyticsInsightsContext`.
@@ -357,28 +380,36 @@ cambia el comportamiento del sistema sin tocar una línea de código. Esto adem�
 **Solución — interfaz fluida:**
 
 ```python
-transaction = (
+draft = (
     TransactionBuilder()
-    .for_account(account)
+    .for_account(snapshot)            # AccountSnapshot, no el modelo
     .with_amount(Money(amount, currency))
     .of_type(TransactionType.EXPENSE)
-    .occurred_on(date)
+    .occurred_on(day)
     .described_as(description)
-    .categorized_by(categorizer)     # opcional: dispara la categorización
+    .categorized_by(categorizer)      # opcional: dispara la categorización
     .build()                          # ← aquí ocurren TODAS las validaciones
 )
 ```
+
+`build()` devuelve un `TransactionDraft`, no un modelo. Es la corrección C-11: un builder alojado en `domain/` que importara `finance.models` arrastraría el ORM al núcleo por transitividad, y el `grep` de pureza no lo detectaría porque la cadena `django` no aparecería en el archivo. El draft mantiene el dominio genuinamente portable; el servicio traduce draft → fila.
+
+`build()` es **de un solo uso**: la segunda llamada falla. El categorizador se invoca durante `build()`, y permitir reconstrucciones dispararía llamadas repetidas a un colaborador externo. `AccountBuilder` no tiene esa restricción porque no invoca a nadie.
 
 **Qué garantiza `.build()`:**
 
 | Garantía | Invariante |
 |----------|------------|
+| Campos obligatorios presentes | — |
 | Monto distinto de cero | INV-04 |
+| Monto no negativo (el signo lo aporta `type`) | — |
 | Tipo dentro del enum | INV-09 |
-| Cuenta presente y no archivada | INV-02 |
-| Moneda de la transacción == moneda de la cuenta | Nueva, INV-11 |
-| Fecha no futura | Nueva, INV-12 |
+| Cuenta no archivada | — |
+| Moneda de la transacción == moneda de la cuenta | INV-11 |
+| Fecha no futura | INV-12 |
 | Categoría resuelta si se invocó `categorized_by` | INV-08 |
+
+**Qué NO garantiza:** INV-14 (balance resultante admisible). El saldo autoritativo vive en la base y solo es confiable bajo bloqueo; el snapshot es, por definición, una foto que puede quedar obsoleta. Esa verificación pertenece al servicio, después del `select_for_update()`. En `AccountBuilder` sí se verifica INV-14, porque en la creación el saldo inicial es el único dato en juego y no existe carrera posible.
 
 **Beneficio arquitectónico:** el objeto solo existe cuando está completo y es válido. La lógica de armado no se filtra ni a la Vista ni al Servicio; el Servicio orquesta, el Builder construye.
 
@@ -424,6 +455,7 @@ La View no decide qué categorizador usar; pide uno a la Factory y lo inyecta. E
 | **INV-11** | Moneda de transacción == moneda de cuenta | Domain | `Money.__add__` lanza `CurrencyMismatchError`; verificado en `.build()` | ✅ **Nueva** |
 | **INV-12** | Fecha de transacción no futura | Domain | Validación en `.build()` | ✅ **Nueva** |
 | **INV-13** | No se elimina cuenta con transacciones | DB | `on_delete=PROTECT` | ✅ **Nueva** |
+| **INV-14** | Cuenta que no admite saldo negativo no queda negativa | Domain | `AccountType.allows_negative_balance()` + `TransactionRules.ensure_balance_allowed()`, verificado en el servicio bajo bloqueo y en `AccountBuilder` al crear | ✅ **Nueva** |
 
 **Nota sobre defensa en profundidad:** INV-04 y INV-09 aparecen en dos capas. La fuente autoritativa es el dominio; la constraint de base de datos es la red de seguridad ante escrituras que evadan la capa de servicios (migraciones de datos, shell de Django, procesos batch futuros). Esto es intencional y se documenta como tal, no es duplicación accidental.
 
@@ -480,7 +512,45 @@ classDiagram
         <<Value Object>>
         +str category_name
         +float confidence
-        +str source
+        +CategorizationSource source
+        +is_confident(threshold) bool
+    }
+
+    class CategorizationSource {
+        <<Value Object>>
+        +AI$
+        +RULE$
+        +MANUAL$
+    }
+
+    class AccountSnapshot {
+        <<Value Object>>
+        +UUID account_id
+        +str currency
+        +AccountType account_type
+        +bool is_archived
+        +Money balance
+    }
+
+    class TransactionDraft {
+        <<Value Object>>
+        +UUID account_id
+        +Money amount
+        +TransactionType transaction_type
+        +date occurred_on
+        +str description
+        +str category_name
+        +CategorizationSource categorization_source
+        +float confidence
+        +signed_amount() Money
+    }
+
+    class AccountDraft {
+        <<Value Object>>
+        +UUID user_id
+        +str name
+        +AccountType account_type
+        +Money initial_balance
     }
 
     class Categorizer {
@@ -507,7 +577,7 @@ classDiagram
         +occurred_on(date) TransactionBuilder
         +described_as(text) TransactionBuilder
         +categorized_by(categorizer) TransactionBuilder
-        +build() Transaction
+        +build() TransactionDraft
     }
 
     class AccountBuilder {
@@ -516,7 +586,7 @@ classDiagram
         +named(name) AccountBuilder
         +of_type(type) AccountBuilder
         +with_initial_balance(money) AccountBuilder
-        +build() Account
+        +build() AccountDraft
     }
 
     %% ============ CAPA INFRAESTRUCTURA ============
@@ -621,15 +691,20 @@ classDiagram
     TransactionService --> Categorizer : injected
     TransactionService ..> TransactionBuilder : uses
     TransactionService ..> BalanceCalculator : uses
+    TransactionService ..> TransactionDraft : persists
+    TransactionService ..> AccountSnapshot : builds from ORM
+    AccountService ..> AccountDraft : persists
     AccountService ..> AccountBuilder : uses
 
-    TransactionBuilder ..> Transaction : builds
+    TransactionBuilder ..> TransactionDraft : builds
+    TransactionBuilder ..> AccountSnapshot : consumes
     TransactionBuilder ..> Money : validates
     TransactionBuilder ..> TransactionType : validates
-    AccountBuilder ..> Account : builds
+    AccountBuilder ..> AccountDraft : builds
     AccountBuilder ..> AccountType : validates
 
     Categorizer ..> CategorySuggestion : returns
+    CategorySuggestion ..> CategorizationSource : uses
     BalanceCalculator ..> Money : operates
     ProfileService ..> UserProfile : manages
 ```
@@ -677,7 +752,7 @@ sequenceDiagram
         TS->>DB: SELECT ... FOR UPDATE (Account)
         DB-->>TS: Account bloqueada
 
-        TS->>B: for_account().with_amount().of_type()...
+        TS->>B: for_account(snapshot).with_amount().of_type()...
         B->>CAT: categorize(description, amount, type)
 
         alt Proveedor IA disponible
@@ -688,9 +763,11 @@ sequenceDiagram
         end
 
         B->>B: build() — INV-04, 08, 09, 11, 12
-        B-->>TS: Transaction (válida, no persistida)
+        B-->>TS: TransactionDraft (validado, no persistido)
 
-        TS->>DB: INSERT Transaction
+        TS->>TS: ensure_balance_allowed() — INV-14
+        TS->>DB: resolver category_name → Category
+        TS->>DB: INSERT Transaction (draft → fila)
         TS->>BC: apply(account.balance, amount, type)
         BC-->>TS: nuevo Money
         TS->>DB: UPDATE Account SET balance
@@ -847,6 +924,8 @@ flowchart TB
 | D-04 | Multi-moneda real | Una moneda por cuenta; sin conversión | Post-MVP |
 | D-05 | Eventos de dominio | No implementados; los contextos se comunican por llamada directa | Al añadir el segundo contexto Core |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
+| D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado | Entrega 2 |
+| D-08 | Enumeración de cuentas ajenas | `get_owned_account` devuelve 404 y no 403 para no revelar existencia | Cerrada |
 
 ---
 
@@ -862,7 +941,11 @@ flowchart TB
 | A-06 | Balance consistente | Test que registra N transacciones y compara `account.balance` con la suma |
 | A-07 | Ownership aplicado | Test que verifica que el usuario B no puede operar sobre la cuenta de A |
 | A-08 | LSP en categorizadores | La suite de `TransactionService` pasa con las tres implementaciones |
+| A-09 | Builder no conoce el ORM | `grep -rnE "finance\.(models\|infra)" finance/domain/` devuelve vacío |
+| A-10 | Servicio no conoce implementaciones concretas | `grep -rnE "AICategorizer\|RuleBasedCategorizer\|MockCategorizer" finance/services.py` devuelve vacío |
+| A-11 | Escritura bajo bloqueo | El SQL de `register_transaction` contiene `FOR UPDATE` |
+| A-12 | Categoría emitida siempre existe | Test de contrato entre el mapa de reglas y la tabla `Category` |
 
 ---
 
-*Finty · Documentación Consolidada v2.0 · 2026-08-21*
+*Finty · Documentación Consolidada v2.1 · 2026-08-23*

@@ -455,6 +455,102 @@ class TestBloqueoFueraDeTransaccion:
 
 
 # ---------------------------------------------------------------------------
+# Propiedad y aislamiento
+# ---------------------------------------------------------------------------
+
+
+class TestPropiedad:
+    """Criterio A-07: un usuario no alcanza datos de otro por ningun camino."""
+
+    def test_cuenta_ajena_da_not_found(self, other_user, accounts, account):
+        with pytest.raises(AccountNotFoundError):
+            accounts.get_owned_account(other_user, account.pk)
+
+    def test_cuenta_ajena_y_cuenta_inexistente_son_indistinguibles(
+        self, other_user, accounts, account
+    ):
+        """No distinguir revela menos: 403 delataria que el id esta en uso."""
+        from uuid import uuid4
+
+        with pytest.raises(AccountNotFoundError) as ajena:
+            accounts.get_owned_account(other_user, account.pk)
+        with pytest.raises(AccountNotFoundError) as inexistente:
+            accounts.get_owned_account(other_user, uuid4())
+
+        assert str(ajena.value) == str(inexistente.value)
+        assert ajena.value.code == inexistente.value.code
+
+    def test_no_puede_registrar_sobre_una_cuenta_ajena(self, other_user, account, service):
+        with pytest.raises(AccountNotFoundError):
+            registrar(service, other_user, account, "50000")
+
+        account.refresh_from_db()
+        assert account.balance == Decimal("1000000.00")
+
+    def test_no_puede_archivar_una_cuenta_ajena(self, other_user, accounts, account):
+        with pytest.raises(AccountNotFoundError):
+            accounts.archive_account(other_user, account.pk)
+
+    def test_no_puede_borrar_una_cuenta_ajena(self, other_user, accounts, account):
+        with pytest.raises(AccountNotFoundError):
+            accounts.delete_account(other_user, account.pk)
+
+    def test_no_puede_leer_una_transaccion_ajena(self, user, other_user, account, service):
+        movimiento = registrar(service, user, account, "50000")
+
+        with pytest.raises(TransactionNotFoundError):
+            service.get_transaction(other_user, movimiento.pk)
+
+    def test_no_puede_recategorizar_una_transaccion_ajena(
+        self, user, other_user, account, service
+    ):
+        movimiento = registrar(service, user, account, "50000")
+
+        with pytest.raises(TransactionNotFoundError):
+            service.recategorize(other_user, movimiento.pk, "Transporte")
+
+        movimiento.refresh_from_db()
+        assert movimiento.category.name == "Alimentación"
+
+    def test_no_puede_eliminar_una_transaccion_ajena(
+        self, user, other_user, account, service
+    ):
+        movimiento = registrar(service, user, account, "50000")
+
+        with pytest.raises(TransactionNotFoundError):
+            service.delete_transaction(other_user, movimiento.pk)
+
+        assert Transaction.objects.filter(pk=movimiento.pk).exists()
+
+    def test_list_transactions_nunca_devuelve_filas_ajenas(
+        self, user, other_user, accounts, account, service
+    ):
+        registrar(service, user, account, "50000")
+        ajena = accounts.create_account(other_user, "Suya", "cash", currency="COP")
+        registrar(service, other_user, ajena, "1000", "income", category_name="Salario")
+
+        de_ana = list(service.list_transactions(user))
+        de_juan = list(service.list_transactions(other_user))
+
+        assert len(de_ana) == 1
+        assert len(de_juan) == 1
+        assert de_ana[0].account.user_id == user.pk
+        assert de_juan[0].account.user_id == other_user.pk
+
+    def test_filtrar_por_una_cuenta_ajena_no_devuelve_nada(
+        self, user, other_user, account, service
+    ):
+        registrar(service, user, account, "50000")
+
+        assert not service.list_transactions(other_user, account_id=account.pk).exists()
+
+    def test_list_accounts_no_devuelve_cuentas_ajenas(
+        self, other_user, accounts, account
+    ):
+        assert list(accounts.list_accounts(other_user)) == []
+
+
+# ---------------------------------------------------------------------------
 # Invariantes en el servicio
 # ---------------------------------------------------------------------------
 

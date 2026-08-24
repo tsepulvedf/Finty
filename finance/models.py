@@ -107,6 +107,15 @@ class Account(models.Model):
     )
     name = models.CharField(max_length=120)
     type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
+    # Saldo con el que se abre la cuenta. **Inmutable tras la creacion**: ningun
+    # servicio lo modifica despues, y los `update_fields` de las escrituras de
+    # transacciones nombran solo `balance`. Es el termino independiente de INV-07
+    # (`balance = opening_balance + suma de movimientos`, correccion C-17): sin
+    # esta columna, recalcular desde cero devolveria solo la suma de movimientos
+    # y la cuenta perderia su saldo inicial.
+    opening_balance = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0.00")
+    )
     balance = models.DecimalField(
         max_digits=14, decimal_places=2, default=Decimal("0.00")
     )
@@ -134,6 +143,15 @@ class Account(models.Model):
             models.CheckConstraint(
                 condition=models.Q(currency__length=CURRENCY_CODE_LENGTH),
                 name="ck_account_currency_length",
+            ),
+            # INV-14 aplicada al instante de creacion: solo una cuenta de credito
+            # puede abrir en negativo. A diferencia del balance vivo, aqui si se
+            # puede expresar en la base, porque el saldo de apertura no depende de
+            # estado variable ni de funciones no inmutables.
+            models.CheckConstraint(
+                condition=models.Q(type=AccountType.CREDIT.value)
+                | models.Q(opening_balance__gte=0),
+                name="ck_account_opening_balance_sign",
             ),
         ]
 

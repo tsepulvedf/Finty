@@ -50,7 +50,6 @@ MANUAL_CATEGORY_CONFIDENCE = 1.0
 # con cualquier otra.
 UNIQUE_ACCOUNT_NAME_CONSTRAINT = "uniq_account_name_per_user"
 
-
 class AccountService:
     """Casos de uso sobre cuentas.
 
@@ -153,6 +152,48 @@ class AccountService:
         if not include_archived:
             accounts = accounts.filter(is_archived=False)
         return accounts
+
+    def rename_account(self, user, account_id, name):
+        """Renombra una cuenta del usuario.
+
+        Es lo unico que `PUT /accounts/{id}/` puede cambiar: el tipo, la moneda y
+        el saldo de apertura son inmutables tras la creacion, y el balance lo
+        mueven las transacciones, nunca una escritura directa.
+
+        La regla del nombre se reutiliza del Builder en lugar de reescribirla,
+        para que `create_account` y este metodo no puedan divergir.
+        """
+        account = self.get_owned_account(user, account_id)
+        cleaned_name = self._validate_account_name(name, account)
+
+        try:
+            # Mismo patron que `create_account`: el pre-chequeo no basta porque
+            # dos peticiones simultaneas ganarian la carrera. La constraint es la
+            # autoridad y este bloque atomico evita dejar la transaccion abortada.
+            with db_transaction.atomic():
+                account.name = cleaned_name
+                account.save(update_fields=["name", "updated_at"])
+        except IntegrityError as exc:
+            if UNIQUE_ACCOUNT_NAME_CONSTRAINT in str(exc):
+                raise DuplicateAccountNameError(
+                    f"Ya tienes una cuenta llamada '{cleaned_name}'."
+                ) from exc
+            raise
+
+        return account
+
+    @staticmethod
+    def _validate_account_name(name, account):
+        """Valida un nombre de cuenta con la misma regla que la creacion."""
+        draft = (
+            AccountBuilder()
+            .for_user(account.user_id)
+            .named(name)
+            .of_type(account.type)
+            .in_currency(account.currency)
+            .build()
+        )
+        return draft.name
 
     def archive_account(self, user, account_id):
         """Archiva una cuenta. Idempotente.

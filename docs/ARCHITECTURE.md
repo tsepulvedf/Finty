@@ -30,6 +30,8 @@
 | C-14 | `Transaction` | Sin registro de confianza | **Campo `categorization_confidence`** | Phase 0 exige explicabilidad con indicadores de confianza (mitigación de R-02) |
 | C-15 | Tipos enumerados del dominio | `@dataclass(frozen=True)` | **`enum.StrEnum`** | Inmutabilidad y conjunto cerrado por construcción; `.value` mapea directo a los `choices` del ORM |
 | C-16 | Cliente de IA | Implícitamente asumido | **Costura inyectada, sin implementación concreta** | Sin dependencias de red ni claves de API en el entregable; el respaldo determinista queda demostrado en código |
+| C-17 | Formulación de INV-07 | `balance = SUM(transacciones)` | **`balance = opening_balance + SUM(transacciones)`** | La fórmula original asumía tácitamente que toda cuenta abre en cero; con saldo de apertura, recalcular desde cero destruye dinero |
+| C-18 | Acceso a cuenta ajena | `AccountNotOwnedError` (403) | **`AccountNotFoundError` (404) en ambos casos** | Un 403 confirmaría que ese identificador existe en el sistema |
 
 ---
 
@@ -279,6 +281,7 @@ Tampoco entran al denominador los builders, la factory, los categorizadores conc
 | `user` | `ForeignKey(User, PROTECT)` | Sí | INV-03 |
 | `name` | `CharField(120)` | Sí | No vacío |
 | `type` | `CharField(choices=AccountType)` | Sí | Enum válido |
+| `opening_balance` | `DecimalField(14,2)` | Sí | Saldo al abrir la cuenta; inmutable tras la creación |
 | `balance` | `DecimalField(14,2)` | Sí | Derivado, persistido (INV-07) |
 | `currency` | `CharField(3)` | Sí | Default `COP` |
 | `is_archived` | `BooleanField` | Sí | Default `False` |
@@ -420,8 +423,11 @@ draft = (
 | Servicio | Método | Orquesta |
 |----------|--------|----------|
 | `AccountService` | `create_account(user, data)` | `AccountBuilder` → persistencia |
-| | `get_owned_account(user, account_id)` | INV-03, lanza `AccountNotOwnedError` |
-| | `archive_account(user, account_id)` | Verifica ausencia de transacciones |
+| | `get_owned_account(user, account_id)` | INV-03; consulta filtrada por usuario, lanza `AccountNotFoundError` tanto si no existe como si es ajena (C-18) |
+| | `get_locked_account(user, account_id)` | Igual, con `select_for_update()`; solo válido dentro de un bloque atómico |
+| | `build_snapshot(account)` | Único punto donde una fila se convierte en objeto de dominio |
+| | `archive_account(user, account_id)` | Archiva aunque haya transacciones; lo protegido es borrar, no archivar |
+| | `recompute_balance(user, account_id)` | `opening_balance + recompute(movimientos)`; operación de reparación |
 | `TransactionService` | `register_transaction(user, data)` | **Flujo completo**: ownership → Factory → Builder → atomic → BalanceCalculator |
 | | `recategorize(user, transaction_id, category)` | Reclasificación manual, INV-08 |
 | `ProfileService` | `complete_profile(user, data)` | Validación semántica del perfil |
@@ -448,7 +454,7 @@ La View no decide qué categorizador usar; pide uno a la Factory y lo inyecta. E
 | INV-04 | Monto de transacción distinto de cero | Domain + DB | `TransactionBuilder.build()` **y** `CheckConstraint(~Q(amount=0))` | ✅ |
 | INV-05 | Pago exitoso antes de activar suscripción | App | — | ⛔ Entrega 2 |
 | INV-06 | Premium requiere suscripción activa | Middleware | — | ⛔ Entrega 2 |
-| INV-07 | Balance consistente con transacciones | Domain | `BalanceCalculator` dentro de `transaction.atomic()` + `select_for_update()` | ✅ |
+| INV-07 | Balance consistente: `balance = opening_balance + Σ movimientos` | Domain | `BalanceCalculator` dentro de `transaction.atomic()` + `select_for_update()` | ✅ |
 | INV-08 | Categoría obligatoria tras procesamiento | Domain | `TransactionBuilder.build()` exige categoría si se invocó categorización | ✅ |
 | INV-09 | Tipo de transacción válido | DB | `TextChoices` + `CheckConstraint` | ✅ |
 | INV-10 | Email único por usuario | DB | `unique=True` en el modelo de usuario | ✅ |

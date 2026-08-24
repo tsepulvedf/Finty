@@ -114,11 +114,18 @@ class CategorizationSource(StrEnum):
     """Origen de la categoria asignada a una transaccion.
 
     Mapea al campo `categorization_source` de ARCHITECTURE.md 5.2.
+
+    Cada valor identifica **el mecanismo que realmente clasifico**, no el que se
+    pidio (A-14). Por eso `MOCK` existe como valor propio: un doble de pruebas
+    reportandose como `RULE` dejaria una traza de auditoria falsa. Por la misma
+    razon, cuando el clasificador de proveedor externo degrada a su respaldo, la
+    procedencia registrada es la del respaldo y no la suya.
     """
 
     AI = "ai"
     RULE = "rule"
     MANUAL = "manual"
+    MOCK = "mock"
 
 
 @dataclass(frozen=True)

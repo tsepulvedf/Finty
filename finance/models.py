@@ -46,6 +46,7 @@ CATEGORIZATION_SOURCE_CHOICES = [
     (CategorizationSource.AI.value, "IA"),
     (CategorizationSource.RULE.value, "Regla"),
     (CategorizationSource.MANUAL.value, "Manual"),
+    (CategorizationSource.MOCK.value, "Mock"),
 ]
 
 CURRENCY_CODE_LENGTH = 3

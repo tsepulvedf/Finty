@@ -104,9 +104,16 @@ class TestCategorizationSource:
         assert CategorizationSource.AI.value == "ai"
         assert CategorizationSource.RULE.value == "rule"
         assert CategorizationSource.MANUAL.value == "manual"
+        assert CategorizationSource.MOCK.value == "mock"
 
-    def test_solo_existen_tres_origenes(self):
-        assert len(list(CategorizationSource)) == 3
+    def test_existen_cuatro_origenes(self):
+        """`mock` se agrega en M7 (C-19) para no falsear la procedencia (A-14)."""
+        assert len(list(CategorizationSource)) == 4
+
+    def test_cada_mecanismo_tiene_su_propio_valor(self):
+        """A-14: ninguna procedencia se solapa con otra."""
+        valores = [member.value for member in CategorizationSource]
+        assert len(set(valores)) == len(valores)
 
 
 class TestCategorySuggestion:

@@ -219,3 +219,176 @@ class AccountService:
         if account is None:
             raise AccountNotFoundError()
         return account
+
+
+class TransactionService:
+    """Casos de uso sobre transacciones.
+
+    Recibe el categorizador por constructor y depende unicamente de la ABC
+    `Categorizer`. Nunca importa una implementacion concreta ni la fabrica: quien
+    elige cual usar es la vista, que pide una al Factory Method y la inyecta. Esa
+    es la inversion de dependencias del entregable (ARCHITECTURE.md 8, fila DIP).
+    """
+
+    def __init__(self, categorizer):
+        self._categorizer = categorizer
+        self._accounts = AccountService()
+
+    def register_transaction(
+        self,
+        user,
+        account_id,
+        amount,
+        transaction_type,
+        occurred_on,
+        description="",
+        category_name=None,
+    ):
+        """Registra una transaccion y actualiza el balance de la cuenta.
+
+        Es el flujo completo del entregable: propiedad, bloqueo, Builder,
+        categorizacion, INV-14 y persistencia, todo dentro de una unica
+        transaccion atomica. Cualquier fallo entre el bloqueo y el guardado
+        revierte la operacion entera: no puede quedar una transaccion creada con
+        el balance sin mover, ni al reves.
+
+        `amount` acepta un `Money` o un valor suelto. Si llega suelto se envuelve
+        con la moneda de la cuenta, para que la vista no tenga que consultar la
+        cuenta antes de llamar. Si llega como `Money`, se respeta tal cual y el
+        Builder verifica INV-11 contra la moneda de la cuenta.
+        """
+        with db_transaction.atomic():
+            account = self._accounts.get_locked_account(user, account_id)
+            snapshot = self._accounts.build_snapshot(account)
+
+            builder = (
+                TransactionBuilder()
+                .for_account(snapshot)
+                .with_amount(self._as_money(amount, snapshot.currency))
+                .of_type(transaction_type)
+                .occurred_on(occurred_on)
+                .described_as(description)
+            )
+            if category_name is not None:
+                builder.with_manual_category(category_name)
+            else:
+                builder.categorized_by(self._categorizer)
+
+            draft = builder.build()
+
+            new_balance = BalanceCalculator.apply(
+                snapshot.balance, draft.amount, draft.transaction_type
+            )
+            # INV-14: la verificacion que el Builder deja pendiente a proposito.
+            # Aqui el saldo si es autoritativo porque la fila esta bloqueada.
+            TransactionRules.ensure_balance_allowed(
+                snapshot.account_type, new_balance
+            )
+
+            category = self._resolve_category(
+                draft.category_name, draft.transaction_type
+            )
+
+            created = Transaction.objects.create(
+                **self._draft_to_model_kwargs(draft, account, category)
+            )
+
+            account.balance = new_balance.amount
+            # `updated_at` es auto_now, pero con update_fields solo se escribe si
+            # se nombra explicitamente.
+            account.save(update_fields=["balance", "updated_at"])
+
+            return created
+
+    def list_transactions(
+        self, user, account_id=None, category_id=None, date_from=None, date_to=None
+    ):
+        """Devuelve las transacciones del usuario, con filtros opcionales.
+
+        Siempre acotada a las cuentas del usuario: no hay combinacion de filtros
+        que alcance una transaccion ajena. `select_related` evita el N+1 que
+        produciria el dashboard al leer cuenta y categoria de cada fila.
+        """
+        movements = Transaction.objects.filter(account__user=user).select_related(
+            "account", "category"
+        )
+        if account_id is not None:
+            movements = movements.filter(account_id=account_id)
+        if category_id is not None:
+            movements = movements.filter(category_id=category_id)
+        if date_from is not None:
+            movements = movements.filter(occurred_on__gte=date_from)
+        if date_to is not None:
+            movements = movements.filter(occurred_on__lte=date_to)
+        return movements
+
+    def get_transaction(self, user, transaction_id):
+        """Devuelve una transaccion del usuario o lanza `TransactionNotFoundError`.
+
+        Misma politica que `get_owned_account`: una transaccion ajena y una
+        inexistente producen la misma respuesta.
+        """
+        try:
+            movement = (
+                Transaction.objects.select_related("account", "category")
+                .filter(account__user=user, pk=transaction_id)
+                .first()
+            )
+        except (DjangoValidationError, ValueError, TypeError) as exc:
+            raise TransactionNotFoundError() from exc
+
+        if movement is None:
+            raise TransactionNotFoundError()
+        return movement
+
+    @staticmethod
+    def _as_money(amount, currency):
+        """Envuelve el monto en la moneda de la cuenta si no es ya un `Money`."""
+        if isinstance(amount, Money):
+            return amount
+        return Money(amount, currency)
+
+    @staticmethod
+    def _resolve_category(category_name, transaction_type):
+        """Resuelve el nombre de categoria contra el catalogo persistido.
+
+        Es la segunda verificacion que el dominio no puede hacer solo: el catalogo
+        vive en la base y el dominio no la consulta.
+        """
+        if category_name is None:
+            return None
+
+        category = Category.objects.filter(name=category_name).first()
+        if category is None:
+            raise CategoryNotFoundError(
+                f"No existe la categoria '{category_name}'."
+            )
+
+        if category.applies_to != transaction_type.value:
+            raise CategoryTypeMismatchError(
+                f"La categoria '{category.name}' aplica a movimientos de tipo "
+                f"'{category.applies_to}', no a '{transaction_type.value}'."
+            )
+        return category
+
+    @staticmethod
+    def _draft_to_model_kwargs(draft, account, category):
+        """Traduce un `TransactionDraft` a columnas.
+
+        Mapeo campo por campo, nunca una conversion automatica del dataclass:
+        `amount` es un `Money` y la columna es un `DecimalField`, los enums se
+        persisten por su `.value` y `account_id` se reemplaza por la instancia ya
+        recuperada. Este metodo **es la frontera**; que sea explicito es
+        precisamente la razon de que el dominio no necesite saber de columnas.
+        """
+        source = draft.categorization_source
+        return {
+            "account": account,
+            "amount": draft.amount.amount,
+            "type": draft.transaction_type.value,
+            "category": category,
+            "description": draft.description,
+            "occurred_on": draft.occurred_on,
+            "categorization_source": source.value if source is not None else None,
+            "categorization_confidence": draft.confidence,
+        }

@@ -113,3 +113,21 @@ class NegativeAmountError(ValidationError):
 
     default_code = "negative_amount"
     default_message = "El monto de la transaccion no puede ser negativo."
+
+
+class DuplicateAccountNameError(BusinessRuleError):
+    """El usuario ya tiene una cuenta con ese nombre."""
+
+    default_code = "duplicate_account_name"
+    default_message = "Ya tienes una cuenta con ese nombre."
+
+
+class CategoryTypeMismatchError(ValidationError):
+    """La categoria no aplica al tipo de la transaccion.
+
+    Una categoria de gasto asignada a un ingreso, o al reves. El catalogo declara
+    a que tipo aplica cada categoria y esa correspondencia no es negociable.
+    """
+
+    default_code = "category_type_mismatch"
+    default_message = "La categoria no corresponde al tipo de la transaccion."

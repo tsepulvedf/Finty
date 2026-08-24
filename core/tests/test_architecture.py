@@ -46,6 +46,8 @@ MODULOS_DE_SERIALIZERS = (
     "identity/api/serializers.py",
 )
 
+PAQUETES_DE_COMANDOS = ("finance/management/commands",)
+
 # Piezas del dominio que una vista jamas debe manipular directamente: si las
 # necesita, es que esta haciendo el trabajo del servicio.
 PIEZAS_DE_DOMINIO_VETADAS_EN_VISTAS = (
@@ -294,6 +296,90 @@ class TestVistasSinLogica:
                             if hasattr(n, "lineno")
                         )
         return lineas
+
+
+class TestComandosSinLogica:
+    """Un comando de gestion es un mecanismo de entrega, igual que una vista.
+
+    Le aplica el mismo criterio: orquesta llamadas al servicio y formatea la
+    salida, pero no calcula, no reimplementa reglas y no consulta el ORM. Un
+    comando que recalculara el balance por su cuenta duplicaria `BalanceCalculator`
+    y podria estar de acuerdo con un error del servicio.
+    """
+
+    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
+    def test_no_importan_piezas_del_dominio(self, ruta):
+        importados = simbolos_importados(arbol_de(ruta))
+        vetados = importados & set(PIEZAS_DE_DOMINIO_VETADAS_EN_VISTAS)
+
+        assert not vetados, (
+            f"{ruta} importa piezas del dominio: {sorted(vetados)}. Un comando "
+            f"pide los datos ya calculados al servicio."
+        )
+
+    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
+    def test_no_importan_modelos(self, ruta):
+        importados = modulos_importados(arbol_de(ruta))
+        vetados = [
+            modulo
+            for modulo in importados
+            if modulo.endswith(".models") or modulo.endswith("models")
+        ]
+
+        assert not vetados, (
+            f"{ruta} importa modelos directamente: {vetados}. El acceso a datos "
+            f"pasa por un servicio."
+        )
+
+    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
+    def test_no_importan_el_dominio_ni_la_infraestructura(self, ruta):
+        importados = modulos_importados(arbol_de(ruta))
+        vetados = [
+            modulo
+            for modulo in importados
+            for prohibido in ("finance.domain", "finance.infra", "core.domain")
+            if coincide(modulo, prohibido)
+        ]
+
+        assert not vetados, f"{ruta} importa {vetados}; solo puede usar servicios."
+
+    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
+    def test_cero_aritmetica(self, ruta):
+        """Si un comando suma, esta calculando algo que le toca al dominio.
+
+        El formateo de anchos de columna usa multiplicacion de cadenas y sumas de
+        enteros, asi que se excluyen los modulos de soporte y se revisa solo el
+        cuerpo de `handle`, que es donde viviria una regla infiltrada.
+        """
+        arbol = arbol_de(ruta)
+        handles = [
+            nodo
+            for nodo in ast.walk(arbol)
+            if isinstance(nodo, ast.FunctionDef) and nodo.name == "handle"
+        ]
+
+        operaciones = [
+            nodo.lineno
+            for handle in handles
+            for nodo in ast.walk(handle)
+            if isinstance(nodo, ast.BinOp)
+            and isinstance(nodo.op, (ast.Add, ast.Sub, ast.Mult, ast.Div))
+        ]
+
+        assert not operaciones, (
+            f"{ruta}: handle() hace aritmetica en la(s) linea(s) {operaciones}"
+        )
+
+    def test_se_encontraron_comandos(self):
+        """Test centinela: sin el, mover el paquete dejaria la suite en verde."""
+        comandos = [
+            ruta
+            for ruta in modulos_de(*PAQUETES_DE_COMANDOS)
+            if not ruta.endswith("__init__.py")
+        ]
+
+        assert comandos, "No se encontro ningun comando de gestion que analizar"
+        assert any(r.endswith("verify_invariants.py") for r in comandos)
 
 
 class TestModelosAnemicos:

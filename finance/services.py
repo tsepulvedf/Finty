@@ -86,6 +86,10 @@ class AccountService:
                     user=user,
                     name=draft.name,
                     type=draft.account_type.value,
+                    # El saldo de apertura y el saldo vivo arrancan iguales y solo
+                    # coinciden en este instante: `balance` se movera con cada
+                    # transaccion y `opening_balance` no vuelve a tocarse.
+                    opening_balance=draft.initial_balance.amount,
                     balance=draft.initial_balance.amount,
                     currency=draft.initial_balance.currency,
                 )
@@ -179,16 +183,14 @@ class AccountService:
         """Recalcula el balance desde las transacciones y lo persiste (INV-07).
 
         Es la operacion de reparacion y la referencia autoritativa de la
-        invariante: el balance persistido debe coincidir siempre con lo que
-        devuelve `BalanceCalculator.recompute` sobre todas las transacciones.
-        Corre bajo bloqueo para que ninguna escritura se cuele a mitad del
-        recuento.
+        invariante en su formulacion corregida (C-17):
+        `balance = opening_balance + suma de movimientos`. El recuento parte del
+        saldo de apertura, no de cero, para que reparar una cuenta abierta con
+        saldo inicial no lo destruya.
 
-        **Limitacion conocida:** recalcula partiendo de cero, porque el modelo no
-        guarda el saldo de apertura en una columna aparte. En una cuenta creada
-        con saldo inicial distinto de cero, ese saldo se pierde al reparar.
-        Resolverlo exige una columna `opening_balance`, fuera del alcance de este
-        modulo.
+        Corre bajo bloqueo para que ninguna escritura se cuele a mitad del
+        recuento. No toca `opening_balance`: ese valor es inmutable tras la
+        creacion.
         """
         with db_transaction.atomic():
             account = self.get_locked_account(user, account_id)
@@ -200,7 +202,7 @@ class AccountService:
                 for row in account.transactions.all().order_by("occurred_on", "created_at")
             ]
             recomputed = BalanceCalculator.recompute(
-                Money.zero(account.currency), movements
+                Money(account.opening_balance, account.currency), movements
             )
             account.balance = recomputed.amount
             account.save(update_fields=["balance", "updated_at"])

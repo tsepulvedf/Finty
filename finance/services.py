@@ -50,6 +50,11 @@ MANUAL_CATEGORY_CONFIDENCE = 1.0
 # con cualquier otra.
 UNIQUE_ACCOUNT_NAME_CONSTRAINT = "uniq_account_name_per_user"
 
+# Moneda por defecto de una cuenta. Se lee de la columna para que el default viva
+# en un solo sitio: ARCHITECTURE.md 5.2 lo declara como propiedad del modelo.
+DEFAULT_ACCOUNT_CURRENCY = Account._meta.get_field("currency").get_default()
+
+
 class AccountService:
     """Casos de uso sobre cuentas.
 
@@ -65,14 +70,25 @@ class AccountService:
         Toda la validacion de negocio ocurre en `AccountBuilder.build()`: nombre
         no vacio, tipo valido, moneda valida e INV-14 sobre el saldo inicial. Este
         metodo solo traduce el draft a columnas.
+
+        `initial_balance` acepta un `Money` o un valor suelto que se envuelve con
+        la moneda de la cuenta, igual que hace `register_transaction`. Asi la vista
+        pasa el `Decimal` del serializer sin tener que construir un objeto de
+        dominio, que seria logica fuera de su lugar.
         """
+        account_currency = self._resolve_currency(currency, initial_balance)
+
         builder = (
-            AccountBuilder().for_user(user.pk).named(name).of_type(account_type)
+            AccountBuilder()
+            .for_user(user.pk)
+            .named(name)
+            .of_type(account_type)
+            .in_currency(account_currency)
         )
         if initial_balance is not None:
-            builder.with_initial_balance(initial_balance)
-        if currency is not None:
-            builder.in_currency(currency)
+            builder.with_initial_balance(
+                self._as_money(initial_balance, account_currency)
+            )
 
         draft = builder.build()
 
@@ -181,6 +197,28 @@ class AccountService:
             raise
 
         return account
+
+    @staticmethod
+    def _resolve_currency(currency, initial_balance):
+        """Decide la moneda de la cuenta a partir de lo que llego.
+
+        La moneda declarada manda; si no viene, se toma la del saldo inicial
+        cuando este ya es un `Money`; y si tampoco, se usa el valor por defecto
+        de la columna. Ese default se lee del propio campo para no repetir el
+        literal en dos sitios que podrian divergir.
+        """
+        if currency is not None:
+            return currency
+        if isinstance(initial_balance, Money):
+            return initial_balance.currency
+        return DEFAULT_ACCOUNT_CURRENCY
+
+    @staticmethod
+    def _as_money(amount, currency):
+        """Envuelve el saldo inicial en la moneda de la cuenta si no lo esta ya."""
+        if isinstance(amount, Money):
+            return amount
+        return Money(amount, currency)
 
     @staticmethod
     def _validate_account_name(name, account):

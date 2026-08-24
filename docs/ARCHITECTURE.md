@@ -3,7 +3,7 @@
 **Versión:** 2.1
 **Fecha:** 2026-08-23
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
-**Cambios de v2.1:** correcciones derivadas de la implementación de los módulos M0–M4 (ver §0, filas C-11 a C-16)
+**Cambios de v2.1:** correcciones derivadas de la implementación de los módulos M0–M5.1 (ver §0, filas C-11 a C-18)
 **Alcance:** Documento único de referencia para la implementación en Django + Django REST Framework
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -854,11 +854,13 @@ flowchart TB
 │   └── login/             POST    → token
 ├── profile/               GET,PUT → perfil del usuario autenticado
 ├── accounts/              GET,POST
-│   └── {id}/              GET,PUT,DELETE
+│   ├── {id}/              GET,PUT,DELETE
+│   └── {id}/archive/      POST    → archivar (no borra)
 ├── categories/            GET     → catálogo (read-only)
+│   └── {id}/              GET
 └── transactions/          GET,POST
     ├── {id}/              GET,DELETE
-    └── {id}/categorize/   POST    → reclasificación
+    └── {id}/categorize/   POST    → reclasificación manual
 ```
 
 **Versionado desde el día 1 (`/api/v1/`):** cuando el Gateway de producción tenga que enrutar `/api/v2/transactions/` a un microservicio nuevo mientras `/api/v1/` sigue apuntando al monolito, el Strangler Pattern se aplica sin romper clientes.

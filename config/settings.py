@@ -75,7 +75,12 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # `frontend/` aloja el cliente de demostracion. Se registra como
+        # directorio de plantillas solo para que Django pueda servir el archivo:
+        # la plantilla no recibe contexto y no interpola ningun dato de negocio.
+        # Todo lo que muestra lo pide a /api/v1/, igual que lo haria un cliente
+        # externo.
+        "DIRS": [BASE_DIR / "frontend"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

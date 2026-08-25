@@ -3,7 +3,7 @@
 Responsabilidad exclusivamente sintactica: formato, tipos, longitudes y campos
 requeridos. Ninguna regla de negocio y ningun `validate_*()` que consulte la
 base de datos: que un email ya este registrado lo decide `ProfileService`, no un
-serializer (CLAUDE.md, regla 4).
+serializer (RULES.md, regla 4).
 
 Los serializers de entrada son `Serializer` plano y no `ModelSerializer` a
 proposito: el contrato de la API no debe quedar atado a la forma de la tabla.

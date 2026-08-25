@@ -4,7 +4,7 @@ Cada view hace exactamente cuatro cosas: validar con el serializer, obtener sus
 dependencias, llamar al servicio y traducir el resultado a HTTP. Ningun calculo,
 ningun `if` sobre reglas de negocio y **ningun `try/except`**: las excepciones de
 dominio las traduce el handler global de `core/api/exception_handler.py`
-(CLAUDE.md, regla 3).
+(RULES.md, regla 3).
 
 **Por que conviven `ModelViewSet` y `APIView` (ADR-05).** El criterio es si la
 operacion solo lee y escribe filas o si ejecuta reglas de negocio. `Category` es

@@ -3,7 +3,7 @@
 Cada view hace exactamente cuatro cosas: validar con el serializer, llamar al
 service, serializar la salida y elegir el codigo HTTP. Ningun calculo, ningun
 `if` sobre reglas de negocio y ningun `try/except` alrededor del service: las
-excepciones de dominio las traduce el handler global (CLAUDE.md, regla 3).
+excepciones de dominio las traduce el handler global (RULES.md, regla 3).
 """
 from rest_framework import status
 from rest_framework.permissions import AllowAny

@@ -1,7 +1,7 @@
 """Comando de auditoria de invariantes.
 
 **Un comando de gestion es un mecanismo de entrega, igual que una vista.** Le
-aplica la regla 3 de `CLAUDE.md` sin descuento: no calcula nada, no reimplementa
+aplica la regla 3 de `RULES.md` sin descuento: no calcula nada, no reimplementa
 ninguna regla y no consulta el ORM. Solo pide datos al servicio, los formatea y
 elige un codigo de salida.
 

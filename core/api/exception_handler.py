@@ -2,7 +2,7 @@
 
 Este es el unico punto del sistema donde un `DomainError` se convierte en un
 codigo de estado HTTP. Gracias a el, los services lanzan excepciones puras de
-dominio y las views no traducen nada a mano (CLAUDE.md, regla 3).
+dominio y las views no traducen nada a mano (RULES.md, regla 3).
 """
 from rest_framework import status
 from rest_framework.response import Response

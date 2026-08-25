@@ -3,7 +3,7 @@
 Responsabilidad exclusivamente sintactica: formato, tipos, longitudes y campos
 requeridos. Ningun `validate_*()` consulta la base de datos. Que una categoria
 exista, que la cuenta sea del usuario o que el balance quede negativo son
-decisiones del servicio, no del serializer (CLAUDE.md, regla 4).
+decisiones del servicio, no del serializer (RULES.md, regla 4).
 
 **Entradas con `Serializer` plano, salidas con `ModelSerializer`.** No es
 inconsistencia sino dos problemas distintos: el contrato de entrada no debe

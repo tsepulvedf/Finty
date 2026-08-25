@@ -2,7 +2,7 @@
 
 `ProfileService` orquesta el registro, la autenticacion y la gestion del perfil.
 Es la unica capa de este contexto donde vive logica: las views solo traducen a
-HTTP y los serializers solo validan sintaxis (CLAUDE.md, reglas 3 y 4).
+HTTP y los serializers solo validan sintaxis (RULES.md, reglas 3 y 4).
 
 Puede importar Django, pero traduce toda falla del framework a excepciones de
 dominio antes de devolver el control: ninguna `ValidationError` de Django ni

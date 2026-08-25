@@ -164,7 +164,7 @@ El detalle del corte y su justificación están en la §4 de [`docs/ARCHITECTURE
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisiones arquitectónicas, modelo de dominio, patrones creacionales, catálogo de invariantes, diagramas y glosario. Es la fuente única de verdad.
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — cada criterio de aceptación mapeado al test que lo demuestra y al comando que lo ejecuta.
-- `CLAUDE.md` — reglas de trabajo sobre el código.
+- `RULES.md` — reglas de trabajo sobre el código.
 
 ## Licencia y autoría
 

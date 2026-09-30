@@ -1,5 +1,12 @@
 # Finty — Documentación Consolidada de Arquitectura y Dominio
 
+> **Extensión Taller 02:** la extracción autorizada de clasificación agrega
+> Flask y el proveedor `REMOTE`. El diseño híbrido vigente se detalla en
+> `docs/wiki/Migracion-a-Microservicios-Strangler-Pattern.md`. Se conservan los
+> contratos, invariantes financieras y las tres apps de la Entrega 1. Las
+> referencias siguientes a ausencia de red describen la implementación base;
+> con `REMOTE` se habilita una llamada HTTP interna con respaldo local.
+
 **Versión:** 2.1
 **Fecha:** 2026-08-23
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1

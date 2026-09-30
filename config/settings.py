@@ -171,3 +171,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Proveedor de clasificacion que resolvera CategorizerFactory (M4).
 CATEGORIZER_PROVIDER = _env("CATEGORIZER_PROVIDER", "RULE")
+CATEGORIZATION_SERVICE_URL = _env(
+    "CATEGORIZATION_SERVICE_URL", "http://flask_categorization:5000/api/v2/categorization/"
+)
+CATEGORIZATION_SERVICE_TOKEN = _env("CATEGORIZATION_SERVICE_TOKEN", "")
+CATEGORIZATION_TIMEOUT_SECONDS = float(_env("CATEGORIZATION_TIMEOUT_SECONDS", "1.0"))
+if not 0 < CATEGORIZATION_TIMEOUT_SECONDS <= 5:
+    raise RuntimeError("CATEGORIZATION_TIMEOUT_SECONDS debe estar entre 0 y 5.")

@@ -88,15 +88,17 @@ class TestAvailableProviders:
     def test_devuelve_una_tupla(self):
         assert isinstance(CategorizerFactory.available_providers(), tuple)
 
-    def test_contiene_los_tres_proveedores(self):
-        assert set(CategorizerFactory.available_providers()) == {"RULE", "AI", "MOCK"}
+    def test_contiene_los_cuatro_proveedores(self):
+        assert set(CategorizerFactory.available_providers()) == {"RULE", "AI", "MOCK", "REMOTE"}
 
+    @override_settings(CATEGORIZATION_SERVICE_TOKEN="test-key")
     def test_todo_valor_listado_es_despachable(self):
         """Ningun proveedor anunciado puede fallar al instanciarse."""
         for proveedor in CategorizerFactory.available_providers():
             with override_settings(CATEGORIZER_PROVIDER=proveedor):
                 assert CategorizerFactory.get_categorizer() is not None
 
+    @override_settings(CATEGORIZATION_SERVICE_TOKEN="test-key")
     def test_toda_instancia_devuelta_es_un_categorizer(self):
         """Es lo que permite inyectarlas indistintamente en el Service."""
         for proveedor in CategorizerFactory.available_providers():

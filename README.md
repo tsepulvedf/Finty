@@ -1,5 +1,11 @@
 # Finty
 
+> **Taller 02:** arquitectura híbrida Django + Flask con Strangler Pattern.
+> Instrucciones de ejecución: [`docs/TALLER02.md`](docs/TALLER02.md).
+> Documentación para la Wiki: [`Migración a Microservicios (Strangler Pattern)`](docs/wiki/Migracion-a-Microservicios-Strangler-Pattern.md).
+> Las descripciones de Entrega 1 de este README se conservan como referencia;
+> el taller agrega el proveedor `REMOTE`, Flask y Gunicorn (ver sus requirements).
+
 Plataforma web B2C de finanzas personales. Permite a una persona registrar sus cuentas y movimientos, clasificarlos automáticamente y consultar su balance consolidado. Está construida como un **monolito Django de grado empresarial** sobre una arquitectura por capas de tres anillos: un núcleo de dominio en Python puro que no conoce el framework, una capa de servicios que orquesta los casos de uso, y una capa externa con el ORM, la API REST y los adaptadores de infraestructura. Esa separación es el punto del proyecto: cambiar de framework debería tocar únicamente el anillo más externo.
 
 ---

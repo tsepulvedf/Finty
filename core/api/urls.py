@@ -51,6 +51,7 @@ class HealthView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = []
 
     def get(self, request):
         """Reporta que la API responde y con que version del contrato."""

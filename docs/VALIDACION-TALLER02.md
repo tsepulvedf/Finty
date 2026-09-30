@@ -93,24 +93,16 @@ suite con distintas selecciones.
 
 ## 5. Publicación y revisión del equipo
 
-Se verificó la rama publicada `feat/taller02-strangler`, con los cuatro commits
-del taller y los logs en `docs/evidencias/taller02-consola.txt`. El commit de
-documentación revisado es `6f30b1f`.
+Se verificó la rama publicada `feat/taller02-strangler`, que contiene los commits semánticos de implementación, infraestructura, pruebas y documentación del taller. El ajuste documental de cierre está incorporado en el commit `18b071d`. Las salidas de las comprobaciones se conservan en `docs/evidencias/taller02-consola.txt`.
 
-- Código: https://github.com/tsepulvedf/Finty/tree/feat/taller02-strangler
-- Pull Request: https://github.com/tsepulvedf/Finty/pull/1
-- La Wiki está publicada; la aclaración de alcance dirige a la rama del taller.
+- [Código del Taller 02](https://github.com/tsepulvedf/Finty/tree/feat/taller02-strangler).
+- [Pull Request #1](https://github.com/tsepulvedf/Finty/pull/1).
+- [Wiki de la entrega](https://github.com/tsepulvedf/Finty/wiki/Migraci%C3%B3n-a-Microservicios-%28Strangler-Pattern%29).
 
-El PR #1 está abierto y sin merge. Ese estado es intencional: el Taller 02 se
-entrega en su rama y `main` conserva la versión anterior. El merge no es un
-paso pendiente de esta entrega.
+El PR #1 permanece abierto y sin merge de forma intencional. El Taller 02 se entrega en su rama independiente y `main` conserva la versión correspondiente a la entrega anterior.
 
-Los cuatro commits revisados están atribuidos a Tomás. Falta acreditar una
-revisión o aporte real de otro integrante, con su identidad y evidencia en el
-PR o historial. La existencia del PR, por sí sola, no demuestra colaboración.
+Los commits de implementación revisados están atribuidos a Tomás. La participación de otro integrante queda registrada mediante el [comentario técnico de `RestrepoJuanP`](https://github.com/tsepulvedf/Finty/pull/1#issuecomment-5921030263), publicado el 30 de septiembre de 2026. El comentario analiza la separación de responsabilidades y señala el posible impacto de realizar la llamada remota dentro de la transacción que bloquea la cuenta.
 
-Antes del envío, publicar el ajuste documental de cierre y confirmar que la
-Wiki muestra las 1582 pruebas aprobadas y usa el título exacto del taller.
+La Wiki publicada incluye los resultados de las **1582 pruebas aprobadas**, la validación de Docker y Nginx, y la prueba de respaldo local con Flask detenido. También identifica la rama evaluable y explica el alcance independiente de esta entrega.
 
-No hay benchmark de rendimiento ni acreditación de bonificación temporal.
-Los 151.68 segundos son tiempo de pruebas, no latencia del sistema.
+No hay benchmark de rendimiento ni acreditación de bonificación temporal. Los 151.68 segundos registrados corresponden al tiempo de ejecución de las pruebas, no a la latencia del sistema.

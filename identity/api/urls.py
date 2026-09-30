@@ -8,8 +8,10 @@ de ARCHITECTURE.md 10.2.
 from django.urls import path
 
 from identity.api.views import LoginAPIView, ProfileAPIView, RegisterAPIView
+from identity.api.auth_verify import AuthVerifyAPIView
 
 urlpatterns = [
+    path("auth/verify/", AuthVerifyAPIView.as_view(), name="auth-verify"),
     path("auth/register/", RegisterAPIView.as_view(), name="register"),
     path("auth/login/", LoginAPIView.as_view(), name="login"),
     path("profile/", ProfileAPIView.as_view(), name="profile"),

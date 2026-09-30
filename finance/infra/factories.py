@@ -19,6 +19,7 @@ Esta capa si puede importar Django: es infraestructura, no dominio.
 """
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from finance.infra.remote_categorizer import RemoteCategorizer
 
 from finance.infra.categorizers import (
     AICategorizer,
@@ -29,6 +30,16 @@ from finance.infra.categorizers import (
 PROVIDER_RULE = "RULE"
 PROVIDER_AI = "AI"
 PROVIDER_MOCK = "MOCK"
+PROVIDER_REMOTE = "REMOTE"
+
+
+def _build_remote():
+    """Inyecta el servicio extraido sin modificar services ni builders."""
+    if not settings.CATEGORIZATION_SERVICE_TOKEN:
+        raise ImproperlyConfigured("REMOTE requiere CATEGORIZATION_SERVICE_TOKEN.")
+    return RemoteCategorizer(settings.CATEGORIZATION_SERVICE_URL,
+                             settings.CATEGORIZATION_SERVICE_TOKEN,
+                             settings.CATEGORIZATION_TIMEOUT_SECONDS)
 
 
 def _build_rule_based():
@@ -56,6 +67,7 @@ PROVIDER_BUILDERS = {
     PROVIDER_RULE: _build_rule_based,
     PROVIDER_AI: _build_ai,
     PROVIDER_MOCK: _build_mock,
+    PROVIDER_REMOTE: _build_remote,
 }
 
 

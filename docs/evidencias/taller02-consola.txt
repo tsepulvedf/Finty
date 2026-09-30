@@ -1,0 +1,233 @@
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02
+$ git clone https://github.com/tsepulvedf/Finty.git Finty-entrega
+cd Finty-entrega
+git switch -c feat/taller02-strangler
+git apply --check ../taller02.patch
+Cloning into 'Finty-entrega'...
+remote: Enumerating objects: 554, done.
+remote: Counting objects: 100% (554/554), done.
+remote: Compressing objects: 100% (306/306), done.
+remote: Total 554 (delta 275), reused 429 (delta 238), pack-reused 0 (from 0)
+Receiving objects: 100% (554/554), 313.60 KiB | 794.00 KiB/s, done.
+Resolving deltas: 100% (275/275), done.
+Switched to a new branch 'feat/taller02-strangler'
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ git apply ../taller02.patch
+git status
+On branch feat/taller02-strangler
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   README.md
+        modified:   config/settings.py
+        modified:   core/tests/test_architecture.py
+        modified:   docs/ARCHITECTURE.md
+        modified:   finance/infra/factories.py
+        modified:   finance/tests/test_categorizer_factory.py
+        modified:   identity/api/urls.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        .dockerignore
+        .env.docker.example
+        .gitignore
+        Dockerfile
+        docker-compose.yml
+        docs/TALLER02.md
+        docs/VALIDACION-TALLER02.md
+        docs/wiki/
+        finance/infra/remote_categorizer.py
+        finance/tests/test_remote_categorizer.py
+        identity/api/auth_verify.py
+        identity/tests/test_auth_verify.py
+        infra/
+        requirements-container.txt
+        requirements-test.txt
+        scripts/
+        services/
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ python scripts/setup_taller_env.py
+docker compose --env-file .env.docker config --quiet
+Configuracion .env.docker creada. Puedes iniciar Docker Compose.
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ docker compose --env-file .env.docker up --build --wait --wait-timeout 300
+[+] up 27/27
+ ✔ Image postgres:18       Pulled                                                                                                                   48.7s
+ ✔ Image nginx:1.28-alpine Pulled                                                                                                                   25.2s
+[+] Building 38.1s (27/27) FINISHED                                                                                                                      
+ => [internal] load local bake definitions                                                                                                          0.1s
+ => => reading from stdin 1.22kB                                                                                                                    0.1s
+ => [flask_categorization internal] load build definition from Dockerfile                                                                           0.1s
+ => => transferring dockerfile: 900B                                                                                                                0.0s
+ => [django_web internal] load build definition from Dockerfile                                                                                     0.1s
+ => => transferring dockerfile: 490B                                                                                                                0.0s
+ => [django_web internal] load metadata for docker.io/library/python:3.12-slim                                                                      1.6s
+ => [flask_categorization internal] load .dockerignore                                                                                              0.0s
+ => => transferring context: 166B                                                                                                                   0.0s
+ => [flask_categorization  1/12] FROM docker.io/library/python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f    5.3s
+ => => resolve docker.io/library/python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f                           0.0s
+ => => sha256:06ad939ed42b51caafb25b14810875d14e0ee0c441d3e2e5e46475fb8c150bca 249B / 249B                                                          0.1s
+ => => sha256:b0dc7f87bef15c2536cb182d6c48b52f90a0522884ec9eb222f833fa97ffebf0 12.12MB / 12.12MB                                                    3.9s
+ => => sha256:3764a9a7d1e8a98213ab2201a41dbf3da9c60240ea35a5ea96ab994555070a70 1.29MB / 1.29MB                                                      2.2s
+ => => extracting sha256:3764a9a7d1e8a98213ab2201a41dbf3da9c60240ea35a5ea96ab994555070a70                                                           0.3s
+ => => extracting sha256:b0dc7f87bef15c2536cb182d6c48b52f90a0522884ec9eb222f833fa97ffebf0                                                           1.0s
+ => => extracting sha256:06ad939ed42b51caafb25b14810875d14e0ee0c441d3e2e5e46475fb8c150bca                                                           0.1s
+ => [flask_categorization internal] load build context                                                                                              0.1s
+ => => transferring context: 137.65kB                                                                                                               0.1s
+ => [django_web internal] load build context                                                                                                        0.3s
+ => => transferring context: 842.71kB                                                                                                               0.3s
+ => [django_web  2/12] WORKDIR /app                                                                                                                 0.9s
+ => [django_web 3/6] COPY requirements*.txt ./                                                                                                      0.1s
+ => [flask_categorization  3/12] COPY services/categorization/requirements.txt /tmp/requirements.txt                                                0.1s
+ => [django_web 4/6] RUN pip install --no-cache-dir -r requirements-container.txt && useradd --create-home appuser                                 18.6s
+ => [flask_categorization  4/12] RUN pip install --no-cache-dir -r /tmp/requirements.txt && useradd --create-home appuser                           6.3s
+ => [flask_categorization  5/12] COPY core/__init__.py core/__init__.py                                                                             0.1s
+ => [flask_categorization  6/12] COPY core/domain/ core/domain/                                                                                     0.1s
+ => [flask_categorization  7/12] COPY finance/__init__.py finance/__init__.py                                                                       0.1s
+ => [flask_categorization  8/12] COPY finance/domain/ finance/domain/                                                                               0.1s
+ => [flask_categorization  9/12] COPY finance/infra/__init__.py finance/infra/__init__.py                                                           0.1s
+ => [flask_categorization 10/12] COPY finance/infra/categorizers.py finance/infra/categorizers.py                                                   0.1s
+ => [flask_categorization 11/12] COPY services/__init__.py services/__init__.py                                                                     0.1s
+ => [flask_categorization 12/12] COPY services/categorization/ services/categorization/                                                             0.1s
+ => [flask_categorization] exporting to image                                                                                                       1.7s
+ => => exporting layers                                                                                                                             0.9s
+ => => exporting manifest sha256:c4321571d83c5176ca7f4fb11d9e043b94f06c012e6768de3e4012c49e4031f1                                                   0.0s
+ => => exporting config sha256:402a6e8a51ef5f97f213263cfdd786dfbdb1acbdd67ebbfb5738f4c14ab99128                                                     0.0s
+ => => exporting attestation manifest sha256:85dc60f8d0ab8760124ab16d18e14f72d9230682bc479ae5b30588f08939ddac                                       0.0s
+ => => exporting manifest list sha256:5dab0ffd3c96cffbaa39352f6ee533f6a7009b72209d224f829927a59ea0751d                                              0.0s
+ => => naming to docker.io/library/finty-entrega-flask_categorization:latest                                                                        0.0s
+ => => unpacking to docker.io/library/finty-entrega-flask_categorization:latest                                                                     0.6s
+ => [flask_categorization] resolving provenance for metadata file                                                                                   0.0s
+ => [django_web 5/6] COPY --chown=appuser:appuser . .                                                                                               0.3s
+ => [django_web 6/6] RUN mkdir -p /app/staticfiles && chown appuser:appuser /app/staticfiles                                                        0.3s
+ => [django_web] exporting to image                                                                                                                10.1s
+ => => exporting layers                                                                                                                             4.3s
+ => => exporting manifest sha256:1d9855857165261a1dc6040fdbda9fe3035a2ce0b48810e1b135ace96ee0b862                                                   0.0s
+ => => exporting config sha256:69f5833113675da0bd985a2c04fd9f4257f4d8410bb928b969b8934f4c62b12f                                                     0.0s
+ => => exporting attestation manifest sha256:245d87212b9ae3d2dd46bbb4ff7422e96f405ac573b9e49ee4b2c599d7040b75                                       0.0s
+ => => exporting manifest list sha256:d6da9d3eaa22415dfc1a19456e164484294452b791468460d7086b229a0598d7                                              0.0s
+[+] up 36/36g to docker.io/library/finty-entrega-django_web:latest                                                                                  0.0s
+ ✔ Image postgres:18                              Pulled                                                                                            48.7s
+ ✔ Image nginx:1.28-alpine                        Pulled                                                                                            25.2s
+ ✔ Image finty-entrega-flask_categorization       Built                                                                                             38.6s
+ ✔ Image finty-entrega-django_web                 Built                                                                                             38.5s
+ ✔ Network finty-entrega_default                  Created                                                                                            0.1s
+ ✔ Volume finty-entrega_postgres_data             Created                                                                                            0.0s
+ ✔ Volume finty-entrega_static_data               Created                                                                                            0.0s
+ ✔ Container finty-entrega-db-1                   Healthy                                                                                           13.8s
+ ✔ Container finty-entrega-flask_categorization-1 Healthy                                                                                           13.8s
+ ✔ Container finty-entrega-django_web-1           Healthy                                                                                           13.4s
+ ✔ Container finty-entrega-nginx-1                Healthy                                                                                           13.3s
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ docker compose --env-file .env.docker ps
+docker compose --env-file .env.docker exec nginx nginx -t
+NAME                                   IMAGE                                COMMAND                  SERVICE                CREATED        STATUS                  PORTS
+finty-entrega-db-1                     postgres:18                          "docker-entrypoint.s…"   db                     13 hours ago   Up 13 hours (healthy)   5432/tcp
+finty-entrega-django_web-1             finty-entrega-django_web             "sh -c 'python manag…"   django_web             13 hours ago   Up 13 hours (healthy)   8000/tcp
+finty-entrega-flask_categorization-1   finty-entrega-flask_categorization   "gunicorn --bind 0.0…"   flask_categorization   13 hours ago   Up 13 hours (healthy)   5000/tcp
+finty-entrega-nginx-1                  nginx:1.28-alpine                    "/docker-entrypoint.…"   nginx                  13 hours ago   Up 13 hours             127.0.0.1:8080->80/tcp
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ python -m pip install tzdata
+Requirement already satisfied: tzdata in c:\users\tommy\appdata\local\programs\python\python310\lib\site-packages (2025.3)
+
+[notice] A new release of pip is available: 26.0 -> 26.2.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ python scripts/smoke_strangler.py
+OK: Nginx, autenticacion, rutas v1/v2, clasificacion y balance remoto
+La cuenta y el movimiento se eliminaron; queda un usuario de prueba sin datos financieros.
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ docker compose --env-file .env.docker stop flask_categorization
+[+] stop 1/1
+ ✔ Container finty-entrega-flask_categorization-1 Stopped                                                                                            0.4s
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ python scripts/smoke_strangler.py --fallback
+OK: Nginx, autenticacion, rutas v1/v2, clasificacion y balance con respaldo local
+La cuenta y el movimiento se eliminaron; queda un usuario de prueba sin datos financieros.
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ docker compose --env-file .env.docker start flask_categorization
+[+] start 1/1
+ ✔ Container finty-entrega-flask_categorization-1 Started                                                                                            0.2s
+
+tommy@TommysepfPC MINGW64 ~/OneDrive/Escritorio/Finty_Taller02/Finty-entrega (feat/taller02-strangler)
+$ docker compose --env-file .env.docker run --rm django_web sh -c "pip install --user -r requirements-test.txt && python -m pytest -q"
+[+] run 1/1
+ ✔ Container finty-entrega-db-1 Running                                                                                                              0.0s
+Container finty-entrega-db-1 Waiting 
+Container finty-entrega-db-1 Healthy 
+Container finty-entrega-django_web-run-b90abcb108e8 Creating 
+Container finty-entrega-django_web-run-b90abcb108e8 Created 
+Requirement already satisfied: Django==5.2.11 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 1)) (5.2.11)
+Requirement already satisfied: djangorestframework==3.17.1 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 2)) (3.17.1)
+Requirement already satisfied: psycopg2-binary==2.9.10 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 3)) (2.9.10)
+Requirement already satisfied: python-dotenv==1.2.2 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 4)) (1.2.2)
+Requirement already satisfied: pytest==8.4.2 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 5)) (8.4.2)
+Requirement already satisfied: pytest-django==4.11.1 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 6)) (4.11.1)
+Requirement already satisfied: pytest-cov==7.0.0 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements.txt (line 7)) (7.0.0)
+Requirement already satisfied: gunicorn==23.0.0 in /usr/local/lib/python3.12/site-packages (from -r /app/requirements-container.txt (line 2)) (23.0.0)
+Collecting Flask==3.1.2 (from -r /app/services/categorization/requirements.txt (line 1))
+  Downloading flask-3.1.2-py3-none-any.whl.metadata (3.2 kB)
+Requirement already satisfied: asgiref>=3.8.1 in /usr/local/lib/python3.12/site-packages (from Django==5.2.11->-r /app/requirements.txt (line 1)) (3.12.1)
+Requirement already satisfied: sqlparse>=0.3.1 in /usr/local/lib/python3.12/site-packages (from Django==5.2.11->-r /app/requirements.txt (line 1)) (0.6.0)
+Requirement already satisfied: iniconfig>=1 in /usr/local/lib/python3.12/site-packages (from pytest==8.4.2->-r /app/requirements.txt (line 5)) (2.3.0)
+Requirement already satisfied: packaging>=20 in /usr/local/lib/python3.12/site-packages (from pytest==8.4.2->-r /app/requirements.txt (line 5)) (26.3)
+Requirement already satisfied: pluggy<2,>=1.5 in /usr/local/lib/python3.12/site-packages (from pytest==8.4.2->-r /app/requirements.txt (line 5)) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in /usr/local/lib/python3.12/site-packages (from pytest==8.4.2->-r /app/requirements.txt (line 5)) (2.21.0)
+Requirement already satisfied: coverage>=7.10.6 in /usr/local/lib/python3.12/site-packages (from coverage[toml]>=7.10.6->pytest-cov==7.0.0->-r /app/requirements.txt (line 7)) (7.16.2)
+Collecting blinker>=1.9.0 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+Collecting click>=8.1.3 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting itsdangerous>=2.2.0 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+Collecting jinja2>=3.1.2 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting markupsafe>=2.1.1 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+Collecting werkzeug>=3.1.0 (from Flask==3.1.2->-r /app/services/categorization/requirements.txt (line 1))
+  Downloading werkzeug-3.1.9-py3-none-any.whl.metadata (4.1 kB)
+Downloading flask-3.1.2-py3-none-any.whl (103 kB)
+Downloading blinker-1.9.0-py3-none-any.whl (8.5 kB)
+Downloading click-8.5.0-py3-none-any.whl (125 kB)
+Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+Downloading werkzeug-3.1.9-py3-none-any.whl (228 kB)
+Installing collected packages: markupsafe, itsdangerous, click, blinker, werkzeug, jinja2, Flask
+  WARNING: The script flask is installed in '/home/appuser/.local/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+Successfully installed Flask-3.1.2 blinker-1.9.0 click-8.5.0 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.3 werkzeug-3.1.9
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip
+................................................................................................................................................. [  9%]
+................................................................................................................................................. [ 18%]
+................................................................................................................................................. [ 27%]
+................................................................................................................................................. [ 36%]
+................................................................................................................................................. [ 45%]
+................................................................................................................................................. [ 54%]
+................................................................................................................................................. [ 64%]
+................................................................................................................................................. [ 73%]
+................................................................................................................................................. [ 82%]
+................................................................................................................................................. [ 91%]
+....................................................................................................................................              [100%]
+=================================================================== warnings summary ====================================================================
+../usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475
+  /usr/local/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /app/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/app/pytest-cache-files-u40phvnt'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1582 passed, 1 warning in 151.68s (0:02:31)

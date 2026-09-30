@@ -4,6 +4,14 @@ La solución extrae **la sugerencia automática de categorías**, mantiene el
 registro financiero en Django y agrega Flask, Nginx y PostgreSQL con Compose.
 Fue preparada contra el commit `d19eb9d` del repositorio original.
 
+**Rama de entrega:** `feat/taller02-strangler`.
+**Enlace evaluable:** https://github.com/tsepulvedf/Finty/tree/feat/taller02-strangler
+
+Este taller es una entrega independiente. `main` conserva la versión anterior
+del proyecto. El Pull Request https://github.com/tsepulvedf/Finty/pull/1 se
+mantiene abierto para revisión y trazabilidad, sin fusionarse como parte de
+esta entrega.
+
 ## 1. Aplicar los cambios a tu repositorio
 
 El paquete incluye una copia completa para consultar y ejecutar, y un parche
@@ -25,13 +33,14 @@ la rama ni sobrescribas trabajo del equipo para forzarlo.
 
 ## 2. Levantar la arquitectura híbrida
 
-Necesitas Git, Python 3.11+ y Docker con Compose v2. Las imágenes usan Python
-3.12. Desde la raíz del proyecto:
+Necesitas Git, Python local 3.10+ para los scripts y Docker con Compose.
+Las imágenes usan Python 3.12. Si ejecutas Django y toda la suite fuera de
+Docker, utiliza Python 3.11+. Desde la raíz del proyecto:
 
 ```bash
 python scripts/setup_taller_env.py
 docker compose --env-file .env.docker config --quiet
-docker compose --env-file .env.docker up --build -d
+docker compose --env-file .env.docker up --build --wait --wait-timeout 300
 docker compose --env-file .env.docker ps
 docker compose --env-file .env.docker exec nginx nginx -t
 ```
@@ -75,7 +84,9 @@ docker compose --env-file .env.docker start flask_categorization
 ```
 
 La ruta v2 debe responder 503 y v1 seguir registrando con confianza 0.20.
-Esta es una prueba ejecutable, **no un resultado ya obtenido en Docker**.
+Ambas demostraciones fueron ejecutadas satisfactoriamente en el equipo;
+la suite completa obtuvo **1582 passed, 1 warning in 151.68s**. Los comandos
+permiten reproducir la validación; detalles en `docs/VALIDACION-TALLER02.md`.
 
 ## 4. Ejecutar pruebas
 
@@ -151,7 +162,7 @@ Revisar el diff, ejecutar las pruebas anteriores y organizar commits por unidad:
 ```bash
 git add services ':!services/categorization/tests' finance/infra/remote_categorizer.py finance/infra/factories.py config/settings.py identity/api/auth_verify.py identity/api/urls.py
 git commit -m "feat(finance): extraer clasificacion automatica a servicio Flask"
-git add Dockerfile docker-compose.yml infra .dockerignore .gitignore .env.docker.example requirements-container.txt scripts/setup_taller_env.py
+git add Dockerfile docker-compose.yml infra .dockerignore .gitignore .env.docker.example requirements-container.txt scripts/setup_taller_env.py core/api/urls.py
 git commit -m "chore(infra): orquestar Django Flask y PostgreSQL con Nginx"
 git add services/categorization/tests finance/tests identity/tests core/tests/test_architecture.py scripts/smoke_strangler.py requirements-test.txt
 git commit -m "test(strangler): verificar contratos autenticacion y respaldo remoto"
@@ -167,10 +178,12 @@ ordenados y trazables.
 Cada integrante debe realizar trabajo real (por ejemplo, revisión de matriz,
 prueba de infraestructura o mejora de tests), comprometerlo con su propia
 identidad y participar en la revisión del PR. **No se inventan autores ni
-contribuciones.** Crear un Pull Request hacia la rama principal, revisar y
-fusionar de acuerdo con el flujo habitual del equipo. La entrega debe permitir
-al profesor localizar el código; dejar el PR abierto sin indicarlo puede hacer
-que revise una rama sin cambios.
+contribuciones.** El PR #1 compara la rama del taller con `main` para permitir
+la revisión del equipo. Se mantiene abierto y sin fusionar, porque corresponde
+a una entrega independiente. La revisión debe quedar registrada en el PR;
+las mejoras reales se incorporan mediante nuevos commits en la rama del
+taller. Entregar el enlace directo a esa rama para que el profesor encuentre
+la implementación sin depender del contenido de `main`.
 
 ## 7. Lista de entrega y sustentación
 
@@ -182,8 +195,9 @@ que revise una rama sin cambios.
 - Commits semánticos y contribuciones reales visibles.
 - Capturar `docker compose ps`, `nginx -t`, smoke normal y de caída, y tests
   completos; añadir resultados reales a `docs/VALIDACION-TALLER02.md`.
-- Entregar **https://github.com/tsepulvedf/Finty** con la rama final publicada y
-  cambios visibles; incluir el enlace de Wiki si el formulario lo permite.
+- Entregar **https://github.com/tsepulvedf/Finty/tree/feat/taller02-strangler**,
+  el enlace exacto de la Wiki y, como evidencia de revisión, el PR #1.
+- Mantener `main` separada: no realizar merge como parte del cierre del taller.
 
 Para sustentar: explicar por qué no se separó el balance (consistencia del
 agregado), por qué Flask no tiene base (operación pura), cómo la factory conserva

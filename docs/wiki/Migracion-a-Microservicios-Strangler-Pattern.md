@@ -4,6 +4,22 @@
 **Funcionalidad extraída:** sugerencia automática de categorías de transacciones.
 **Base analizada:** `tsepulvedf/Finty`, commit `d19eb9d` (rama predeterminada al revisar).
 
+## Alcance y rama de esta entrega
+
+Esta página documenta el **Taller 02: Migración a Microservicios mediante
+Strangler Pattern**, una entrega independiente de la versión del proyecto
+conservada en `main`.
+
+El código, la configuración de infraestructura, las pruebas y las evidencias
+se encuentran en **`feat/taller02-strangler`**. Los cambios se mantienen
+separados, sin fusionarse en `main`, para preservar la entrega anterior.
+
+**Enlace para consultar y evaluar esta entrega:**
+[Implementación del Taller 02](https://github.com/tsepulvedf/Finty/tree/feat/taller02-strangler).
+
+El [PR #1](https://github.com/tsepulvedf/Finty/pull/1) se mantiene abierto para
+revisión y trazabilidad del equipo. El merge no forma parte del cierre.
+
 ## 1. Diagnóstico del monolito
 
 Finty implementa tres apps: `core`, `identity` y `finance`. Django autentica al
@@ -203,15 +219,33 @@ registro automático en v1 y balance 100000 - 25000 = 75000. La opción de fallo
 espera 503 en v2 y un registro exitoso en v1 con confianza 0.20. Crea un usuario
 de demostración; elimina su cuenta y movimiento al finalizar con éxito.
 
-Estado de comprobación al preparar esta entrega:
+Estado actualizado tras revisar las salidas del equipo el 30 de septiembre
+de 2026:
 
-- Pruebas sin base de datos: resultado en `docs/VALIDACION-TALLER02.md`.
-- Validación Django: `manage.py check`, sin incidencias.
-- Contrato Flask: casos exitosos, errores 400/500, autenticación, tamaño máximo,
-  equivalencia con reglas originales y respaldo ante fallos remotos.
-- **Pendiente de ejecutar en un equipo con Docker:** build, arranque conjunto,
-  `nginx -t`, smoke real y suite completa con PostgreSQL. El entorno de
-  preparación no dispone de Docker, Nginx ni servidor PostgreSQL.
+| Comprobación ejecutada en el equipo | Resultado |
+|---|---|
+| Compose y build de imágenes | Sin errores; Django y Flask construidos |
+| Arranque | PostgreSQL, Django y Flask healthy; Nginx en ejecución |
+| `nginx -t` | Sintaxis correcta y prueba exitosa |
+| Smoke normal por Nginx | OK: autenticación, v1/v2, clasificación remota y balance |
+| Smoke con Flask detenido | OK: v2 devuelve 503 y Django usa respaldo local |
+| Restauración de Flask | Comando de inicio completado correctamente |
+| Suite completa con PostgreSQL | **1582 passed, 1 warning in 151.68s (0:02:31)** |
+
+La advertencia de pytest corresponde a permisos de caché bajo `/app`; no
+hay fallos. En próximas ejecuciones puede usarse
+`-o cache_dir=/tmp/finty-pytest-cache`. Conservar el ajuste
+`throttle_classes = []` en `HealthView` indicado en la guía para que las sondas
+no consuman la cuota anónima.
+
+La preparación previa aprobó 1090 pruebas sin PostgreSQL, incluidas 39
+específicas de migración, además de `manage.py check` y Flask sin imports de
+Django/DRF. La suite de 1582 es la validación completa posterior; los conteos
+no se suman.
+
+Los detalles y logs están en `docs/VALIDACION-TALLER02.md` y
+`docs/evidencias/taller02-consola.txt`. Las evidencias fueron aportadas por el
+equipo; no se presentan como ejecuciones del entorno de preparación.
 
 ## 8. Impacto esperado
 
@@ -228,13 +262,14 @@ concurrencia, incluyendo caída de Flask y contención de una misma cuenta.
 |---|---:|---|
 | Matriz de decisión | 1.0 | Sección 2, cinco módulos y justificación con evidencias |
 | Flask aislado + JSON | 1.5 | `services/categorization/`, Dockerfile sin Django, pruebas HTTP |
-| Infraestructura y ruteo | 1.0 | Compose con cuatro servicios y `infra/nginx/nginx.conf`; completar smoke real |
+| Infraestructura y ruteo | 1.0 | Compose con cuatro servicios, `nginx -t` y smoke normal/de caída aprobados |
 | Wiki y diagrama | 1.0 | Esta página, Mermaid, contrato, impacto y rollback |
-| Git Flow | 0.5 | Rama feature y commits semánticos; participación real del equipo y push pendientes |
+| Git Flow | 0.5 | Cuatro commits semánticos publicados y PR #1 abierto; completar evidencia de revisión o aporte real del equipo |
 
 Los comandos y resultados esperados no sustituyen resultados ejecutados.
 Publicar esta página en GitHub Wiki con el título exacto del taller. Entregar
-la URL del repositorio después del push. La bonificación temporal depende de
+el enlace directo a la rama `feat/taller02-strangler`, junto con la Wiki y el
+PR de revisión, manteniendo `main` separada. La bonificación temporal depende de
 haberlo entregado antes de terminar la sesión presencial; no puede acreditarse
 solo con estos archivos. No se fabrica autoría ni colaboración en el historial.
 

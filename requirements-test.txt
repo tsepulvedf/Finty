@@ -1,0 +1,2 @@
+-r requirements-container.txt
+-r services/categorization/requirements.txt

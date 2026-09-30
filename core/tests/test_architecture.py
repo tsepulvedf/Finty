@@ -38,7 +38,7 @@ PROHIBIDOS_EN_DOMINIO = (
 
 PAQUETES_DE_DOMINIO = ("core/domain", "finance/domain")
 
-MODULOS_DE_VISTAS = ("finance/api/views.py", "identity/api/views.py")
+MODULOS_DE_VISTAS = ("finance/api/views.py", "identity/api/views.py", "identity/api/auth_verify.py")
 MODULOS_DE_MODELOS = ("finance/models.py", "identity/models.py")
 MODULOS_DE_SERVICIOS = ("finance/services.py", "identity/services.py")
 MODULOS_DE_SERIALIZERS = (
@@ -59,6 +59,7 @@ PIEZAS_DE_DOMINIO_VETADAS_EN_VISTAS = (
 )
 
 CATEGORIZADORES_CONCRETOS = (
+    "RemoteCategorizer",
     "AICategorizer",
     "RuleBasedCategorizer",
     "MockCategorizer",

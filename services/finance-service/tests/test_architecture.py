@@ -146,3 +146,41 @@ class TestServiciosSinImplementacionesConcretas:
         }
         assert "infra.categorizers" not in modules
         assert "infra.factories" not in modules
+
+
+class TestComandosSinLogica:
+    """`commands.py` es un mecanismo de entrega, igual que un blueprint.
+
+    Traslado de `TestComandosSinLogica` del monolito (E2-M3a): orquesta llamadas
+    al servicio y formatea la salida, pero no calcula, no reimplementa reglas y
+    no consulta la base.
+    """
+
+    COMMANDS = SERVICE_ROOT / "commands.py"
+
+    def test_no_importa_el_dominio_ni_los_modelos(self):
+        roots = imported_roots(tree_of(self.COMMANDS))
+        assert not roots & {"domain", "models", "sqlalchemy", "infra"}
+
+    def test_el_cuerpo_del_comando_no_hace_aritmetica(self):
+        """Los anchos de columna se calculan fuera; el comando en si no suma."""
+        tree = tree_of(self.COMMANDS)
+        command = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "verify_invariants"
+        )
+        arithmetic = (ast.Add, ast.Sub, ast.Mult, ast.Div)
+        assert not [
+            n.lineno for n in ast.walk(command)
+            if isinstance(n, ast.BinOp) and isinstance(n.op, arithmetic)
+        ]
+
+    def test_solo_usa_el_servicio_de_cuentas(self):
+        tree = tree_of(self.COMMANDS)
+        imported = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module == "services"
+            for alias in node.names
+        }
+        assert imported == {"AccountService"}

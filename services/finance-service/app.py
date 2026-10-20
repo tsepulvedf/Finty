@@ -7,6 +7,8 @@ Configuracion por entorno:
 - `CATEGORIZER_PROVIDER` (opcional, `RULE` por defecto): ver `infra/factories.py`.
 - `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida, la
   misma de `settings.py` en el monolito.
+
+Comandos de mantenimiento: `flask verify-invariants` (`commands.py`).
 """
 import os
 
@@ -21,6 +23,7 @@ from api.context import (
 from api.converters import CONVERTERS
 from api.errors import register_error_handlers
 from api.routes import blueprint as finance_blueprint
+from commands import verify_invariants
 from infra.database import build_engine, build_session_factory, ping
 from infra.factories import ConfigurationError
 
@@ -74,4 +77,5 @@ def create_app(session_factory=None):
 
     app.register_blueprint(finance_blueprint)
     app.add_url_rule("/health/", "health", health)
+    app.cli.add_command(verify_invariants)
     return app

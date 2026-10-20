@@ -23,9 +23,10 @@ Las excepciones de dominio suben sin capturarse; las traduce `api/errors.py`. Lo
 que si se traduce aqui son las del ORM, que no deben escapar de esta capa.
 """
 from contextlib import contextmanager
+from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.exc import IntegrityError
 
 import messages
@@ -49,6 +50,11 @@ from infra.listing import Listing
 from models import DEFAULT_CURRENCY, Account, Category, Transaction
 
 MANUAL_CATEGORY_CONFIDENCE = 1.0
+
+# Motivos por los que una transaccion queda en un estado de categorizacion
+# incoherente. Constantes para que el comando de auditoria no compare literales.
+MISSING_CATEGORY = "procedencia sin categoria"
+MISSING_SOURCE = "categoria sin procedencia"
 
 # Nombre de la constraint de unicidad de nombre por usuario. Se compara contra la
 # violacion para no confundirla con cualquier otra.
@@ -101,6 +107,46 @@ def _violated_constraint(exc):
 def _sqlstate(exc):
     """SQLSTATE de un error de base de datos de psycopg2."""
     return getattr(exc.orig, "pgcode", None)
+
+
+@dataclass(frozen=True)
+class BalanceAuditResult:
+    """Resultado de auditar el balance de una cuenta (INV-07).
+
+    Estructura de **reporte**, no concepto del dominio: vive aqui y no en
+    `domain/`. Identifica al propietario por `owner_id` y no por email: el email
+    vive en `finty_identity` y este servicio no consulta otra base (ADR-10).
+    """
+
+    account_id: object
+    account_name: str
+    owner_id: object
+    persisted: Money
+    calculated: Money
+
+    def is_consistent(self):
+        """Indica si el balance persistido coincide con el recalculado.
+
+        Metodo y no `@property`, por la misma razon que en el monolito: no invitar
+        a replicar propiedades calculadas en los modelos.
+        """
+        return self.persisted == self.calculated
+
+    def difference(self):
+        """Cuanto se desvio el balance persistido del real."""
+        return self.persisted.subtract(self.calculated)
+
+
+@dataclass(frozen=True)
+class CategorizationAuditResult:
+    """Transaccion cuyo estado de categorizacion es incoherente (INV-08)."""
+
+    transaction_id: object
+    account_name: str
+    owner_id: object
+    reason: str
+    category_name: str | None
+    categorization_source: str | None
 
 
 class CategoryService:
@@ -305,6 +351,112 @@ class AccountService:
             )
             account.balance = recomputed.amount
         return account
+
+    def audit_balances(self, user_id=None):
+        """Audita INV-07 sobre las cuentas y devuelve un resultado por cuenta.
+
+        Vive en `AccountService` porque `Account` es la raiz del agregado. Sin
+        `user_id` recorre todas las cuentas; con el, solo las suyas.
+
+        **No reimplementa la aritmetica:** el calculo lo hace
+        `BalanceCalculator.recompute`, el mismo de `recompute_balance`. Una
+        auditoria que duplicara la formula podria compartir el defecto del
+        auditado. Solo lee.
+        """
+        # Consultas por columnas y no por entidades: una auditoria lee lo que hay
+        # en la base, nunca una copia vieja del mapa de identidad de la sesion.
+        statement = select(
+            Account.id,
+            Account.name,
+            Account.user_id,
+            Account.currency,
+            Account.balance,
+            Account.opening_balance,
+        ).order_by(Account.user_id, Account.name)
+        if user_id is not None:
+            statement = statement.where(Account.user_id == user_id)
+        accounts = self._session.execute(statement).all()
+
+        movements = {account.id: [] for account in accounts}
+        rows = self._session.execute(
+            select(Transaction.account_id, Transaction.amount, Transaction.type).where(
+                Transaction.account_id.in_(movements)
+            )
+        ).all()
+        for account_id, amount, kind in rows:
+            movements[account_id].append((amount, kind))
+
+        return [
+            BalanceAuditResult(
+                account_id=account.id,
+                account_name=account.name,
+                owner_id=account.user_id,
+                persisted=Money(account.balance, account.currency),
+                calculated=BalanceCalculator.recompute(
+                    Money(account.opening_balance, account.currency),
+                    [
+                        (Money(amount, account.currency), TransactionType.from_value(kind))
+                        for amount, kind in movements[account.id]
+                    ],
+                ),
+            )
+            for account in accounts
+        ]
+
+    def audit_categorization(self, user_id=None):
+        """Audita el estado de categorizacion de las transacciones (INV-08).
+
+        Detecta dos incoherencias:
+
+        - **Procedencia sin categoria:** algo clasifico la transaccion pero no
+          quedo categoria. INV-08 violada.
+        - **Categoria sin procedencia:** ninguna ruta de los servicios produce ese
+          estado, asi que delata una escritura que evadio esta capa.
+
+        Solo lee. `--fix` tampoco corrige esto.
+        """
+        # Por columnas, igual que `audit_balances`: lo que hay en la base, no lo
+        # que recuerda el mapa de identidad de la sesion.
+        statement = (
+            select(
+                Transaction.id,
+                Account.name.label("account_name"),
+                Account.user_id,
+                Transaction.category_id,
+                Category.name.label("category_name"),
+                Transaction.categorization_source,
+            )
+            .select_from(Transaction)
+            .join(Account, Transaction.account_id == Account.id)
+            .outerjoin(Category, Transaction.category_id == Category.id)
+            .where(
+                or_(
+                    and_(
+                        Transaction.categorization_source.is_not(None),
+                        Transaction.category_id.is_(None),
+                    ),
+                    and_(
+                        Transaction.categorization_source.is_(None),
+                        Transaction.category_id.is_not(None),
+                    ),
+                )
+            )
+            .order_by(Account.name, Transaction.occurred_on)
+        )
+        if user_id is not None:
+            statement = statement.where(Account.user_id == user_id)
+
+        return [
+            CategorizationAuditResult(
+                transaction_id=row.id,
+                account_name=row.account_name,
+                owner_id=row.user_id,
+                reason=MISSING_CATEGORY if row.category_id is None else MISSING_SOURCE,
+                category_name=row.category_name,
+                categorization_source=row.categorization_source,
+            )
+            for row in self._session.execute(statement)
+        ]
 
     def _fetch_account(self, user_id, account_id, lock):
         """Recupera una cuenta del usuario o lanza `AccountNotFoundError`."""

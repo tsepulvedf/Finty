@@ -1,5 +1,8 @@
-# Entorno
+# Entorno: cualquier variante de .env (.env.docker, .env.prod, ...) queda
+# ignorada; solo se versionan las plantillas .env*.example.
 .env
+.env.*
+!.env*.example
 venv/
 .venv/
 
@@ -19,6 +22,3 @@ htmlcov/
 # Editores
 .idea/
 .vscode/
-
-# Configuracion de Docker Compose (ver .env.docker.example)
-.env.docker

@@ -83,6 +83,51 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 `.env` está en `.gitignore` y nunca debe versionarse.
 
+## Ejecutar con Docker
+
+Levanta el monolito, PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); Django, la base y Redis solo son alcanzables desde la red interna de Compose. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+
+Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
+
+```bash
+# 1. Configuración de Compose (independiente de .env)
+cp .env.docker.example .env.docker
+#    Edita .env.docker: SECRET_KEY propia y la misma contraseña en DB_PASSWORD y POSTGRES_PASSWORD.
+
+# 2. Construir y arrancar. Las migraciones se aplican solas antes de que arranque Django.
+docker compose up -d --build
+
+# 3. Comprobar
+docker compose ps
+curl http://localhost/api/v1/health/
+# {"status":"ok","version":"v1"}
+
+# 4. Usuario administrador (el admin queda en http://localhost/admin/)
+docker compose exec django python manage.py createsuperuser
+```
+
+Otros comandos útiles:
+
+```bash
+docker compose logs -f django                                 # registros de un servicio
+docker compose exec django python manage.py migrate           # migrar a mano (sin pendientes, no hace nada)
+docker compose up -d --build                                  # reconstruir tras cambiar código o deploy/nginx/
+docker compose down                                           # detener; los datos persisten en los volúmenes
+docker compose down -v                                        # detener y BORRAR los datos de la base y de Redis
+```
+
+**Migraciones.** Las aplica el servicio de un solo uso `migrate`: corre `manage.py migrate`, termina, y `django` no arranca hasta que haya terminado con éxito. Así cada `up` deja el esquema al día, una migración fallida impide arrancar contra un esquema incompleto, y los workers de gunicorn nunca compiten por migrar.
+
+**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (hoy solo `finty_identity`) la primera vez que se inicializa el volumen. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script y, si el volumen ya existe, ejecútalo a mano (es idempotente):
+
+```bash
+docker compose exec db sh /docker-entrypoint-initdb.d/01-create-databases.sh
+```
+
+> En Git Bash para Windows, antepón `MSYS_NO_PATHCONV=1` a los comandos de `docker compose exec` que reciben rutas absolutas del contenedor; si no, Git Bash las reescribe como rutas de Windows.
+
+**Estáticos.** `collectstatic` corre al construir la imagen de Django, y la etapa `gateway` del `Dockerfile` copia el resultado en la imagen de Nginx, que sirve `/static/` sin pasar por Django.
+
 ## Conmutar el categorizador
 
 `CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` inyecta la Factory. Es el Factory Method del proyecto y su efecto es observable desde fuera.

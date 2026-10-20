@@ -1,9 +1,12 @@
 # Finty — orquestacion local de la Entrega 2 (ADR-16).
 #
-# E2-M1a: monolito Django, PostgreSQL, Redis y el Gateway Nginx. Los servicios
-# Flask y los workers de Celery se agregan en sus modulos.
+# E2-M1a: monolito Django, PostgreSQL, Redis y el Gateway Nginx.
+# E2-M2a: finance-service (Flask) y su paso de migraciones, todavia sin trafico
+# de Nginx: el upstream `finance_backend` sigue apuntando a Django (E2-M2b).
+# Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
-#   cp .env.docker.example .env.docker   # y completa los valores
+#   cp .env.docker.example .env.docker                       # y completa los valores
+#   cp services/finance-service/.env.docker.example services/finance-service/.env.docker
 #   docker compose up -d --build
 #
 # Solo `nginx` publica un puerto en el host (A-17). El resto se comunica por la
@@ -19,6 +22,14 @@ x-django: &django
     target: django
   image: finty/django:local
   env_file: .env.docker
+
+# Igual para finance-service: el proceso web y su paso de migraciones comparten
+# imagen y entorno. El entorno es otro archivo: solo la URL de su base (A-21).
+x-finance: &finance
+  build:
+    context: ./services/finance-service
+  image: finty/finance-service:local
+  env_file: services/finance-service/.env.docker
 
 services:
   db:
@@ -40,6 +51,22 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # Paso de un solo uso: crea las bases logicas que falten (ADR-04.1). El script
+  # de initdb solo corre con el volumen vacio; este corre en cada `up`, asi que
+  # una base nueva aparece tambien en un volumen existente, como el de la EC2.
+  db-init:
+    image: postgres:18
+    env_file: .env.docker
+    environment:
+      PGHOST: db
+    command: ["sh", "/finty-init/01-create-databases.sh"]
+    volumes:
+      - ./deploy/postgres/init:/finty-init:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -58,8 +85,8 @@ services:
     <<: *django
     command: ["python", "manage.py", "migrate", "--noinput"]
     depends_on:
-      db:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: "no"
 
   django:
@@ -69,6 +96,31 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Paso de un solo uso: migraciones de finty_finance con Alembic, incluida la
+  # siembra del catalogo de categorias (D-16).
+  finance-migrate:
+    <<: *finance
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Sin `ports`: solo alcanzable desde la red interna (A-17). Nginx todavia no
+  # le envia trafico.
+  finance-service:
+    <<: *finance
+    depends_on:
+      finance-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   nginx:

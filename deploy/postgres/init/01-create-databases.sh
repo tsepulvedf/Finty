@@ -1,19 +1,26 @@
 #!/bin/sh
-# Crea una base logica por servicio (ADR-10, D-E2-04).
+# Crea una base logica por servicio (ADR-10, D-E2-04). Idempotente: crea las que
+# falten y deja intactas las que ya existen.
 #
-# La imagen de PostgreSQL ejecuta este script solo la primera vez, cuando el
-# volumen de datos esta vacio. Es idempotente: crea las bases que falten y deja
-# intactas las que ya existen, asi que tambien se puede correr a mano.
+# Se ejecuta por dos caminos (ADR-04.1):
+#   1. La imagen de PostgreSQL lo corre la primera vez que inicializa un volumen
+#      vacio, por el socket local.
+#   2. El servicio `db-init` de Compose lo corre en cada `docker compose up`, por
+#      TCP contra `db`. Es lo que crea las bases nuevas en un volumen que ya
+#      existe, como el de la EC2, sin pasos manuales.
 #
-# Como agregar la base de un servicio nuevo (por ejemplo, en E2-M2):
-#   1. Agrega su nombre a FINTY_DATABASES, abajo (finty_finance, finty_analytics,
-#      finty_recommendation, finty_subscription).
-#   2. Si el volumen ya existe, el script no se vuelve a ejecutar solo. Correlo:
-#        docker compose exec db sh /docker-entrypoint-initdb.d/01-create-databases.sh
-#   3. Pasa al servicio nuevo solo la URL de su propia base (A-21).
+# Como agregar la base de un servicio nuevo:
+#   1. Agrega su nombre a FINTY_DATABASES, abajo.
+#   2. Haz que el paso de migraciones del servicio dependa de `db-init` en
+#      docker-compose.yml.
+#   3. Pasa al servicio solo la URL de su propia base (A-21).
 set -e
 
-FINTY_DATABASES="finty_identity"
+FINTY_DATABASES="finty_identity finty_finance"
+
+# Por TCP (camino 2) psql necesita la contrasena; por el socket local no.
+PGPASSWORD="${PGPASSWORD:-${POSTGRES_PASSWORD:-}}"
+export PGPASSWORD
 
 for db in $FINTY_DATABASES; do
     echo "finty: asegurando la base '$db'"

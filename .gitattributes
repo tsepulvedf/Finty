@@ -1,0 +1,6 @@
+# Lo que se ejecuta dentro de los contenedores Linux conserva finales de linea
+# LF aunque el repositorio se clone en Windows con core.autocrlf=true: un `\r`
+# al final de una linea rompe un script de shell.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+deploy/**   text eol=lf

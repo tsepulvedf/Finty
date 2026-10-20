@@ -1,0 +1,22 @@
+# Secretos: la configuracion entra por `env_file` en tiempo de ejecucion, nunca
+# dentro de la imagen.
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Entorno local y artefactos
+.git/
+venv/
+.venv/
+__pycache__/
+*.pyc
+staticfiles/
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+
+# Notas locales del asistente; no forman parte de la aplicacion
+CLAUDE.md

@@ -56,3 +56,23 @@ def domain_exception_handler(exc, context):
         )
 
     return drf_exception_handler(exc, context)
+
+
+# Cabecera con la que el endpoint interno de verificacion le dice a Nginx por que
+# rechazo el token. Nginx la lee con `auth_request_set` y responde al cliente.
+AUTH_ERROR_HEADER = "X-Auth-Error"
+
+
+def gateway_auth_exception_handler(exc, context):
+    """Handler del endpoint interno `/internal/auth/verify/` (ADR-09).
+
+    Nginx no reenvia el cuerpo de una subpeticion `auth_request`, asi que el
+    motivo del rechazo viaja en una cabecera, no en JSON, y el cuerpo va vacio.
+    El texto que ve el cliente lo arma el Gateway a partir del `code`.
+    """
+    if isinstance(exc, AuthenticationError):
+        return Response(
+            status=status.HTTP_401_UNAUTHORIZED,
+            headers={AUTH_ERROR_HEADER: exc.code},
+        )
+    return domain_exception_handler(exc, context)

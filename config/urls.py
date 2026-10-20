@@ -20,4 +20,6 @@ urlpatterns = [
     path("", TemplateView.as_view(template_name="app.html"), name="client"),
     path("admin/", admin.site.urls),
     path("api/v1/", include("core.api.urls")),
+    # Solo para el Gateway (ADR-09); Nginx bloquea `/internal/` desde fuera.
+    path("internal/", include("identity.api.internal_urls")),
 ]

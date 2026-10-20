@@ -48,3 +48,55 @@ class InvalidCredentialsError(AuthenticationError):
 
     default_code = "invalid_credentials"
     default_message = "El email o la contrasena son incorrectos."
+
+
+# --- Verificacion del token para el Gateway (ADR-09) -------------------------
+#
+# Una clase por cada rechazo que distinguia `TokenAuthentication` de DRF, con su
+# mismo texto. El `code` es lo que el endpoint interno le devuelve a Nginx en
+# `X-Auth-Error`, y Nginx lo traduce al mismo `{"detail": ...}` que respondia
+# DRF, para que el cliente no note que la autenticacion se movio al Gateway.
+
+
+class MissingCredentialsError(AuthenticationError):
+    """No hay cabecera `Authorization` con esquema `Token`. HTTP 401."""
+
+    default_code = "not_authenticated"
+    default_message = "Las credenciales de autenticación no se proveyeron."
+
+
+class TokenHeaderWithoutCredentialsError(AuthenticationError):
+    """`Authorization: Token` sin la clave. HTTP 401."""
+
+    default_code = "token_header_without_credentials"
+    default_message = "Cabecera token inválida. Las credenciales no fueron suministradas."
+
+
+class TokenHeaderWithSpacesError(AuthenticationError):
+    """La clave del token contiene espacios. HTTP 401."""
+
+    default_code = "token_header_with_spaces"
+    default_message = "Cabecera token inválida. La cadena token no debe contener espacios."
+
+
+class TokenHeaderInvalidCharactersError(AuthenticationError):
+    """La clave del token no es texto valido. HTTP 401."""
+
+    default_code = "token_header_invalid_characters"
+    default_message = (
+        "Cabecera token inválida. La cadena token no debe contener caracteres inválidos."
+    )
+
+
+class InvalidTokenError(AuthenticationError):
+    """La clave no corresponde a ningun token emitido. HTTP 401."""
+
+    default_code = "invalid_token"
+    default_message = "Token inválido."
+
+
+class InactiveUserError(AuthenticationError):
+    """El token es de un usuario desactivado. HTTP 401."""
+
+    default_code = "inactive_user"
+    default_message = "Usuario inactivo o borrado."

@@ -17,7 +17,10 @@ from identity.api.serializers import (
     ProfileOutputSerializer,
     RegisterInputSerializer,
 )
-from identity.services import ProfileService
+from core.api.exception_handler import gateway_auth_exception_handler
+from identity.services import ProfileService, TokenVerificationService
+
+USER_ID_HEADER = "X-User-Id"
 
 
 def _auth_payload(user, token_key):
@@ -84,3 +87,34 @@ class ProfileAPIView(APIView):
             request.user, **serializer.validated_data
         )
         return Response(ProfileOutputSerializer(profile).data, status=status.HTTP_200_OK)
+
+
+class GatewayAuthVerifyAPIView(APIView):
+    """`GET /internal/auth/verify/` — verificacion del token para Nginx (ADR-09).
+
+    Solo la llama el Gateway, como subpeticion `auth_request`; desde fuera,
+    Nginx responde 404 a todo `/internal/`. Responde 200 con `X-User-Id` o 401
+    con `X-Auth-Error`, sin cuerpo.
+
+    Sin autenticacion ni permisos de DRF, porque verificar es justamente su
+    trabajo, y **sin throttles**: el Gateway la llama una vez por peticion, y la
+    cuota anonima por IP la agotaria la propia IP de Nginx. El limite de trafico
+    lo pone `limit_req` antes de llegar aqui.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = []
+
+    def get(self, request):
+        """Verifica el token y devuelve el usuario en la cabecera."""
+        user_id = TokenVerificationService().verify(
+            request.headers.get("Authorization", "")
+        )
+        return Response(
+            status=status.HTTP_200_OK, headers={USER_ID_HEADER: str(user_id)}
+        )
+
+    def get_exception_handler(self):
+        """Los rechazos van en cabecera, no en JSON: Nginx no lee el cuerpo."""
+        return gateway_auth_exception_handler

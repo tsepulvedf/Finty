@@ -19,11 +19,22 @@ from core.domain.exceptions import ValidationError
 from core.domain.value_objects import validate_currency_code
 from identity.exceptions import (
     EmailAlreadyRegisteredError,
+    InactiveUserError,
     InvalidCredentialsError,
+    InvalidTokenError,
+    MissingCredentialsError,
     ProfileNotFoundError,
+    TokenHeaderInvalidCharactersError,
+    TokenHeaderWithoutCredentialsError,
+    TokenHeaderWithSpacesError,
     WeakPasswordError,
 )
 from identity.models import User, UserProfile
+
+# Esquema de la cabecera `Authorization`, el mismo de `TokenAuthentication`.
+TOKEN_KEYWORD = b"token"
+# Codificacion con la que WSGI entrega las cabeceras (`HTTP_HEADER_ENCODING`).
+HEADER_ENCODING = "iso-8859-1"
 
 
 class ProfileService:
@@ -154,3 +165,36 @@ class ProfileService:
             validate_password(password)
         except DjangoValidationError as exc:
             raise WeakPasswordError(" ".join(exc.messages)) from exc
+
+
+class TokenVerificationService:
+    """Verifica el token de una peticion en nombre del Gateway (ADR-09).
+
+    Es la autenticacion que hacia `TokenAuthentication` de DRF en cada vista de
+    `finance`, movida a un solo punto: Nginx la consulta una vez por peticion y,
+    si pasa, reenvia el `user_id` al servicio en `X-User-Id`. Reproduce el orden
+    y los casos de DRF, para que cada rechazo conserve su mensaje.
+    """
+
+    def verify(self, authorization_header):
+        """Devuelve el `id` del usuario dueno del token, o lanza un error 401."""
+        parts = (authorization_header or "").encode(HEADER_ENCODING).split()
+
+        if not parts or parts[0].lower() != TOKEN_KEYWORD:
+            raise MissingCredentialsError()
+        if len(parts) == 1:
+            raise TokenHeaderWithoutCredentialsError()
+        if len(parts) > 2:
+            raise TokenHeaderWithSpacesError()
+
+        try:
+            key = parts[1].decode()
+        except UnicodeError as exc:
+            raise TokenHeaderInvalidCharactersError() from exc
+
+        token = Token.objects.select_related("user").filter(key=key).first()
+        if token is None:
+            raise InvalidTokenError()
+        if not token.user.is_active:
+            raise InactiveUserError()
+        return token.user_id

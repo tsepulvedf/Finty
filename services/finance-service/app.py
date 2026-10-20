@@ -1,0 +1,77 @@
+"""Fabrica de la aplicacion Flask de `finance-service`.
+
+    gunicorn "app:create_app()"
+
+Configuracion por entorno:
+- `DATABASE_URL` (obligatoria): URL de `finty_finance`, y solo de ella (A-21).
+- `CATEGORIZER_PROVIDER` (opcional, `RULE` por defecto): ver `infra/factories.py`.
+- `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida, la
+  misma de `settings.py` en el monolito.
+"""
+import os
+
+from flask import Flask, jsonify
+
+from api.context import (
+    SESSION_FACTORY_KEY,
+    close_db_session,
+    db_session,
+    identify_user,
+)
+from api.converters import CONVERTERS
+from api.errors import register_error_handlers
+from api.routes import blueprint as finance_blueprint
+from infra.database import build_engine, build_session_factory, ping
+from infra.factories import ConfigurationError
+
+DEFAULT_TIME_ZONE = "America/Bogota"
+
+
+def health():
+    """Sonda de salud para Docker: el proceso responde y la base tambien.
+
+    Fuera de `/api/v1/` y sin identidad: no es parte del contrato y Nginx no la
+    enruta.
+    """
+    ping(db_session())
+    return jsonify({"status": "ok"})
+
+
+def _session_factory_from_environment():
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise ConfigurationError(
+            "Falta la variable de entorno obligatoria 'DATABASE_URL' con la URL "
+            "de la base finty_finance."
+        )
+    return build_session_factory(build_engine(database_url))
+
+
+def create_app(session_factory=None):
+    """Construye la aplicacion.
+
+    `session_factory` permite a los tests inyectar sesiones atadas a una
+    transaccion que se revierte al final de cada test.
+    """
+    app = Flask(__name__)
+    app.config["TIME_ZONE"] = os.environ.get("TIME_ZONE", DEFAULT_TIME_ZONE)
+
+    # Mismo JSON que el renderer de DRF: compacto, en UTF-8 y sin reordenar los
+    # campos (el orden de los serializers es parte del contrato).
+    app.json.compact = True
+    app.json.ensure_ascii = False
+    app.json.sort_keys = False
+
+    app.url_map.converters.update(CONVERTERS)
+
+    app.extensions[SESSION_FACTORY_KEY] = (
+        session_factory or _session_factory_from_environment()
+    )
+
+    app.before_request(identify_user)
+    app.teardown_appcontext(close_db_session)
+    register_error_handlers(app)
+
+    app.register_blueprint(finance_blueprint)
+    app.add_url_rule("/health/", "health", health)
+    return app

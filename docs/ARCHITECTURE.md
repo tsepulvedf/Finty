@@ -4,7 +4,7 @@
 **Fecha:** 2026-10-19
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
 **Cambios de v2.1:** correcciones derivadas de la implementación de los módulos de la Entrega 1 (ver §0, filas C-11 a C-19)
-**Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-31, y ADR-07 a ADR-16)
+**Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-32, y ADR-07 a ADR-16)
 **Alcance:** Documento único de referencia para la implementación del monolito Django + DRF y de los microservicios Flask de la Entrega 2
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -51,6 +51,7 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-29 | Pasarela de pagos | `subscription/infra/gateways.py` (app Django) | **`PaymentGateway` en `subscription-service`** con `MockPaymentGateway` y `WompiSandboxGateway`; confirmación por consulta periódica en Celery, sin webhooks | ADR-14 |
 | C-30 | Comunicación entre contextos (D-03, D-05) | Llamada directa; sin eventos | **HTTP en la red interna o eventos de dominio en Redis**; tareas asíncronas con Celery | ADR-15 |
 | C-31 | Coherencia interna de v2.1 | `mock` ausente en §4.2.1, §5.2 y §9.1; cabecera "C-11 a C-18"; §5.3 decía que todo VO es `dataclass`; §9.2 usaba `AccountNotOwnedError` | **Corregido**: cuatro valores de `CategorizationSource`; cabecera C-11 a C-19; enums como `StrEnum`; §9.2 con `AccountNotFoundError` (404) | Alinear el documento con C-15, C-18 y C-19 |
+| C-32 | Comportamiento HTTP fuera del contrato JSON, al conmutar `finance` (E2-M2b) | Lo que hacían Django y DRF: aceptaban cuerpos de formulario, redirigían con 301 la ruta sin barra final, respondían `OPTIONS` con metadatos y servían la API navegable en HTML | **Diferencias aceptadas** de `finance-service`: (1) un cuerpo que no es JSON responde **415**; (2) la ruta sin barra final redirige con **308** en lugar de 301; (3) `OPTIONS` responde **sin metadatos**; (4) **no hay API navegable** (`.api`, `?format=api`). Además, una URL que no existe responde 404 en JSON en lugar de la página HTML de Django. El JSON de toda ruta del contrato es idéntico (A-20) | El contrato de Finty es JSON y el frontend solo envía JSON; replicar esas piezas de DRF no aporta a ningún cliente |
 
 ---
 
@@ -196,10 +197,14 @@ finty/
 ├── deploy/
 │   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
 │   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`) y rutas
-│   │   └── snippets/proxy.conf    # cabeceras de proxy; descarta X-User-Id del cliente
+│   │   └── snippets/
+│   │       ├── proxy.conf         # cabeceras de proxy; X-User-Id solo si lo verificó el Gateway
+│   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en el bloque finance
 │   └── postgres/
 │       └── init/                  # 01-create-databases.sh: una base lógica por servicio
 │                                  # (lo corren initdb y el servicio db-init)
+│
+├── tests/contract/                # Suite de contrato de caja negra contra CONTRACT_BASE_URL (A-20)
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 ├── finance/                       # Temporal: se elimina tras la conmutación (ADR-08)
@@ -252,7 +257,7 @@ Tener ambos tipos en el mismo proyecto es evidencia de criterio arquitectónico,
 | Etapa | Rol del Gateway | Tecnología | Estado |
 |-------|-----------------|------------|--------|
 | **Entrega 1** | Enrutamiento y punto de entrada único | `config/urls.py` de Django + DRF | Implementado |
-| **Entrega 2** | Proxy inverso, enrutamiento por servicio (Strangler), autenticación centralizada con `auth_request`, rate limiting | Nginx | Planeado (E2-M1, E2-M2) |
+| **Entrega 2** | Proxy inverso, enrutamiento por servicio (Strangler), autenticación centralizada con `auth_request`, rate limiting | Nginx | Implementado (E2-M1a, E2-M2b) |
 | **Escala (Horizonte 3)** | Agregación, circuit breaker | Kong / AWS API Gateway / KrakenD | Futuro |
 
 La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta a la Entrega 2 (ADR-09). TLS queda abierto porque requiere un dominio (D-12). Las cuatro funciones críticas y su realización en Finty se detallan en la Sección 10.
@@ -267,11 +272,11 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 ### ADR-08 — Strangler Pattern por conmutación de ruta en Nginx
 
 **Decisión:** la migración de `finance` no cambia el contrato. `accounts`, `transactions` y `categories` forman **un solo bloque de rutas**, que se conmuta **completo y de una vez**. Son un mismo agregado con FK entre sí (`Transaction → Account` por INV-02 e INV-13, `Transaction → Category`). Con una base por servicio (ADR-10) no pueden quedar repartidos entre el monolito y `finance-service`: una transacción servida por Flask no puede referenciar una cuenta que vive en la base del monolito.
-**Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy al upstream `finance_backend`. Hoy ese upstream apunta a `django:8000`. Conmutar consiste en cambiar su línea `server` hacia `finance-service` y agregar `auth_request` en ese `location`. No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
+**Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy al upstream `finance_backend`. Conmutar consiste en cambiar su línea `server` de `django:8000` a `finance-service:8000` e incluir `snippets/gateway-auth.conf` (el `auth_request` de ADR-09) en ese `location`; revertir es deshacer esas dos líneas. La regex del bloque captura también las variantes sin barra final y con sufijo `.json`, así que ninguna ruta del agregado cae en el bloque genérico de `/api/v1/` (lo verifica `tests/contract/test_routing.py` con la cabecera `X-Finty-Route: finance`). No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
 **Estrategia de datos:** `finty_finance` arranca **vacía**, salvo el catálogo de categorías, que se siembra con el equivalente de `finance/migrations/0002_seed_categories.py`. Las cuentas y transacciones existentes en la base del monolito **no se migran en esta entrega** (D-16).
 **Retiro del monolito:** el código de `finance` en Django permanece como respaldo mientras dura la verificación y **se elimina en un módulo posterior**, una vez verificado el nuevo servicio. Mientras ambos existan, el bloque entero apunta a uno solo: nunca escriben los dos a la vez.
 **Versionado:** `/api/v2/` queda reservado para cambios **incompatibles** del contrato. No se usa para migrar.
-**Estado:** aceptada. Sustituye la nota de v2.1 en §10.2 que proponía `/api/v2/` como vía de migración.
+**Estado:** aceptada y **conmutada el 2026-10-20** (E2-M2b). Evidencia: la suite de contrato `tests/contract/` dio el mismo resultado, test por test, con Django detrás (`tests/contract/runs/2026-10-20-antes-de-conmutar.txt`) y con `finance-service` detrás (`…-despues-de-conmutar.txt`): 111 verdes. El código de `finance` en Django sigue en el repositorio como respaldo y se elimina en un módulo posterior. Sustituye la nota de v2.1 en §10.2 que proponía `/api/v2/` como vía de migración.
 
 ### ADR-09 — Autenticación centralizada en el Gateway
 
@@ -283,7 +288,14 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 - Los servicios Flask no publican puertos en el host; solo Nginx lo hace (A-17).
 
 **Consecuencia:** INV-01 cambia de mecanismo en los servicios Flask (§7). Las rutas propias de `identity` (`auth/`, `profile/`) siguen protegidas por DRF dentro de Django.
-**Estado:** aceptada. Realiza la "validación una sola vez en la entrada del Gateway" que §10.1 dejaba como futura.
+
+**Implementación (E2-M2b):**
+- **Verificación:** la subpetición es una `location` interna (`/_gateway/auth/verify`) que hace proxy a Django **siempre con GET**, sin cuerpo y con una sola cabecera de la petición original, `Authorization`.
+- **Django:** `GatewayAuthVerifyAPIView` delega en `TokenVerificationService`, que reproduce los casos de `TokenAuthentication` de DRF. Responde `200` con `X-User-Id`, o `401` con el motivo en `X-Auth-Error` (por ejemplo `invalid_token`), sin cuerpo: Nginx no lee el cuerpo de una subpetición. No le aplican throttles, porque el Gateway la llama una vez por petición y la IP de Nginx agotaría cualquier cuota.
+- **Respuesta al cliente:** Nginx traduce `X-Auth-Error` con un `map` al mismo `{"detail": ...}` y el mismo `WWW-Authenticate: Token` que respondía DRF.
+- **Hacia el servicio:** el token no sigue hacia `finance-service`, que no lo necesita (`Authorization` se borra en el bloque).
+
+**Estado:** aceptada e **implementada el 2026-10-20** en el bloque `finance` (E2-M2b). Realiza la "validación una sola vez en la entrada del Gateway" que §10.1 dejaba como futura.
 
 ### ADR-10 — Una base de datos lógica por servicio
 
@@ -689,7 +701,7 @@ Las invariantes no cambian; cambia dónde y cómo se hacen cumplir cuando su due
 
 | ID | Dueño en la Entrega 2 | Mecanismo concreto | Módulo |
 |----|-----------------------|--------------------|--------|
-| INV-01 | Gateway | Nginx `auth_request` → Django `/internal/auth/verify/`; sin token válido la petición no llega al servicio (401). Las rutas de `identity` siguen con `IsAuthenticated` de DRF | E2-M2 |
+| INV-01 | Gateway | Nginx `auth_request` → Django `/internal/auth/verify/`; sin token válido la petición no llega al servicio (401). Las rutas de `identity` siguen con `IsAuthenticated` de DRF | E2-M2b (implementada) |
 | INV-02 | `finance-service` | `ForeignKey` de SQLAlchemy dentro de `finty_finance`, `nullable=False`, `ondelete="RESTRICT"` | E2-M2 |
 | INV-03 | `finance-service` | Toda consulta filtrada por el `user_id` de `X-User-Id`; cuenta ajena o inexistente → `AccountNotFoundError` (404, D-08) | E2-M2 |
 | INV-04 | `finance-service` | `TransactionBuilder.build()` **y** `CheckConstraint` de SQLAlchemy | E2-M2 |
@@ -1349,8 +1361,9 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 |-----------------|---------|-----------------------------|------|
 | `/` (plantillas), estáticos, catálogo JavaScript de i18n | `django` | No | Frontend (ADR-11) |
 | `/api/v1/health/` | `django` | No | Verificación de E2-M1 |
+| `/api/v1/auth/login/`, `/api/v1/auth/register/` | `django` | No | Zona estricta `finty_auth` además de la general (D-17) |
 | `/api/v1/auth/`, `/api/v1/profile/` | `django` | No (DRF lo hace dentro) | `identity` permanece en el monolito |
-| `/api/v1/accounts/`, `/api/v1/transactions/`, `/api/v1/categories/` | upstream `finance_backend`: `django` **o** `finance-service`, las tres rutas juntas | Sí, al apuntar a `finance-service` | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2 |
+| `/api/v1/accounts`, `/api/v1/transactions`, `/api/v1/categories`, con o sin barra final y con sufijo `.json` | upstream `finance_backend` → **`finance-service`** (conmutado el 2026-10-20), las tres rutas juntas | **Sí** (`auth_request`, ADR-09) | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2; responde con `X-Finty-Route: finance` |
 | Rutas de `analytics`, `recommendation`, `subscription` | su servicio | Sí | Se definen en el módulo de cada servicio |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
@@ -1358,6 +1371,8 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 1. Nginx elimina cualquier `X-User-Id` entrante y solo reenvía el que produjo la verificación.
 2. Solo Nginx publica un puerto en el host; los servicios escuchan únicamente en la red interna.
 3. El bloque `finance` (`accounts`, `transactions`, `categories`) se conmuta completo y de una vez, cambiando la línea `server` del upstream `finance_backend`; nunca se conmuta una ruta suelta, porque las tres comparten agregado y base (ADR-08). Es un cambio de configuración de Nginx, no de código, y se hace solo después de que `finance-service` pase la suite de contrato de las tres rutas (A-20).
+4. Las respuestas que genera el propio Gateway tienen la forma del contrato: 401 `{"detail": ...}` con el texto de DRF según el motivo (ADR-09), y 429 `{"detail": "Solicitud fue regulada (throttled)."}`, el texto de `Throttled` de DRF.
+5. `limit_req` por IP en dos zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, y `finty_api` (20/s, ráfaga 50) en todo `/api/v1/`.
 
 ---
 
@@ -1457,8 +1472,9 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-14 | Mecanismo concreto de INV-06 | Sin decidir: en el Gateway o en cada servicio que ofrece funciones premium | Abierta, E2-M6 |
 | D-15 | Borrado de usuario sin FK entre bases | No existe caso de uso de borrado; si aparece, se propaga por evento | Abierta, sin módulo asignado |
 | D-16 | Datos de `finance` del monolito al conmutar | `finty_finance` arranca vacía, solo con el catálogo de categorías sembrado (equivalente a `0002_seed_categories`). Las cuentas y transacciones del monolito no se migran en esta entrega (ADR-08) | Abierta — post-Entrega 2 |
-| D-17 | Rate limiting en el Gateway | ADR-06 lo asigna a Nginx (`limit_req`); E2-M1a no lo incluyó y hoy solo actúa el throttling de DRF | Abierta, E2-M2 |
+| D-17 | Rate limiting en el Gateway | **`limit_req` por IP en dos zonas, con respuesta 429 en JSON.** **`finty_auth`** (login y registro): `rate=6r/m`, `burst=10`, `nodelay`. La cuota anónima de DRF (60/h por IP) sigue en Django para esas rutas y es la autoridad horaria; Nginx no la endurece en régimen sostenido (6/min = 360/h), pero corta las ráfagas de fuerza bruta antes de que lleguen a Django, donde cada intento cuesta un hash de contraseña: diez intentos seguidos y luego uno cada 10 s. **`finty_api`** (todo `/api/v1/`): `rate=20r/s`, `burst=50`, `nodelay`. La cuota de usuario de DRF (1000/h ≈ 0,28/s en promedio) es horaria y por usuario; esta zona es protección contra inundación por segundo y por IP, holgada para el uso legítimo (una pantalla del frontend hace a lo sumo unas seis peticiones juntas). **Residuo aceptado:** las rutas de `finance`, servidas ahora por Flask, ya no tienen la cuota horaria por usuario de DRF, solo este límite por IP; si se necesitara, una zona con clave `$http_authorization` la aproximaría | **Cerrada** (E2-M2b) |
 | D-18 | Dependencias de desarrollo en la imagen de producción | Hay un solo `requirements.txt`, así que `pytest` y similares quedan instalados en la imagen `django`. Separarlas en un archivo de desarrollo | Abierta, sin módulo asignado |
+| D-19 | Texto del 404 de un id válido inexistente | `GET /accounts/{uuid}/` y `GET /categories/{uuid}/` responden `{"detail": "No Account matches the given query."}` (o `Category`): el mensaje de `get_object_or_404` de Django, en inglés, que DRF conservaba y `finance-service` reproduce por contrato. Un id mal formado sí responde `No encontrado.` | Abierta, E2-M8: traducir por `code` junto con el resto del i18n |
 
 ---
 
@@ -1490,7 +1506,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-17 | Solo Nginx es alcanzable desde el host | En `docker compose config`, solo el servicio `nginx` declara `ports`; los demás usan solo la red interna | E2-M1 |
 | A-18 | Un `X-User-Id` del cliente se ignora | Petición con Token de A y `X-User-Id` de B: la respuesta contiene solo datos de A | E2-M2 |
 | A-19 | Ownership a través del Gateway | El usuario B recibe 404 (no 403) sobre la cuenta de A servida por `finance-service` | E2-M2 |
-| A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez | E2-M2 |
+| A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez. Implementada en `tests/contract/` (incluye A-18 en `test_auth.py` y A-19 en `test_isolation.py`); corridas guardadas en `tests/contract/runs/` | E2-M2b (cumplido) |
 | A-21 | Sin acceso a bases ajenas | Cada servicio recibe en su configuración solo la URL de su propia base lógica | E2-M1 en adelante |
 | A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz | E2-M3, E2-M5, E2-M9 |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext | E2-M8 |

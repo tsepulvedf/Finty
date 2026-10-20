@@ -42,7 +42,7 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-20 | Versión de Python | 3.12 | **3.11** (imágenes `python:3.11-slim`) | Es la versión real del entorno y la que declara el README |
 | C-21 | Unidades de despliegue | Monolito Django único | **Monolito Django (`identity` + frontend + verificación de auth) y cinco microservicios Flask** | Bono de migración >70% (ADR-07) |
 | C-22 | Contextos `analytics`, `recommendation`, `subscription` | Diferidos como apps Django | **Nacen directamente como servicios Flask**; nunca existen como apps Django | Evitar construirlos dos veces (ADR-07) |
-| C-23 | Strangler Pattern | `/api/v2/` al microservicio mientras `/api/v1/` sigue en el monolito | **Conmutación por bloque de rutas en Nginx sobre el mismo `/api/v1/`**; `/api/v2/` reservado para cambios incompatibles del contrato | El cliente no cambia al migrar (ADR-08) |
+| C-23 | Strangler Pattern | `/api/v2/` al microservicio mientras `/api/v1/` sigue en el monolito | **Conmutación en Nginx, sobre el mismo `/api/v1/`, del bloque `finance` completo y de una vez** (upstream `finance_backend`); `/api/v2/` reservado para cambios incompatibles del contrato | El cliente no cambia al migrar (ADR-08) |
 | C-24 | Autenticación | `IsAuthenticated` de DRF en cada vista | **Validación única en Nginx con `auth_request`** contra Django; los servicios Flask confían en `X-User-Id` | Función de autenticación del Gateway (ADR-09) |
 | C-25 | Persistencia | Una base compartida | **Una base lógica por servicio** en una sola instancia de PostgreSQL | Autonomía de los servicios (ADR-10) |
 | C-26 | `Account.user` | `ForeignKey(User, PROTECT)` | **`user_id: UUID` sin FK** en `finance-service` | Una FK no puede cruzar bases de datos (ADR-10) |
@@ -179,21 +179,30 @@ finty/
 | `api/` como subpaquete | Separa el contrato REST del resto del app; facilita añadir un segundo contrato (GraphQL, gRPC) sin reorganizar. |
 | `core/` transversal | `Money` y las excepciones de dominio se comparten entre contextos; duplicarlas rompería DRY y el lenguaje ubicuo. |
 
-#### ADR-04.1 — Estructura objetivo de la Entrega 2
+#### ADR-04.1 — Estructura de la Entrega 2
 
-> **Provisional.** La ubicación exacta de cada carpeta se fija en el módulo que la crea (E2-M1 para Compose y Nginx, E2-M2 para el primer servicio). Lo que no es provisional es la forma interna de cada servicio: los mismos tres anillos del monolito.
+Todo el árbol es real (existe desde E2-M1a) **salvo `services/`, que es provisional**: su ubicación se confirma en E2-M2, al crear el primer servicio. Lo que no es provisional es su forma interna: los mismos tres anillos del monolito.
 
 ```
 finty/
-├── docker-compose.yml             # Django, servicios Flask, Nginx, PostgreSQL, Redis, workers
-├── .env.example
+├── Dockerfile                     # Dos etapas: `django` (python:3.11-slim, collectstatic,
+│                                  # gunicorn, usuario sin root) y `gateway` (nginx con los
+│                                  # estáticos copiados desde la etapa `django`)
+├── docker-compose.yml             # db, redis, migrate (un solo uso), django, nginx
+├── .dockerignore
+├── .env.example                   # ejecución local con PostgreSQL en el host
+├── .env.docker.example            # ejecución con Compose
 ├── deploy/
-│   └── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
+│   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
+│   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`) y rutas
+│   │   └── snippets/proxy.conf    # cabeceras de proxy; descarta X-User-Id del cliente
+│   └── postgres/
+│       └── init/                  # 01-create-databases.sh: una base lógica por servicio
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 ├── finance/                       # Temporal: se elimina tras la conmutación (ADR-08)
 │
-└── services/
+└── services/                      # PROVISIONAL — se fija en E2-M2
     └── <nombre>-service/          # finance, categorization, analytics, recommendation, subscription
         ├── Dockerfile             # python:3.11-slim
         ├── requirements.txt       # dependencias propias del servicio
@@ -204,6 +213,8 @@ finty/
         ├── api/                   # blueprints: parsean, llaman al servicio, traducen a HTTP
         └── tests/
 ```
+
+**Migraciones:** el servicio `migrate` de Compose usa la misma imagen que `django`, corre `manage.py migrate` y termina. `django` no arranca hasta que ese paso termina con éxito (`service_completed_successfully`). Así cada `up` deja el esquema al día sin un paso manual, una migración fallida impide arrancar contra un esquema incompleto y los workers de gunicorn nunca compiten por migrar. Cada servicio Flask repetirá el patrón con su propio paso de migración.
 
 ### ADR-05 — ViewSet vs APIView
 
@@ -240,8 +251,10 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 ### ADR-08 — Strangler Pattern por conmutación de ruta en Nginx
 
-**Decisión:** la migración de `finance` no cambia el contrato. Nginx enruta **por bloques de rutas** (`accounts`, `transactions`, `categories`) y cada bloque apunta al monolito o a `finance-service`. Un bloque se conmuta solo cuando la ruta nueva pasa la misma suite de contrato que la vieja (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
-**Retiro del monolito:** el código de `finance` en Django permanece como respaldo mientras dura la verificación y **se elimina en un módulo posterior**, una vez verificado el nuevo servicio. Mientras ambos existan, solo uno recibe tráfico por bloque: nunca escriben los dos a la vez.
+**Decisión:** la migración de `finance` no cambia el contrato. `accounts`, `transactions` y `categories` forman **un solo bloque de rutas**, que se conmuta **completo y de una vez**. Son un mismo agregado con FK entre sí (`Transaction → Account` por INV-02 e INV-13, `Transaction → Category`). Con una base por servicio (ADR-10) no pueden quedar repartidos entre el monolito y `finance-service`: una transacción servida por Flask no puede referenciar una cuenta que vive en la base del monolito.
+**Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy al upstream `finance_backend`. Hoy ese upstream apunta a `django:8000`. Conmutar consiste en cambiar su línea `server` hacia `finance-service` y agregar `auth_request` en ese `location`. No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
+**Estrategia de datos:** `finty_finance` arranca **vacía**, salvo el catálogo de categorías, que se siembra con el equivalente de `finance/migrations/0002_seed_categories.py`. Las cuentas y transacciones existentes en la base del monolito **no se migran en esta entrega** (D-16).
+**Retiro del monolito:** el código de `finance` en Django permanece como respaldo mientras dura la verificación y **se elimina en un módulo posterior**, una vez verificado el nuevo servicio. Mientras ambos existan, el bloque entero apunta a uno solo: nunca escriben los dos a la vez.
 **Versionado:** `/api/v2/` queda reservado para cambios **incompatibles** del contrato. No se usa para migrar.
 **Estado:** aceptada. Sustituye la nota de v2.1 en §10.2 que proponía `/api/v2/` como vía de migración.
 
@@ -337,7 +350,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation` | E2-M5 |
 | SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
 
-Mientras dure la verificación del Strangler (ADR-08), la app `finance` de Django sigue existiendo como respaldo sobre su base actual; solo uno de los dos recibe tráfico por bloque de rutas.
+Mientras dure la verificación del Strangler (ADR-08), la app `finance` de Django sigue existiendo como respaldo sobre su base actual; el bloque `finance` completo apunta a uno solo de los dos.
 
 **Relaciones de la Entrega 2** (diagrama en §9.5):
 
@@ -1092,7 +1105,7 @@ flowchart LR
     ALLY -->|"resumen JSON expuesto"| NGX
 ```
 
-Cada servicio solo se conecta a **su** base lógica (ADR-10). Mientras dure la verificación del Strangler, el bloque de rutas de `finance` puede seguir apuntando a `django` (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
+Cada servicio solo se conecta a **su** base lógica (ADR-10). Mientras dure la verificación del Strangler, el bloque `finance` completo (`accounts`, `transactions`, `categories`) puede seguir apuntando a `django` (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
 
 ### 9.5 Mapa de contextos — Entrega 2
 
@@ -1322,14 +1335,14 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 | `/` (plantillas), estáticos, catálogo JavaScript de i18n | `django` | No | Frontend (ADR-11) |
 | `/api/v1/health/` | `django` | No | Verificación de E2-M1 |
 | `/api/v1/auth/`, `/api/v1/profile/` | `django` | No (DRF lo hace dentro) | `identity` permanece en el monolito |
-| `/api/v1/accounts/`, `/api/v1/transactions/`, `/api/v1/categories/` | `django` **o** `finance-service`, conmutable por bloque | Sí, al apuntar a `finance-service` | Strangler (ADR-08); mismo contrato que §10.2 |
+| `/api/v1/accounts/`, `/api/v1/transactions/`, `/api/v1/categories/` | upstream `finance_backend`: `django` **o** `finance-service`, las tres rutas juntas | Sí, al apuntar a `finance-service` | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2 |
 | Rutas de `analytics`, `recommendation`, `subscription` | su servicio | Sí | Se definen en el módulo de cada servicio |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
 **Reglas del Gateway:**
 1. Nginx elimina cualquier `X-User-Id` entrante y solo reenvía el que produjo la verificación.
 2. Solo Nginx publica un puerto en el host; los servicios escuchan únicamente en la red interna.
-3. Conmutar un bloque es un cambio de configuración de Nginx, no de código. Se hace solo después de que el servicio nuevo pase la suite de contrato del bloque (A-20).
+3. El bloque `finance` (`accounts`, `transactions`, `categories`) se conmuta completo y de una vez, cambiando la línea `server` del upstream `finance_backend`; nunca se conmuta una ruta suelta, porque las tres comparten agregado y base (ADR-08). Es un cambio de configuración de Nginx, no de código, y se hace solo después de que `finance-service` pase la suite de contrato de las tres rutas (A-20).
 
 ---
 
@@ -1428,6 +1441,9 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | Sin decidir: copia por servicio o paquete compartido | Abierta, E2-M2 |
 | D-14 | Mecanismo concreto de INV-06 | Sin decidir: en el Gateway o en cada servicio que ofrece funciones premium | Abierta, E2-M6 |
 | D-15 | Borrado de usuario sin FK entre bases | No existe caso de uso de borrado; si aparece, se propaga por evento | Abierta, sin módulo asignado |
+| D-16 | Datos de `finance` del monolito al conmutar | `finty_finance` arranca vacía, solo con el catálogo de categorías sembrado (equivalente a `0002_seed_categories`). Las cuentas y transacciones del monolito no se migran en esta entrega (ADR-08) | Abierta — post-Entrega 2 |
+| D-17 | Rate limiting en el Gateway | ADR-06 lo asigna a Nginx (`limit_req`); E2-M1a no lo incluyó y hoy solo actúa el throttling de DRF | Abierta, E2-M2 |
+| D-18 | Dependencias de desarrollo en la imagen de producción | Hay un solo `requirements.txt`, así que `pytest` y similares quedan instalados en la imagen `django`. Separarlas en un archivo de desarrollo | Abierta, sin módulo asignado |
 
 ---
 
@@ -1459,7 +1475,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-17 | Solo Nginx es alcanzable desde el host | En `docker compose config`, solo el servicio `nginx` declara `ports`; los demás usan solo la red interna | E2-M1 |
 | A-18 | Un `X-User-Id` del cliente se ignora | Petición con Token de A y `X-User-Id` de B: la respuesta contiene solo datos de A | E2-M2 |
 | A-19 | Ownership a través del Gateway | El usuario B recibe 404 (no 403) sobre la cuenta de A servida por `finance-service` | E2-M2 |
-| A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa contra el monolito y contra `finance-service` | E2-M2 |
+| A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez | E2-M2 |
 | A-21 | Sin acceso a bases ajenas | Cada servicio recibe en su configuración solo la URL de su propia base lógica | E2-M1 en adelante |
 | A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz | E2-M3, E2-M5, E2-M9 |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext | E2-M8 |

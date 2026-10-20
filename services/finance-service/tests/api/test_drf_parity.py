@@ -354,3 +354,38 @@ class TestFormatoDeSalida:
             "id", "name", "type", "balance", "opening_balance",
             "currency", "is_archived", "created_at",
         ]
+
+
+class TestSufijoDeFormato:
+    """Las variantes `.json` que publicaba `DefaultRouter` en el monolito."""
+
+    @pytest.fixture
+    def cuenta(self, ana):
+        return ana.post(ACCOUNTS_URL, {"name": "Banco", "type": "bank"}).json
+
+    @pytest.mark.parametrize("ruta", ["/api/v1/accounts.json", "/api/v1/accounts.json/"])
+    def test_listado_de_cuentas(self, ana, cuenta, ruta):
+        respuesta = ana.get(ruta)
+        assert respuesta.status_code == 200
+        assert respuesta.json["results"] == ana.get(ACCOUNTS_URL).json["results"]
+
+    def test_detalle_de_cuenta(self, ana, cuenta):
+        respuesta = ana.get(f"/api/v1/accounts/{cuenta['id']}.json")
+        assert respuesta.json == ana.get(f"{ACCOUNTS_URL}{cuenta['id']}/").json
+
+    def test_archivar_con_sufijo(self, ana, cuenta):
+        respuesta = ana.post(f"/api/v1/accounts/{cuenta['id']}/archive.json")
+        assert respuesta.status_code == 200
+        assert respuesta.json["is_archived"] is True
+
+    def test_categorias_con_sufijo(self, ana):
+        assert ana.get("/api/v1/categories.json").json["count"] == 15
+
+    @pytest.mark.parametrize(
+        "ruta", ["/api/v1/transactions.json", "/api/v1/accounts.xml", "/api/v1/accounts.api"]
+    )
+    def test_sin_variante_da_404(self, ana, ruta):
+        assert ana.get(ruta).status_code == 404
+
+    def test_el_sufijo_tambien_exige_identidad(self, anonimo):
+        assert anonimo.get("/api/v1/accounts.json").status_code == 401

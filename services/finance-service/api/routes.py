@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify
 from api.context import current_user_id, db_session
 from api.errors import or_404
 from api.pagination import paginate
+from api.routing import router_route
 from api.parsing import query_flag, query_values, request_data
 from api.schemas import (
     AccountInput,
@@ -28,6 +29,12 @@ from infra.factories import CategorizerFactory
 from services import AccountService, CategoryService, TransactionService
 
 blueprint = Blueprint("finance", __name__, url_prefix="/api/v1")
+
+
+def routed(rule, methods):
+    """Ruta de `categories` o `accounts`: con las variantes `.json` del router."""
+    return router_route(blueprint, rule, methods)
+
 
 NO_CONTENT = ("", 204)
 CREATED = 201
@@ -45,14 +52,14 @@ def _transaction_service():
 # --- /categories/ ------------------------------------------------------------
 
 
-@blueprint.get("/categories/")
+@routed("/categories/", ["GET"])
 def list_categories():
     """Catalogo global de solo lectura, paginado."""
     listing = CategoryService(db_session()).list_categories()
     return jsonify(paginate(listing, category_to_dict))
 
 
-@blueprint.get("/categories/<lookup:pk>/")
+@routed("/categories/<lookup:pk>/", ["GET"])
 def retrieve_category(pk):
     """Una categoria del catalogo."""
     category = or_404(CategoryService(db_session()).find_category(pk), "Category", pk)
@@ -62,7 +69,7 @@ def retrieve_category(pk):
 # --- /accounts/ --------------------------------------------------------------
 
 
-@blueprint.get("/accounts/")
+@routed("/accounts/", ["GET"])
 def list_accounts():
     """Cuentas del usuario; las archivadas solo con `include_archived`."""
     listing = AccountService(db_session()).list_accounts(
@@ -71,7 +78,7 @@ def list_accounts():
     return jsonify(paginate(listing, account_to_dict))
 
 
-@blueprint.post("/accounts/")
+@routed("/accounts/", ["POST"])
 def create_account():
     """Crea una cuenta y devuelve 201."""
     data = validate_input(AccountInput, request_data())
@@ -85,7 +92,7 @@ def create_account():
     return jsonify(account_to_dict(account)), CREATED
 
 
-@blueprint.get("/accounts/<lookup:pk>/")
+@routed("/accounts/<lookup:pk>/", ["GET"])
 def retrieve_account(pk):
     """Una cuenta del usuario, buscada dentro de su listado."""
     account = or_404(
@@ -98,7 +105,7 @@ def retrieve_account(pk):
     return jsonify(account_to_dict(account))
 
 
-@blueprint.route("/accounts/<lookup:pk>/", methods=["PUT", "PATCH"])
+@routed("/accounts/<lookup:pk>/", ["PUT", "PATCH"])
 def update_account(pk):
     """Renombra la cuenta; `PATCH` se comporta igual que `PUT`."""
     data = validate_input(AccountRename, request_data())
@@ -108,14 +115,14 @@ def update_account(pk):
     return jsonify(account_to_dict(account))
 
 
-@blueprint.delete("/accounts/<lookup:pk>/")
+@routed("/accounts/<lookup:pk>/", ["DELETE"])
 def delete_account(pk):
     """Elimina una cuenta sin transacciones (INV-13) y devuelve 204."""
     AccountService(db_session()).delete_account(current_user_id(), pk)
     return NO_CONTENT
 
 
-@blueprint.post("/accounts/<lookup:pk>/archive/")
+@routed("/accounts/<lookup:pk>/archive/", ["POST"])
 def archive_account(pk):
     """Archiva sin borrar."""
     account = AccountService(db_session()).archive_account(current_user_id(), pk)

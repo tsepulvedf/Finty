@@ -181,14 +181,15 @@ finty/
 
 #### ADR-04.1 — Estructura de la Entrega 2
 
-Todo el árbol es real (existe desde E2-M1a) **salvo `services/`, que es provisional**: su ubicación se confirma en E2-M2, al crear el primer servicio. Lo que no es provisional es su forma interna: los mismos tres anillos del monolito.
+Todo el árbol es real: la raíz y `deploy/` existen desde E2-M1a, y `services/` desde E2-M2a, con `finance-service` como primer servicio. Cada servicio Flask repite la forma interna de `finance-service`: los mismos tres anillos del monolito.
 
 ```
 finty/
 ├── Dockerfile                     # Dos etapas: `django` (python:3.11-slim, collectstatic,
 │                                  # gunicorn, usuario sin root) y `gateway` (nginx con los
 │                                  # estáticos copiados desde la etapa `django`)
-├── docker-compose.yml             # db, redis, migrate (un solo uso), django, nginx
+├── docker-compose.yml             # db, db-init y migrate (un solo uso), redis, django,
+│                                  # finance-migrate (un solo uso), finance-service, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
@@ -198,23 +199,37 @@ finty/
 │   │   └── snippets/proxy.conf    # cabeceras de proxy; descarta X-User-Id del cliente
 │   └── postgres/
 │       └── init/                  # 01-create-databases.sh: una base lógica por servicio
+│                                  # (lo corren initdb y el servicio db-init)
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 ├── finance/                       # Temporal: se elimina tras la conmutación (ADR-08)
 │
-└── services/                      # PROVISIONAL — se fija en E2-M2
-    └── <nombre>-service/          # finance, categorization, analytics, recommendation, subscription
-        ├── Dockerfile             # python:3.11-slim
+└── services/
+    └── finance-service/           # Plantilla de los demás servicios Flask
+        ├── Dockerfile             # python:3.11-slim, gunicorn, usuario sin root
         ├── requirements.txt       # dependencias propias del servicio
-        ├── domain/                # Python puro: ni Flask ni SQLAlchemy
-        ├── infra/                 # adaptadores, repositorios, factories
+        ├── .env.docker.example    # solo la URL de su base (A-21)
+        ├── app.py                 # create_app(): configuración, blueprints, sonda /health/
+        ├── domain/                # Python puro: ni Flask ni SQLAlchemy (A-16)
+        │   └── shared/            # copia propia de Money y DomainError (D-13)
+        ├── infra/                 # categorizadores, factory, engine y sesión, Listing
         ├── models.py              # SQLAlchemy: solo persistencia
-        ├── services.py            # casos de uso
-        ├── api/                   # blueprints: parsean, llaman al servicio, traducen a HTTP
-        └── tests/
+        ├── services.py            # casos de uso, sobre una sesión inyectada
+        ├── messages.py            # catálogo único de mensajes al usuario (→ Flask-Babel en E2-M8)
+        ├── api/                   # blueprints, esquemas pydantic, salida, errores, paginación
+        ├── alembic.ini
+        ├── migrations/            # Alembic: 0001 esquema, 0002 siembra del catálogo
+        └── tests/                 # dominio, categorización, persistencia, servicios, contrato
 ```
 
-**Migraciones:** el servicio `migrate` de Compose usa la misma imagen que `django`, corre `manage.py migrate` y termina. `django` no arranca hasta que ese paso termina con éxito (`service_completed_successfully`). Así cada `up` deja el esquema al día sin un paso manual, una migración fallida impide arrancar contra un esquema incompleto y los workers de gunicorn nunca compiten por migrar. Cada servicio Flask repetirá el patrón con su propio paso de migración.
+**Migraciones:** el servicio `migrate` de Compose usa la misma imagen que `django`, corre `manage.py migrate` y termina. `django` no arranca hasta que ese paso termina con éxito (`service_completed_successfully`). Así cada `up` deja el esquema al día sin un paso manual, una migración fallida impide arrancar contra un esquema incompleto y los workers de gunicorn nunca compiten por migrar. `finance-migrate` repite el patrón con `alembic upgrade head` sobre la imagen de `finance-service`, y cada servicio Flask nuevo tendrá el suyo.
+
+**Creación de bases en volúmenes existentes (`db-init`).** El script de `deploy/postgres/init/` lo ejecuta la imagen de PostgreSQL solo cuando inicializa un volumen vacío. En un volumen que ya existe, como el de la EC2, una base nueva nunca aparecería. Por eso Compose tiene un paso de un solo uso, `db-init`, que corre **ese mismo script** en cada `up`, por TCP contra `db`, antes de cualquier paso de migración (`migrate` y `finance-migrate` dependen de él). El script es idempotente: crea las bases que falten y no toca las existentes.
+
+Se eligió sobre la alternativa de que cada paso de migración cree su propia base por tres razones:
+- La lista de bases sigue en **un solo lugar** (`FINTY_DATABASES`). Agregar un servicio es agregar su nombre ahí.
+- Crear bases es una operación de administración del servidor. Así no la hace el código de ningún servicio ni requiere privilegios de administración en su configuración.
+- No se escribe código nuevo: se reutiliza el script que ya existía y que initdb sigue usando en un volumen vacío.
 
 ### ADR-05 — ViewSet vs APIView
 
@@ -437,7 +452,7 @@ Mismo denominador que §4.2: las 20 clases del diagrama de dominio. Diagrama en 
 
 **Fuera del monolito: 18 de 20 clases = 90%.** Medido por bounded contexts, 4 de 5 contextos quedan fuera; medido por endpoints de negocio, solo `auth/` y `profile/` siguen en Django (más `health/` y el endpoint interno de verificación, que son de soporte).
 
-**Criterio de asignación:** cada clase cuenta una sola vez, en el servicio que es su dueño. `finance-service` sigue *usando* `Categorizer` y `CategorySuggestion` como puerto de cliente hacia `categorization-service`, y `Money` se usa en varios servicios, pero su dueño está donde indica la tabla. Cómo comparten los servicios el núcleo común (`Money`, `DomainError`) queda abierto (D-13).
+**Criterio de asignación:** cada clase cuenta una sola vez, en el servicio que es su dueño. `finance-service` sigue *usando* `Categorizer` y `CategorySuggestion` como puerto de cliente hacia `categorization-service`, y `Money` se usa en varios servicios, pero su dueño está donde indica la tabla. Cada servicio lleva su propia copia del núcleo común (`Money`, `DomainError`) en su `domain/shared/` (D-13).
 ---
 
 ## 5. Modelo de dominio actualizado
@@ -628,7 +643,7 @@ class TransactionService:
 
 La View no decide qué categorizador usar; pide uno a la Factory y lo inyecta. El Service depende de la abstracción, nunca de `AICategorizer`.
 
-**En `finance-service`** los servicios conservan los mismos métodos y el mismo contrato. Solo cambia la entrada de identidad: reciben el `user_id` resuelto por el Gateway (ADR-09) en lugar del objeto `User` de Django, y acceden a los datos a través de repositorios SQLAlchemy.
+**En `finance-service`** los servicios conservan los mismos métodos y el mismo contrato. Solo cambia la entrada de identidad: reciben el `user_id` resuelto por el Gateway (ADR-09) en lugar del objeto `User` de Django, y acceden a los datos con una sesión SQLAlchemy inyectada por constructor sobre los modelos de `models.py`, igual que los del monolito usan el ORM. Los listados devuelven un `Listing` (equivalente del `QuerySet` perezoso), de modo que el blueprint pagina sin escribir SQL. No se agregó una capa de repositorios: habría sido una abstracción que el monolito no tiene.
 
 ### 6.4 Adapter → integraciones externas (Entrega 2)
 
@@ -1172,7 +1187,7 @@ sequenceDiagram
     participant N as Nginx
     participant BP as Blueprint de transacciones
     participant TS as TransactionService
-    participant R as Repositorios SQLAlchemy
+    participant R as Sesión SQLAlchemy
     participant CP as Categorizer (adaptador HTTP)
     participant CS as categorization-service
     participant B as TransactionBuilder
@@ -1438,7 +1453,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-10 | Equipo aliado | Sin asignar. Solo `MockAllyAdapter`; no se inventan dominio, URL ni contrato. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
 | D-11 | Formato de los diagramas | Mermaid dentro del Markdown, porque la Wiki de GitHub lo renderiza | **Abierta** — confirmar que el curso no exige otro formato |
 | D-12 | TLS en el Gateway | Sin TLS: la instancia se expone por IP elástica, sin dominio. ADR-14 evita depender de HTTPS para los pagos | Abierta — requiere dominio |
-| D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | Sin decidir: copia por servicio o paquete compartido | Abierta, E2-M2 |
+| D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | **Copia propia en el `domain/shared/` de cada servicio**, con las mismas reglas del original. Un paquete compartido acoplaría los despliegues: cambiarlo obligaría a reconstruir y desplegar a la vez todos los servicios que lo usan. El costo aceptado es mantener las copias alineadas a mano; el glosario (§12) sigue siendo uno solo | **Cerrada** (E2-M2a) |
 | D-14 | Mecanismo concreto de INV-06 | Sin decidir: en el Gateway o en cada servicio que ofrece funciones premium | Abierta, E2-M6 |
 | D-15 | Borrado de usuario sin FK entre bases | No existe caso de uso de borrado; si aparece, se propaga por evento | Abierta, sin módulo asignado |
 | D-16 | Datos de `finance` del monolito al conmutar | `finty_finance` arranca vacía, solo con el catálogo de categorías sembrado (equivalente a `0002_seed_categories`). Las cuentas y transacciones del monolito no se migran en esta entrega (ADR-08) | Abierta — post-Entrega 2 |

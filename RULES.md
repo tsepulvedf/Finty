@@ -1,6 +1,6 @@
 # Finty — Reglas de trabajo
 
-Monolito Django de grado empresarial. Aplicación B2C de finanzas personales.
+Aplicación B2C de finanzas personales. Desde la Entrega 2: monolito Django (`identity`, frontend, verificación de auth) más microservicios Flask, detrás de un Gateway Nginx y desplegados con Docker Compose en AWS EC2.
 Entregable académico evaluado sobre arquitectura limpia, SOLID y patrones creacionales.
 
 **Antes de escribir código de dominio, servicios o patrones: lee `docs/ARCHITECTURE.md`.**
@@ -10,21 +10,25 @@ Ese documento es la fuente única de verdad. Si algo aquí y allá se contradice
 
 ## Reglas inviolables
 
+Las reglas 1 a 6 aplican igual al monolito y a cada microservicio Flask. En Flask, los blueprints ocupan el lugar de las views, los modelos SQLAlchemy el de `models.py` y la validación de entrada el de los serializers.
+
 ### 1. `domain/` es Python puro
 `core/domain/` y `finance/domain/` **no importan Django**. Ni `models`, ni `settings`, ni `timezone`, ni nada.
 Verificación: `grep -rn "django" core/domain/ finance/domain/` debe devolver vacío.
+En cada servicio Flask, `domain/` **no importa Flask, SQLAlchemy ni su propio `infra/`**. Se verifica por AST en la suite del servicio (A-16).
 
 ### 2. `models.py` solo persiste
 Únicamente: campos, `Meta`, `constraints`, relaciones, `__str__`.
 **Prohibido**: métodos de negocio, `save()` sobreescrito con lógica, `clean()` con reglas, `@property` que calcule algo del negocio, signals (`post_save`, `pre_save`).
+En SQLAlchemy: columnas, `__table_args__`, constraints, relaciones y `__repr__`. Sin métodos de negocio, `@hybrid_property` de negocio ni listeners de eventos del ORM.
 Un solo método de negocio en un modelo cuesta el 50% de la nota de esta sección.
 
 ### 3. Las views no piensan
 Una view solo: valida con el serializer, obtiene dependencias de la factory, llama al service, traduce el resultado a HTTP.
-**Prohibido en views**: cálculos, `if` sobre reglas de negocio, queries con lógica, orquestación de varios pasos.
+**Prohibido en views** (y en blueprints): cálculos, `if` sobre reglas de negocio, queries con lógica, orquestación de varios pasos.
 
 ### 4. Los serializers validan sintaxis, no semántica
-Formato, tipos, campos requeridos → serializer.
+Formato, tipos, campos requeridos → serializer (o validación de entrada del blueprint).
 Reglas de negocio ("el monto no puede ser cero", "la cuenta debe ser tuya") → service o dominio.
 **Prohibido**: `validate_*()` que consulte la base de datos para aplicar una regla de negocio.
 
@@ -35,14 +39,18 @@ Los services orquestan casos de uso. El dominio contiene las reglas.
 `views` → `services` → `domain`. Nunca al revés.
 `domain/interfaces.py` define ABCs; `infra/` las implementa. Los services dependen de la ABC, jamás de la implementación concreta.
 
-### 7. Apps prohibidas en esta entrega
-Solo existen tres apps: `core`, `identity`, `finance`.
-**No crear** `analytics`, `recommendation` ni `subscription`, ni sus modelos, ni scaffolding "para después".
-`docs/ARCHITECTURE.md` los describe porque documenta el sistema completo; están **fuera del alcance de esta entrega**. Si el documento menciona `Insight`, `Recommendation`, `RiskProfile`, `Subscription`, `Payment`, `SubscriptionPlan`, `InvestmentPlan`, `SpendingPattern` o `Dashboard`: ignóralos.
+### 7. Apps, servicios y fronteras
+**Apps Django:** solo `core`, `identity` y `finance`. `finance` es **temporal**: sigue en el monolito como respaldo hasta que `finance-service` quede verificado detrás de Nginx, y se elimina en un módulo posterior (ADR-08).
+**Microservicios Flask:** `finance-service`, `categorization-service`, `analytics-service`, `recommendation-service` y `subscription-service`. `analytics`, `recommendation` y `subscription` existen **solo** como servicios Flask: **no crear** apps Django, modelos ni scaffolding de esos contextos en el monolito. Cada servicio se construye en su módulo y no antes.
+**Fronteras entre servicios:**
+- Ningún servicio consulta la base de datos de otro. Cada uno tiene su base lógica y solo conoce su URL (ADR-10).
+- Los servicios se comunican **solo** por HTTP en la red interna de Docker o por eventos en Redis.
+- Los servicios Flask **confían en `X-User-Id`** y no validan tokens. Esa cabecera la pone Nginx tras `auth_request` (ADR-09).
+- Los servicios Flask **no exponen puertos al host**: solo se llega a ellos a través de Nginx.
 
 ### 8. No inventes alcance
 No agregues features, endpoints, modelos ni campos que no estén en `docs/ARCHITECTURE.md` o en el prompt del módulo actual.
-Si algo parece faltar, dilo en la respuesta en vez de improvisarlo.
+Si algo parece faltar, dilo en la respuesta en vez de improvisarlo. Lo marcado como abierto en `docs/ARCHITECTURE.md` §13 (por ejemplo, el contrato del equipo aliado) no se rellena con supuestos.
 
 ---
 
@@ -51,19 +59,21 @@ Si algo parece faltar, dilo en la respuesta en vez de improvisarlo.
 **Nomenclatura**: identificadores en inglés, siguiendo el glosario de `docs/ARCHITECTURE.md` §12. Los sinónimos prohibidos ahí están prohibidos de verdad.
 Colisión conocida: `from django.db import transaction as db_transaction`, porque `Transaction` es una entidad del dominio.
 
-**Idioma**: código en inglés. Docstrings y comentarios en español.
+**Idioma**: código en inglés. Docstrings y comentarios en español. Los textos que ve el usuario pasan siempre por gettext (`es` y `en`); ninguno queda quemado.
 
-**Value Objects**: `@dataclass(frozen=True)`. Inmutables de verdad.
+**Value Objects**: `@dataclass(frozen=True)`. Inmutables de verdad. Las enumeraciones del dominio son `enum.StrEnum` (C-15).
 
-**Dinero**: siempre `Decimal`, nunca `float`. `DecimalField(max_digits=14, decimal_places=2)`.
+**Dinero**: siempre `Decimal`, nunca `float`. `DecimalField(max_digits=14, decimal_places=2)`; en SQLAlchemy, `Numeric(14, 2)`.
 
-**IDs**: `UUIDField(primary_key=True, default=uuid4, editable=False)`.
+**IDs**: `UUIDField(primary_key=True, default=uuid4, editable=False)`; en SQLAlchemy, UUID con `default=uuid4`. Las referencias a entidades de otro servicio (por ejemplo `user_id`) son UUID **sin FK**.
 
-**Excepciones**: el dominio lanza subclases de `DomainError` (`core/domain/exceptions.py`), nunca excepciones de Django ni de DRF. El handler global las traduce a HTTP.
+**Excepciones**: el dominio lanza subclases de `DomainError` (`core/domain/exceptions.py`), nunca excepciones de Django, DRF, Flask ni SQLAlchemy. El handler global de cada unidad las traduce a HTTP.
 
-**Tests**: `pytest` + `pytest-django`. Los tests de dominio no tocan la base de datos.
+**Python**: 3.11 en todo el sistema; imágenes `python:3.11-slim`.
 
-**Dependencias**: no instalar paquetes fuera de `requirements.txt` sin decirlo explícitamente en la respuesta.
+**Tests**: `pytest` + `pytest-django` en el monolito; `pytest` en cada servicio Flask. Los tests de dominio no tocan la base de datos.
+
+**Dependencias**: cada unidad tiene su propio `requirements.txt`. No instalar paquetes fuera de él sin decirlo explícitamente en la respuesta.
 
 ---
 
@@ -87,6 +97,7 @@ No agrupes cambios heterogéneos en un solo commit. No incluyas coautoría ni fi
 
 Reporta en la respuesta:
 1. Archivos creados o modificados.
-2. Comandos para verificar que funciona.
+2. Comandos para verificar que funciona (tests, `docker compose`, `curl`).
 3. Cualquier decisión que tomaste y no estaba especificada.
 4. Cualquier regla de este archivo que te haya obligado a resolver algo de forma no obvia.
+5. Secuencia de commits sugerida para el módulo.

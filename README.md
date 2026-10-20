@@ -85,7 +85,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, `finance-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. `finance-service` todavía no recibe tráfico de Nginx: el bloque de rutas de `finance` sigue servido por Django hasta E2-M2b. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -172,6 +172,21 @@ pytest --cov=. --cov-report=term-missing
 ```
 
 Los tests de dominio no llevan la marca `django_db`, que es como `pytest-django` bloquea cualquier acceso a la base. Si un día el dominio empezara a consultarla, fallarían solos.
+
+### Suite de contrato (caja negra)
+
+`tests/contract/` prueba el contrato `/api/v1/` del bloque finance a través del Gateway, sin saber quién responde detrás: es la evidencia de la conmutación (A-20). Crea sus propios usuarios y no importa código de Finty.
+
+```bash
+# Con el stack de Docker arriba
+cd tests/contract
+CONTRACT_BASE_URL=http://localhost ../../venv/Scripts/python -m pytest -v
+
+# Los tests de 429 agotan las cuotas de limit_req; van aparte
+CONTRACT_BASE_URL=http://localhost CONTRACT_THROTTLE=1 ../../venv/Scripts/python -m pytest -m throttle
+```
+
+Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra dos usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP).
 
 ### Tests de finance-service
 

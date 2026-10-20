@@ -85,7 +85,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); Django, la base y Redis solo son alcanzables desde la red interna de Compose. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. `finance-service` todavía no recibe tráfico de Nginx: el bloque de rutas de `finance` sigue servido por Django hasta E2-M2b. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -93,14 +93,20 @@ Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto
 # 1. Configuración de Compose (independiente de .env)
 cp .env.docker.example .env.docker
 #    Edita .env.docker: SECRET_KEY propia y la misma contraseña en DB_PASSWORD y POSTGRES_PASSWORD.
+cp services/finance-service/.env.docker.example services/finance-service/.env.docker
+#    Edita DATABASE_URL con esa misma contraseña (escapada en formato URL si tiene símbolos).
 
-# 2. Construir y arrancar. Las migraciones se aplican solas antes de que arranque Django.
+# 2. Construir y arrancar. Las bases y las migraciones se crean solas antes de que
+#    arranquen Django y finance-service.
 docker compose up -d --build
 
 # 3. Comprobar
-docker compose ps
+docker compose ps                                 # finance-service debe aparecer (healthy)
 curl http://localhost/api/v1/health/
 # {"status":"ok","version":"v1"}
+
+# finance-service por la red interna (no publica puertos); cualquier UUID sirve de usuario
+docker compose exec nginx wget -qO- --header "X-User-Id: 3f2b1c9e-0000-4000-8000-000000000001" http://finance-service:8000/api/v1/categories/
 
 # 4. Usuario administrador (el admin queda en http://localhost/admin/)
 docker compose exec django python manage.py createsuperuser
@@ -118,11 +124,9 @@ docker compose down -v                                        # detener y BORRAR
 
 **Migraciones.** Las aplica el servicio de un solo uso `migrate`: corre `manage.py migrate`, termina, y `django` no arranca hasta que haya terminado con éxito. Así cada `up` deja el esquema al día, una migración fallida impide arrancar contra un esquema incompleto, y los workers de gunicorn nunca compiten por migrar.
 
-**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (hoy solo `finty_identity`) la primera vez que se inicializa el volumen. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script y, si el volumen ya existe, ejecútalo a mano (es idempotente):
+`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías.
 
-```bash
-docker compose exec db sh /docker-entrypoint-initdb.d/01-create-databases.sh
-```
+**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
 
 > En Git Bash para Windows, antepón `MSYS_NO_PATHCONV=1` a los comandos de `docker compose exec` que reciben rutas absolutas del contenedor; si no, Git Bash las reescribe como rutas de Windows.
 
@@ -168,6 +172,24 @@ pytest --cov=. --cov-report=term-missing
 ```
 
 Los tests de dominio no llevan la marca `django_db`, que es como `pytest-django` bloquea cualquier acceso a la base. Si un día el dominio empezara a consultarla, fallarían solos.
+
+### Tests de finance-service
+
+`pytest` en la raíz corre solo el monolito (`testpaths` en `pytest.ini`). El servicio Flask tiene su propio entorno virtual y su propia suite:
+
+```bash
+cd services/finance-service
+py -3.11 -m venv .venv                      # python3.11 -m venv .venv en Linux o macOS
+.venv/Scripts/python -m pip install -r requirements.txt
+
+# Dominio, categorización y arquitectura: sin base de datos
+.venv/Scripts/python -m pytest tests/domain tests/categorization tests/test_architecture.py
+
+# Suite completa: necesita una base de pruebas cuyo nombre termine en _test.
+# La suite la borra, la recrea y la migra con Alembic al iniciar.
+export FINANCE_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_finance_test"
+.venv/Scripts/python -m pytest
+```
 
 ## Estructura del proyecto
 

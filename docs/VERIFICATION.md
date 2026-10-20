@@ -4,7 +4,7 @@ Mapea cada criterio del **Anexo A** de [`ARCHITECTURE.md`](ARCHITECTURE.md) al t
 
 Los criterios están redactados en el Anexo A como comprobaciones con `grep`. Desde M7 el criterio autoritativo es **A-15**: `core/tests/test_architecture.py` recorre el AST de cada módulo. Un `grep` sigue sirviendo como comprobación rápida, pero no distingue una sentencia de una subcadena — el caso concreto que lo motivó está documentado en A-02.
 
-Estado a la fecha de este documento: **1432 tests, todos en verde**.
+Estado a la fecha de este documento: **1538 tests, todos en verde**.
 
 ---
 
@@ -18,7 +18,7 @@ Estado a la fecha de este documento: **1432 tests, todos en verde**.
 | **A-04** | Factory conmutable por entorno | `finance/tests/test_categorizer_factory.py` — despacho por `override_settings(CATEGORIZER_PROVIDER=…)`, insensible a mayúsculas, y `ImproperlyConfigured` ante un valor desconocido | ✅ Cubierto |
 | **A-05** | Builder valida antes de construir | `finance/tests/test_builders.py::TestInvariantes::test_monto_cero` y el resto de la clase: monto negativo, moneda distinta, fecha futura, cuenta archivada, campos obligatorios | ✅ Cubierto |
 | **A-06** | Balance consistente (INV-07 según C-17) | `finance/tests/test_services.py::TestRegistroYBalance::test_inv_07_tras_varias_transacciones_mezcladas` y `finance/tests/test_opening_balance.py::TestInv07ConAperturaDistintaDeCero` — compara `account.balance` con `opening_balance + Σ movimientos` | ✅ Cubierto |
-| **A-07** | Ownership aplicado | `finance/tests/test_services.py::TestPropiedad` (13 tests) y `finance/tests/test_api.py::TestAislamientoEntreUsuarios` | ✅ Cubierto |
+| **A-07** | Ownership aplicado | `finance/tests/test_services.py::TestPropiedad` (11 tests) y `finance/tests/test_api.py::TestAislamientoEntreUsuarios` | ✅ Cubierto |
 | **A-08** | LSP en categorizadores | `finance/tests/test_services.py::TestLSPEnElServicio` — la misma suite parametrizada sobre `RuleBasedCategorizer`, `MockCategorizer` y `AICategorizer(client=None)`. Complementado por `finance/tests/test_categorizer_lsp.py` con entradas hostiles | ✅ Cubierto |
 | **A-09** | Builder no conoce el ORM | `TestPurezaDelDominio::test_los_builders_solo_conocen_la_stdlib_y_el_dominio` | ✅ Cubierto |
 | **A-10** | Servicio no conoce implementaciones concretas | `TestServiciosSinImplementacionesConcretas` — `test_no_importan_categorizadores_ni_la_fabrica` y `test_finance_services_no_importa_nada_de_infra` | ✅ Cubierto |
@@ -26,7 +26,7 @@ Estado a la fecha de este documento: **1432 tests, todos en verde**.
 | **A-12** | Categoría emitida siempre existe | `finance/tests/test_categorizer_catalog_contract.py` — recolecta todos los nombres que el mapa de reglas puede emitir y verifica que cada uno existe en la tabla `Category` con el `applies_to` correcto | ✅ Cubierto |
 | **A-13** | El Factory es observable desde fuera | `finance/tests/test_api.py::TestFactoryMismoRequestDistintoResultado` y `finance/tests/test_categorization_provenance.py::TestProcedenciaPorHttp::test_el_mismo_cuerpo_produce_procedencias_distintas` | ✅ Cubierto |
 | **A-14** | La procedencia registrada es veraz | `finance/tests/test_categorization_provenance.py` (19 tests) — cada categorizador declara la suya, la degradación reporta la del respaldo, y los cuatro valores se persisten y recuperan | ✅ Cubierto |
-| **A-15** | Reglas de capas verificadas en la suite | `core/tests/test_architecture.py` (46 tests) — pureza del dominio, vistas sin lógica, modelos anémicos, servicios sin concreciones, serializers sin acceso a datos, migraciones sin código vivo | ✅ Cubierto |
+| **A-15** | Reglas de capas verificadas en la suite | `core/tests/test_architecture.py` (55 tests) — pureza del dominio, vistas sin lógica, modelos anémicos, servicios sin concreciones, serializers sin acceso a datos, migraciones sin código vivo | ✅ Cubierto |
 
 Ningún criterio queda sin test.
 

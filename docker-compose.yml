@@ -1,0 +1,87 @@
+# Finty — orquestacion local de la Entrega 2 (ADR-16).
+#
+# E2-M1a: monolito Django, PostgreSQL, Redis y el Gateway Nginx. Los servicios
+# Flask y los workers de Celery se agregan en sus modulos.
+#
+#   cp .env.docker.example .env.docker   # y completa los valores
+#   docker compose up -d --build
+#
+# Solo `nginx` publica un puerto en el host (A-17). El resto se comunica por la
+# red interna de Compose.
+
+name: finty
+
+# Configuracion compartida por el servidor Django y el paso de migraciones:
+# misma imagen, mismo entorno.
+x-django: &django
+  build:
+    context: .
+    target: django
+  image: finty/django:local
+  env_file: .env.docker
+
+services:
+  db:
+    image: postgres:18
+    env_file: .env.docker
+    volumes:
+      # PostgreSQL 18 guarda los datos en un subdirectorio por version, asi que
+      # el volumen se monta en /var/lib/postgresql y no en .../data.
+      - pgdata:/var/lib/postgresql
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Por TCP a proposito: durante la inicializacion la imagen levanta un
+      # servidor temporal que solo escucha en el socket local. Asi la base no
+      # se reporta sana hasta que el script de bases haya terminado.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d finty_identity"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Paso de un solo uso: aplica las migraciones pendientes y termina. Django no
+  # arranca hasta que este paso termine con exito.
+  migrate:
+    <<: *django
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  django:
+    <<: *django
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      target: gateway
+    image: finty/gateway:local
+    ports:
+      - "80:80"
+    depends_on:
+      - django
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

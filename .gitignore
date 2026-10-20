@@ -19,3 +19,6 @@ htmlcov/
 # Editores
 .idea/
 .vscode/
+
+# Configuracion de Docker Compose (ver .env.docker.example)
+.env.docker

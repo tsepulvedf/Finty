@@ -103,11 +103,23 @@ def session(connection):
 
 
 @pytest.fixture
-def app(connection):
+def entitlements():
+    """Derecho premium de los usuarios de prueba: premium salvo que el test diga otra cosa."""
+    from tests.entitlements_double import FakeEntitlements
+
+    return FakeEntitlements()
+
+
+@pytest.fixture
+def app(connection, entitlements):
     """Aplicacion Flask cuyas peticiones usan la conexion del test."""
+    from api.gating import ENTITLEMENTS_READER_KEY
     from app import create_app
 
-    application = create_app(session_factory=lambda: _session_on(connection))
+    application = create_app(
+        session_factory=lambda: _session_on(connection),
+        adapters={ENTITLEMENTS_READER_KEY: entitlements},
+    )
     application.testing = True
     return application
 

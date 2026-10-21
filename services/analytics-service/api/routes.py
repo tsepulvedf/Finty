@@ -11,11 +11,13 @@ Publica, sin autenticacion (ADR-13, contrato provisional):
     GET /api/v1/public/spending-summary/?period=AAAA-MM
 
 Sin `period`, el mes actual. Cada vista valida, construye el servicio, lo llama
-y serializa; nada mas (RULES.md, regla 3).
+y serializa; nada mas (RULES.md, regla 3). INV-06 lo aplica `api/gating.py` antes
+del despacho: insights y patrones son premium, y el dashboard FREE cubre 3 meses.
 """
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, jsonify
 
 from api.context import current_user_id, db_session, requested_period
+from api.gating import effective_thresholds
 from api.serializers import dashboard_to_dict, insights_to_dict, patterns_to_dict, summary_to_dict
 from services import AnalyticsService, PublicSummaryService
 
@@ -24,7 +26,8 @@ public = Blueprint("public", __name__, url_prefix="/api/v1/public")
 
 
 def _thresholds():
-    return current_app.config["ANALYTICS_THRESHOLDS"]
+    # Sin premium, la tendencia del dashboard cubre 3 meses (INV-06, api/gating.py).
+    return effective_thresholds()
 
 
 def _service():

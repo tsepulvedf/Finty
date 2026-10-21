@@ -87,3 +87,27 @@ def register_error_handlers(app):
 def _handle_unexpected(exc):
     logger.exception("Error no controlado en %s %s", request.method, request.path)
     return jsonify({"detail": messages.SERVER_ERROR}), 500
+
+
+class PremiumRequired(ApiError):
+    """INV-06: la funcion es premium y el usuario no tiene el derecho (403)."""
+
+    status = 403
+
+    def __init__(self, message=None):
+        super().__init__(message or messages.PREMIUM_REQUIRED)
+
+    def body(self):
+        return {"error": {"code": "premium_required", "message": self.detail}}
+
+
+class EntitlementsUnavailableError(ApiError):
+    """No se pudo verificar el derecho: se niega la funcion premium (503)."""
+
+    status = 503
+
+    def __init__(self):
+        super().__init__(messages.ENTITLEMENTS_UNAVAILABLE)
+
+    def body(self):
+        return {"error": {"code": "entitlements_unavailable", "message": self.detail}}

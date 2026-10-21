@@ -32,3 +32,15 @@ class EventSource(ABC):
     @abstractmethod
     def ack(self, message_id):
         """Confirma un mensaje: ya esta aplicado en la base."""
+
+
+class EntitlementsUnavailable(Exception):
+    """subscription-service no respondio, o respondio fuera de contrato."""
+
+
+class EntitlementsReader(ABC):
+    """Consulta el derecho premium de un usuario (INV-06, D-14)."""
+
+    @abstractmethod
+    def entitlement(self, user_id):
+        """`Entitlement` del usuario, o `EntitlementsUnavailable`."""

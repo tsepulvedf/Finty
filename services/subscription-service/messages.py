@@ -33,6 +33,10 @@ DATE_FORMAT_HINT = "YYYY-MM-DD"
 DATETIME_NOT_DATE = "Se esperaba una fecha en vez de una fecha/hora."
 INVALID_DATATYPE = "Datos inválidos. Se esperaba un diccionario pero es un {datatype}."
 NO_DATA = "No data provided"
+# Campo no aceptado por el esquema (`extra="forbid"`). DRF no tiene equivalente:
+# ignora los campos desconocidos. El checkout los rechaza para no recibir nunca
+# datos de tarjeta (ADR-14).
+FIELD_NOT_ALLOWED = "Este campo no está permitido."
 
 # --- Errores HTTP -----------------------------------------------------------
 

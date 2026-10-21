@@ -2,6 +2,11 @@
 
 Sintaxis solamente (RULES.md, regla 4): que el plan sea FREE o PREMIUM. Que FREE
 no se compre es una regla del dominio (422).
+
+**El checkout no recibe datos de tarjeta** (ADR-14, C-33). `CheckoutInput` acepta
+solo `plan` y rechaza con 400 cualquier otro campo (`extra="forbid"`): un
+`card_number` o un `cvc` nunca llegan al servicio, al log ni a la base. El
+formulario de tarjeta del frontend es una simulacion y no los envia (E2-M8).
 """
 from typing import Annotated
 
@@ -15,6 +20,7 @@ from domain.value_objects import PlanCode
 PLAN_VALUES = [member.value for member in PlanCode]
 NON_FIELD_ERRORS = "non_field_errors"
 MISSING = "missing"
+EXTRA_FORBIDDEN = "extra_forbidden"
 
 
 class _Input(BaseModel):
@@ -22,6 +28,10 @@ class _Input(BaseModel):
 
 
 class CheckoutInput(_Input):
+    """Solo `{plan}`. Cualquier otro campo es 400: la API no acepta datos de tarjeta."""
+
+    model_config = ConfigDict(extra="forbid")
+
     plan: Annotated[str, PlainValidator(fields.choice(PLAN_VALUES))]
 
 
@@ -41,6 +51,12 @@ def validate_input(schema, data):
             field = error["loc"][0]
             if error["type"] == MISSING:
                 errors.setdefault(field, [messages.REQUIRED])
+            elif error["type"] == EXTRA_FORBIDDEN:
+                # Solo el nombre del campo: el valor recibido nunca se repite.
+                errors.setdefault(field, [messages.FIELD_NOT_ALLOWED])
             else:
                 errors.setdefault(field, error["ctx"]["messages"])
-        raise InvalidInput(errors) from exc
+        # `from None`: la excepcion de pydantic guarda los valores recibidos
+        # (`input_value`). Sin encadenarla, un numero de tarjeta enviado por error
+        # no puede terminar en una traza del log.
+        raise InvalidInput(errors) from None

@@ -181,7 +181,7 @@ class TestFactory:
         from app import create_app
         from infra.configuration import ConfigurationError
 
-        monkeypatch.setenv("PAYMENT_GATEWAY", "WOMPI")
+        monkeypatch.setenv("PAYMENT_GATEWAY", "OTRA")
         with pytest.raises(ConfigurationError, match="Valores validos: MOCK"):
             create_app(session_factory=lambda: None)
 

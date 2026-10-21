@@ -2,8 +2,9 @@
 
 Mismo patron que `CategorizerFactory` (§6.1): una tabla de despacho, una variable
 de entorno (`PAYMENT_GATEWAY`, insensible a mayusculas, `MOCK` por defecto) y un
-error ruidoso ante un valor desconocido. Agregar `WOMPI` en E2-M6b es agregar una
-fila al mapa; `SubscriptionService` no cambia.
+error ruidoso ante un valor desconocido. `MOCK` es el unico valor valido (ADR-14,
+C-33). Una pasarela real costaria una clase en `gateways.py` y una fila en el
+mapa; `SubscriptionService` no cambia.
 
 `create_app()` la llama al construir la aplicacion, asi que un valor invalido
 impide arrancar el servicio en lugar de fallar en el primer checkout.

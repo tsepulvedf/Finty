@@ -25,7 +25,11 @@ class PaymentOutcome:
 
 
 class PaymentGateway(ABC):
-    """Pasarela de pagos (ADR-14). Nunca propaga una excepcion: un fallo es ERROR."""
+    """Pasarela de pagos (ADR-14). Un fallo se traduce a ERROR en el servicio.
+
+    El puerto admite un resultado PENDING para una pasarela asincrona; la unica
+    implementacion de Finty, `MockPaymentGateway`, resuelve siempre en el acto.
+    """
 
     name = "abstract"
 

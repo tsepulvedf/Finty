@@ -1,6 +1,9 @@
 """Implementaciones de `PaymentGateway` (ADR-14).
 
-En E2-M6a solo existe `MockPaymentGateway`. `WompiSandboxGateway` llega en E2-M6b.
+`MockPaymentGateway` es la unica: Finty no integra una pasarela real (ADR-14,
+C-33). El pago es una simulacion de interfaz; el backend nunca recibe datos de
+tarjeta. Una pasarela real se agregaria aqui como otro adaptador del puerto, sin
+tocar el dominio ni `SubscriptionService` (OCP).
 """
 from domain.interfaces import PaymentGateway, PaymentOutcome
 from domain.value_objects import PaymentStatus

@@ -1,4 +1,10 @@
-"""Comando de auditoria de invariantes: `flask verify-invariants`.
+"""Comandos de `finance-service`: auditoria de invariantes y outbox de eventos.
+
+- `flask verify-invariants`: audita INV-07 e INV-08 (abajo).
+- `flask relay-outbox`: publica el outbox en el stream de Redis, para siempre.
+- `flask outbox-backfill`: genera los eventos de las transacciones previas al outbox.
+
+Auditoria de invariantes: `flask verify-invariants`.
 
 Traslado de `finance/management/commands/verify_invariants.py` del monolito
 (E2-M3a): audita INV-07 (balance consistente) e INV-08 (categoria tras
@@ -16,13 +22,21 @@ regla 3): no calcula, no reimplementa reglas y no consulta la base. Pide los
 datos a `AccountService`, los formatea y elige el codigo de salida. La suite de
 arquitectura lo verifica recorriendo el AST.
 """
+import time
 from uuid import UUID
 
 import click
+from flask import current_app
 from flask.cli import with_appcontext
 
 from api.context import db_session
-from services import AccountService
+from infra.backoff import Backoff
+from infra.outbox import SqlAlchemyOutbox
+from infra.redis_stream import RedisEventStream
+from services import AccountService, OutboxBackfill, OutboxRelay
+
+# Los tests reemplazan el stream de Redis por uno en memoria con esta clave.
+EVENT_STREAM_FACTORY_KEY = "finty.event_stream_factory"
 
 EXIT_OK = 0
 EXIT_INCONSISTENT = 1
@@ -200,3 +214,67 @@ def _report_summary(audited, deviated, categorization_findings):
         click.secho("  Estado: INCONSISTENTE. Ejecuta con --fix para recalcular.", fg="red")
     else:
         click.secho("  Estado: CONSISTENTE.", fg="green")
+
+
+# --- Outbox de eventos (ADR-15) ----------------------------------------------
+
+
+def _event_stream():
+    """Stream de destino: Redis, salvo que los tests inyecten otro."""
+    factory = current_app.extensions.get(EVENT_STREAM_FACTORY_KEY)
+    if factory is not None:
+        return factory()
+    return RedisEventStream.from_url(current_app.config["REDIS_URL"])
+
+
+@click.command("relay-outbox")
+@click.option("--once", is_flag=True, help="Una sola pasada y termina (diagnostico y tests).")
+@click.option(
+    "--poll-interval", default=1.0, show_default=True, type=float,
+    help="Segundos de espera cuando no hay eventos pendientes.",
+)
+@with_appcontext
+def relay_outbox(once, poll_interval):
+    """Publica los eventos pendientes del outbox en el stream finty.finance.events.
+
+    Corre para siempre en el contenedor finance-outbox-relay. Si Redis (o la base)
+    no responde, espera cada vez mas, hasta 30 s, y reintenta: no pierde eventos,
+    porque siguen pendientes en el outbox, y no termina con error.
+    """
+    relay = OutboxRelay(db_session(), _event_stream())
+    backoff = Backoff()
+    while True:
+        try:
+            published = relay.publish_pending()
+        except Exception as exc:  # noqa: BLE001 — el relay no debe morir por un fallo transitorio
+            delay = backoff.next_delay()
+            click.echo(
+                f"relay-outbox: no se pudo publicar ({type(exc).__name__}: {exc}); "
+                f"reintento en {delay:.0f} s",
+                err=True,
+            )
+            if once:
+                return
+            time.sleep(delay)
+            continue
+
+        backoff.reset()
+        if published:
+            click.echo(f"relay-outbox: {published} evento(s) publicados en finty.finance.events")
+        if once:
+            return
+        if not published:
+            time.sleep(poll_interval)
+
+
+@click.command("outbox-backfill")
+@with_appcontext
+def outbox_backfill():
+    """Genera TransactionManuallyAdded para las transacciones que no lo tienen.
+
+    Idempotente: correrlo de nuevo no duplica nada. Los eventos quedan pendientes
+    y los publica el relay.
+    """
+    session = db_session()
+    created = OutboxBackfill(session, SqlAlchemyOutbox(session)).run()
+    click.echo(f"outbox-backfill: {created} evento(s) TransactionManuallyAdded generados.")

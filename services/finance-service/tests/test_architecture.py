@@ -112,8 +112,10 @@ class TestModelosAnemicos:
             if isinstance(node, ast.ClassDef) and node.name != "Base"
         ]
 
-    def test_hay_tres_modelos(self):
-        assert {c.name for c in self.model_classes()} == {"Category", "Account", "Transaction"}
+    def test_se_analizan_todos_los_modelos(self):
+        assert {c.name for c in self.model_classes()} == {
+            "Category", "Account", "Transaction", "OutboxEvent",
+        }
 
     def test_solo_declaran_repr(self):
         for model in self.model_classes():
@@ -159,15 +161,18 @@ class TestComandosSinLogica:
     COMMANDS = SERVICE_ROOT / "commands.py"
 
     def test_no_importa_el_dominio_ni_los_modelos(self):
+        """Como un blueprint, conecta adaptadores de `infra/`, pero no toca el
+        dominio, los modelos ni la base directamente."""
         roots = imported_roots(tree_of(self.COMMANDS))
-        assert not roots & {"domain", "models", "sqlalchemy", "infra"}
+        assert not roots & {"domain", "models", "sqlalchemy", "redis"}
 
-    def test_el_cuerpo_del_comando_no_hace_aritmetica(self):
-        """Los anchos de columna se calculan fuera; el comando en si no suma."""
+    @pytest.mark.parametrize("name", ["verify_invariants", "relay_outbox", "outbox_backfill"])
+    def test_el_cuerpo_del_comando_no_hace_aritmetica(self, name):
+        """Anchos de columna y esperas se calculan fuera; el comando en si no suma."""
         tree = tree_of(self.COMMANDS)
         command = next(
             n for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == "verify_invariants"
+            if isinstance(n, ast.FunctionDef) and n.name == name
         )
         arithmetic = (ast.Add, ast.Sub, ast.Mult, ast.Div)
         assert not [
@@ -175,7 +180,7 @@ class TestComandosSinLogica:
             if isinstance(n, ast.BinOp) and isinstance(n.op, arithmetic)
         ]
 
-    def test_solo_usa_el_servicio_de_cuentas(self):
+    def test_solo_usa_servicios_de_mantenimiento(self):
         tree = tree_of(self.COMMANDS)
         imported = {
             alias.name
@@ -183,4 +188,4 @@ class TestComandosSinLogica:
             if isinstance(node, ast.ImportFrom) and node.module == "services"
             for alias in node.names
         }
-        assert imported == {"AccountService"}
+        assert imported == {"AccountService", "OutboxBackfill", "OutboxRelay"}

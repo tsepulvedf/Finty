@@ -7,10 +7,13 @@ Configuracion por entorno:
 - `CATEGORIZATION_URL` (obligatoria): URL interna de `categorization-service`.
 - `CATEGORIZATION_TIMEOUT_SECONDS` (opcional, `1.0`): espera maxima por el remoto
   antes de clasificar con el respaldo local (A-22).
+- `REDIS_URL` (opcional, `redis://redis:6379/0`): Redis donde `flask relay-outbox`
+  publica los eventos de dominio (ADR-15). El proceso web no lo usa.
 - `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida y
   del proceso (el "hoy" de INV-12), la misma de `settings.py` en el monolito.
 
-Comandos de mantenimiento: `flask verify-invariants` (`commands.py`).
+Comandos (`commands.py`): `flask verify-invariants`, `flask relay-outbox` y
+`flask outbox-backfill`.
 """
 import os
 import time
@@ -26,12 +29,13 @@ from api.context import (
 from api.converters import CONVERTERS
 from api.errors import register_error_handlers
 from api.routes import blueprint as finance_blueprint
-from commands import verify_invariants
+from commands import outbox_backfill, relay_outbox, verify_invariants
 from infra.database import build_engine, build_session_factory, ping
 from infra.categorization_client import DEFAULT_TIMEOUT_SECONDS
 from infra.configuration import ConfigurationError
 
 DEFAULT_TIME_ZONE = "America/Bogota"
+DEFAULT_REDIS_URL = "redis://redis:6379/0"
 
 
 def health():
@@ -81,6 +85,7 @@ def create_app(session_factory=None, config=None):
     app.config["CATEGORIZATION_TIMEOUT_SECONDS"] = float(
         os.environ.get("CATEGORIZATION_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
     )
+    app.config["REDIS_URL"] = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     app.config.update(config or {})
     if not app.config["CATEGORIZATION_URL"]:
         raise ConfigurationError(
@@ -108,4 +113,6 @@ def create_app(session_factory=None, config=None):
     app.register_blueprint(finance_blueprint)
     app.add_url_rule("/health/", "health", health)
     app.cli.add_command(verify_invariants)
+    app.cli.add_command(relay_outbox)
+    app.cli.add_command(outbox_backfill)
     return app

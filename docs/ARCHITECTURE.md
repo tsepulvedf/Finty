@@ -105,7 +105,7 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 
 **Regla de dependencia:** las flechas apuntan hacia adentro. `domain/` no importa nada de Django. `services.py` puede importar `domain/` y `models.py`. `views.py` solo importa `services.py` y `serializers.py`.
 
-**Verificación mecánica:** `grep -r "django" finance/domain/` debe devolver cero resultados. Este check se documenta como criterio de aceptación.
+**Verificación mecánica:** `grep -r "django" core/domain/` debe devolver cero resultados (A-01); en `finance-service`, la pureza del dominio la verifica A-16 por AST. Este check se documenta como criterio de aceptación.
 
 **Extensión a la Entrega 2:** cada microservicio Flask repite los tres anillos. Su `domain/` no importa Flask, SQLAlchemy ni ningún paquete de infraestructura; los blueprints ocupan el lugar de `views.py` y los modelos SQLAlchemy el de `models.py`, con las mismas prohibiciones (A-16).
 
@@ -171,6 +171,8 @@ finty/
     └── tests/
 ```
 
+> **Desde E2-M3a**, `finance/` ya no existe en el monolito: sus módulos viven en `services/finance-service/` con la misma forma de tres anillos (ADR-04.1). Las rutas `finance/...` de este árbol y de §4 a §9 describen la Entrega 1.
+
 **Justificación de las desviaciones respecto al árbol de la Presentación 02:**
 
 | Desviación | Razón |
@@ -207,7 +209,6 @@ finty/
 ├── tests/contract/                # Suite de contrato de caja negra contra CONTRACT_BASE_URL (A-20)
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
-├── finance/                       # Temporal: se elimina tras la conmutación (ADR-08)
 │
 └── services/
     └── finance-service/           # Plantilla de los demás servicios Flask
@@ -274,9 +275,9 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 **Decisión:** la migración de `finance` no cambia el contrato. `accounts`, `transactions` y `categories` forman **un solo bloque de rutas**, que se conmuta **completo y de una vez**. Son un mismo agregado con FK entre sí (`Transaction → Account` por INV-02 e INV-13, `Transaction → Category`). Con una base por servicio (ADR-10) no pueden quedar repartidos entre el monolito y `finance-service`: una transacción servida por Flask no puede referenciar una cuenta que vive en la base del monolito.
 **Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy al upstream `finance_backend`. Conmutar consiste en cambiar su línea `server` de `django:8000` a `finance-service:8000` e incluir `snippets/gateway-auth.conf` (el `auth_request` de ADR-09) en ese `location`; revertir es deshacer esas dos líneas. La regex del bloque captura también las variantes sin barra final y con sufijo `.json`, así que ninguna ruta del agregado cae en el bloque genérico de `/api/v1/` (lo verifica `tests/contract/test_routing.py` con la cabecera `X-Finty-Route: finance`). No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
 **Estrategia de datos:** `finty_finance` arranca **vacía**, salvo el catálogo de categorías, que se siembra con el equivalente de `finance/migrations/0002_seed_categories.py`. Las cuentas y transacciones existentes en la base del monolito **no se migran en esta entrega** (D-16).
-**Retiro del monolito:** el código de `finance` en Django permanece como respaldo mientras dura la verificación y **se elimina en un módulo posterior**, una vez verificado el nuevo servicio. Mientras ambos existan, el bloque entero apunta a uno solo: nunca escriben los dos a la vez.
+**Retiro del monolito:** el código de `finance` en Django permaneció como respaldo mientras duró la verificación, con el bloque entero apuntando a uno solo de los dos, y **se eliminó en E2-M3a**. El comando `verify_invariants` pasó a `finance-service` como `flask verify-invariants`. Las tablas que la app dejó en `finty_identity` no se borraron (D-20).
 **Versionado:** `/api/v2/` queda reservado para cambios **incompatibles** del contrato. No se usa para migrar.
-**Estado:** aceptada y **conmutada el 2026-10-20** (E2-M2b). Evidencia: la suite de contrato `tests/contract/` dio el mismo resultado, test por test, con Django detrás (`tests/contract/runs/2026-10-20-antes-de-conmutar.txt`) y con `finance-service` detrás (`…-despues-de-conmutar.txt`): 111 verdes. El código de `finance` en Django sigue en el repositorio como respaldo y se elimina en un módulo posterior. Sustituye la nota de v2.1 en §10.2 que proponía `/api/v2/` como vía de migración.
+**Estado:** aceptada y **conmutada el 2026-10-20** (E2-M2b). Evidencia: la suite de contrato `tests/contract/` dio el mismo resultado, test por test, con Django detrás (`tests/contract/runs/2026-10-20-antes-de-conmutar.txt`) y con `finance-service` detrás (`…-despues-de-conmutar.txt`): 111 verdes. **Monolito retirado el 2026-10-20** (E2-M3a): la app `finance` se eliminó de Django y la suite volvió a dar el mismo resultado (`…-tras-retirar-finance-del-monolito.txt`). Sustituye la nota de v2.1 en §10.2 que proponía `/api/v2/` como vía de migración.
 
 ### ADR-09 — Autenticación centralizada en el Gateway
 
@@ -377,7 +378,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation` | E2-M5 |
 | SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
 
-Mientras dure la verificación del Strangler (ADR-08), la app `finance` de Django sigue existiendo como respaldo sobre su base actual; el bloque `finance` completo apunta a uno solo de los dos.
+La app `finance` de Django sirvió de respaldo durante la verificación del Strangler y se retiró en E2-M3a (ADR-08). Sus tablas antiguas siguen en `finty_identity` sin uso (D-20).
 
 **Relaciones de la Entrega 2** (diagrama en §9.5):
 
@@ -1132,7 +1133,7 @@ flowchart LR
     ALLY -->|"resumen JSON expuesto"| NGX
 ```
 
-Cada servicio solo se conecta a **su** base lógica (ADR-10). Mientras dure la verificación del Strangler, el bloque `finance` completo (`accounts`, `transactions`, `categories`) puede seguir apuntando a `django` (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
+Cada servicio solo se conecta a **su** base lógica (ADR-10). El bloque `finance` completo (`accounts`, `transactions`, `categories`) apunta a `finance-service` desde E2-M2b, y el monolito ya no tiene la app (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
 
 ### 9.5 Mapa de contextos — Entrega 2
 
@@ -1397,11 +1398,11 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 | Requisito | Implementación | Archivo |
 |-----------|----------------|---------|
 | Service Layer | `TransactionService`, `AccountService`, `ProfileService` | `*/services.py` |
-| Factory | `CategorizerFactory` | `finance/infra/factories.py` |
-| Builder | `TransactionBuilder`, `AccountBuilder` | `finance/domain/builders.py` |
+| Factory | `CategorizerFactory` | `services/finance-service/infra/factories.py` |
+| Builder | `TransactionBuilder`, `AccountBuilder` | `services/finance-service/domain/builders.py` |
 | Vistas sin lógica de negocio | Todas las views delegan | `*/api/views.py` |
 | Modelos sin lógica de negocio | ADR-03 | `*/models.py` |
-| Inversión de dependencias | `Categorizer` ABC inyectada | `finance/domain/interfaces.py` |
+| Inversión de dependencias | `Categorizer` ABC inyectada | `services/finance-service/domain/interfaces.py` |
 
 ### 11.3 Requisito de la Entrega 2 → Decisión → Módulo
 
@@ -1475,6 +1476,8 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-17 | Rate limiting en el Gateway | **`limit_req` por IP en dos zonas, con respuesta 429 en JSON.** **`finty_auth`** (login y registro): `rate=6r/m`, `burst=10`, `nodelay`. La cuota anónima de DRF (60/h por IP) sigue en Django para esas rutas y es la autoridad horaria; Nginx no la endurece en régimen sostenido (6/min = 360/h), pero corta las ráfagas de fuerza bruta antes de que lleguen a Django, donde cada intento cuesta un hash de contraseña: diez intentos seguidos y luego uno cada 10 s. **`finty_api`** (todo `/api/v1/`): `rate=20r/s`, `burst=50`, `nodelay`. La cuota de usuario de DRF (1000/h ≈ 0,28/s en promedio) es horaria y por usuario; esta zona es protección contra inundación por segundo y por IP, holgada para el uso legítimo (una pantalla del frontend hace a lo sumo unas seis peticiones juntas). **Residuo aceptado:** las rutas de `finance`, servidas ahora por Flask, ya no tienen la cuota horaria por usuario de DRF, solo este límite por IP; si se necesitara, una zona con clave `$http_authorization` la aproximaría | **Cerrada** (E2-M2b) |
 | D-18 | Dependencias de desarrollo en la imagen de producción | Hay un solo `requirements.txt`, así que `pytest` y similares quedan instalados en la imagen `django`. Separarlas en un archivo de desarrollo | Abierta, sin módulo asignado |
 | D-19 | Texto del 404 de un id válido inexistente | `GET /accounts/{uuid}/` y `GET /categories/{uuid}/` responden `{"detail": "No Account matches the given query."}` (o `Category`): el mensaje de `get_object_or_404` de Django, en inglés, que DRF conservaba y `finance-service` reproduce por contrato. Un id mal formado sí responde `No encontrado.` | Abierta, E2-M8: traducir por `code` junto con el resto del i18n |
+| D-20 | Tablas de `finance` en `finty_identity` | Al retirar la app (E2-M3a) quedaron `finance_account`, `finance_transaction` y `finance_category` sin uso, junto con sus filas en `django_migrations`, sus tipos de contenido y sus permisos. No se borran en esta entrega: son el único lugar donde están los datos que el monolito tenía antes de la conmutación (D-16) | Abierta — post-Entrega 2: migrarlos a `finty_finance` o descartarlos, y después borrar las tablas |
+| D-21 | `code` estable en las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext, así que el frontend necesita un `code` para traducir esas respuestas en E2-M8. Hoy llevan solo `{"detail": ...}`, la forma de DRF. **No se implementó en E2-M3a:** agregar `code` al cuerpo cambia la forma del contrato, y la suite de contrato (A-20) compara ese JSON exacto. Alternativa compatible: el `code` en una cabecera (`X-Error-Code`) sin tocar el cuerpo | Abierta, E2-M8: decidir el cambio de contrato de los errores (también los de DRF) junto con el i18n |
 
 ---
 
@@ -1482,7 +1485,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 
 | # | Criterio | Cómo se verifica |
 |---|----------|------------------|
-| A-01 | `domain/` no depende de Django | `grep -rn "django" finance/domain/ core/domain/` devuelve vacío |
+| A-01 | `domain/` no depende de Django | `grep -rn "django" core/domain/ services/finance-service/domain/` devuelve vacío; el criterio autoritativo es el AST: `core/tests/test_architecture.py` para `core/domain/` y A-16 (`services/finance-service/tests/test_architecture.py`) para el dominio de finanzas |
 | A-02 | Vistas sin lógica de negocio | `grep -rnE "^[[:space:]]*(try:\|except[[:space:]])" */api/views.py` devuelve vacío. El grep debe ir **anclado a inicio de sentencia**: sin anclar, `raise_exception=True` de DRF produce falsos positivos por la subcadena `except`. Ninguna view contiene además `if` sobre reglas de dominio ni cálculos |
 | A-03 | Modelos sin lógica de negocio | `models.py` solo tiene campos, `Meta`, `__str__` |
 | A-04 | Factory conmutable por entorno | `CATEGORIZER_PROVIDER=MOCK` cambia el comportamiento sin tocar código |
@@ -1490,8 +1493,8 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-06 | Balance consistente | Test que registra N transacciones y compara `account.balance` con `opening_balance + Σ movimientos` (INV-07 según C-17) |
 | A-07 | Ownership aplicado | Test que verifica que el usuario B no puede operar sobre la cuenta de A |
 | A-08 | LSP en categorizadores | La suite de `TransactionService` pasa con las tres implementaciones |
-| A-09 | Builder no conoce el ORM | `grep -rnE "finance\.(models\|infra)" finance/domain/` devuelve vacío |
-| A-10 | Servicio no conoce implementaciones concretas | `grep -rnE "AICategorizer\|RuleBasedCategorizer\|MockCategorizer" finance/services.py` devuelve vacío |
+| A-09 | Builder no conoce el ORM | `services/finance-service/domain/` no importa `models`, `infra` ni `sqlalchemy`: `TestPurezaDelDominio` de `services/finance-service/tests/test_architecture.py` (A-16) |
+| A-10 | Servicio no conoce implementaciones concretas | `grep -rnE "AICategorizer\|RuleBasedCategorizer\|MockCategorizer" services/finance-service/services.py` devuelve vacío; por AST: `TestServiciosSinImplementacionesConcretas` de `services/finance-service/tests/test_architecture.py` |
 | A-11 | Escritura bajo bloqueo | El SQL de `register_transaction` contiene `FOR UPDATE` |
 | A-12 | Categoría emitida siempre existe | Test de contrato entre el mapa de reglas y la tabla `Category` |
 | A-13 | El Factory es observable desde fuera | El mismo `POST /transactions/` con `CATEGORIZER_PROVIDER` en `RULE` y en `MOCK` produce categoría y procedencia distintas |

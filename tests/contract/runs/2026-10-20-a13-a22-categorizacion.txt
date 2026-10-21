@@ -1,0 +1,28 @@
+# Evidencia A-13 y A-22 - categorization-service (E2-M3b)
+# Fecha: 2026-10-20T19:48:51-05:00
+# Mismo cuerpo en todos los casos:
+#   POST http://localhost/api/v1/transactions/  {amount: 120000, type: expense, description: "Almuerzo en el restaurante"}
+
+## A-13 - CATEGORIZER_PROVIDER=RULE docker compose up -d categorization-service
+  (en el contenedor: RULE)
+  {"category_name": "Alimentación", "categorization_source": "rule", "categorization_confidence": 0.75}  HTTP 201
+
+## A-13 - CATEGORIZER_PROVIDER=MOCK docker compose up -d categorization-service
+  (en el contenedor: MOCK)
+  {"category_name": "Otros gastos", "categorization_source": "mock", "categorization_confidence": 1.0}  HTTP 201
+
+## A-22 - docker compose stop categorization-service
+  (estado: exited)
+  {"category_name": "Alimentación", "categorization_source": "rule", "categorization_confidence": 0.75}  HTTP 201
+  log de finance-service:
+    categorization-service no utilizable (URLError: <urlopen error [Errno -2] Name or service not known>); clasifica el respaldo local
+
+## A-22 - suite opcional con el servicio detenido
+  test_a13_la_procedencia_sigue_al_proveedor_configurado SKIPPED [ 33%]
+  test_a22_sin_categorization_service_registra_con_el_respaldo PASSED [ 66%]
+  test_a22_el_resto_del_contrato_sigue_en_pie PASSED [100%]
+======================== 2 passed, 1 skipped in 3.15s =========================
+
+## Restablecido: docker compose start categorization-service
+  (estado: healthy, proveedor: RULE)
+  {"category_name": "Alimentación", "categorization_source": "rule", "categorization_confidence": 0.75}  HTTP 201

@@ -46,6 +46,8 @@ class TransactionFacts:
     category_name: str | None
     categorization_source: CategorizationSource | None
     occurred_on: date
+    # Agregado en E2-M4b: `analytics` detecta gastos recurrentes por descripcion.
+    description: str = ""
 
     def __post_init__(self):
         if not isinstance(self.amount, Money):

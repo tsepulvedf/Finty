@@ -14,8 +14,13 @@ mapa plano de cadenas, asi que el evento se publica con cinco campos:
       "amount": "120000.00", "currency": "COP", "transaction_type": "expense",
       "category_name": "Alimentación" | null,
       "categorization_source": "rule" | "mock" | "ai" | "manual" | null,
-      "occurred_on": "2026-10-19"
+      "occurred_on": "2026-10-19",
+      "description": "Almuerzo en el restaurante"
     }
+
+`description` se agrego en E2-M4b sin cambiar la version: es un campo nuevo y los
+consumidores lo leen con `""` por defecto, asi que los eventos anteriores siguen
+siendo validos.
 
 El monto viaja como texto decimal con dos cifras, nunca como float.
 """
@@ -43,6 +48,7 @@ def payload_to_dict(facts):
         "category_name": facts.category_name,
         "categorization_source": source.value if source is not None else None,
         "occurred_on": facts.occurred_on.isoformat(),
+        "description": facts.description,
     }
 
 

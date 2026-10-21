@@ -106,6 +106,7 @@ def _transaction_facts(movement, account, category):
         category_name=category.name if category is not None else None,
         categorization_source=CategorizationSource(source) if source is not None else None,
         occurred_on=movement.occurred_on,
+        description=movement.description or "",
     )
 
 

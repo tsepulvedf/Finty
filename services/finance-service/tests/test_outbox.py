@@ -153,10 +153,17 @@ class TestSerializacion:
         assert set(payload) == {
             "user_id", "transaction_id", "account_id", "amount", "currency",
             "transaction_type", "category_name", "categorization_source", "occurred_on",
+            "description",
         }
         assert (payload["amount"], payload["currency"]) == ("120000.00", "COP")
         assert payload["occurred_on"] == "2026-10-19"
         assert payload["category_name"] == "Alimentación"
+
+    def test_la_descripcion_viaja(self):
+        payload = json.loads(to_stream_message(
+            events.transaction_manually_added(facts(description="Netflix"), NOW)
+        )["payload"])
+        assert payload["description"] == "Netflix"
 
     def test_sin_categoria_viaja_null(self):
         message = to_stream_message(
@@ -190,6 +197,7 @@ class TestCadaEscrituraRegistraSuEvento:
             "category_name": "Alimentación",
             "categorization_source": "mock",
             "occurred_on": YESTERDAY.isoformat(),
+            "description": "",
         }
 
     def test_reclasificar(self, session, service, user_id, account):

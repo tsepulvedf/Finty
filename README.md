@@ -133,7 +133,7 @@ docker compose down -v                                        # detener y BORRAR
 
 ## Conmutar el categorizador
 
-`CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` inyecta la Factory de `finance-service`. Es el Factory Method del proyecto y su efecto es observable desde fuera. Se configura en `services/finance-service/.env.docker`; el monolito ya no lo lee.
+`CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` usa `categorization-service`. Es el Factory Method del proyecto y su efecto es observable desde fuera. `finance-service` le pide la categoría por HTTP y, si no responde, clasifica con sus reglas locales.
 
 | Valor | Implementación | Qué hace |
 |---|---|---|
@@ -145,9 +145,10 @@ docker compose down -v                                        # detener y BORRAR
 Una línea cambia el comportamiento del sistema sin tocar código:
 
 ```bash
-# En services/finance-service/.env.docker: CATEGORIZER_PROVIDER=MOCK
-docker compose up -d finance-service
+CATEGORIZER_PROVIDER=MOCK docker compose up -d categorization-service   # y RULE para volver
 ```
+
+Sin la variable, el proveedor es `RULE`. Si `categorization-service` se detiene (`docker compose stop categorization-service`), las transacciones se siguen registrando con procedencia `rule`.
 
 El mismo `POST /api/v1/transactions/` devolverá un `categorization_source` distinto —`rule` o `mock`— según el proveedor activo. El campo registra **el mecanismo que realmente clasificó**: cuando `AICategorizer` degrada a su respaldo, la procedencia grabada es `rule`, no `ai`.
 
@@ -184,6 +185,24 @@ CONTRACT_BASE_URL=http://localhost CONTRACT_THROTTLE=1 ../../venv/Scripts/python
 
 Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra dos usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP).
 
+### Contratos estáticos entre servicios
+
+`tests/services/` comprueba, leyendo el código fuente por AST, que toda categoría que puede emitir `categorization-service` esté sembrada en `finty_finance` con el mismo tipo (A-12).
+
+```bash
+cd tests/services && ../../venv/Scripts/python -m pytest -v
+```
+
+### Tests de categorization-service
+
+Sin base de datos. Mismo procedimiento que `finance-service`, sin `FINANCE_TEST_DATABASE_URL`:
+
+```bash
+cd services/categorization-service
+py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest
+```
+
 ### Tests de finance-service
 
 `pytest` en la raíz corre solo el monolito (`testpaths` en `pytest.ini`). El servicio Flask tiene su propio entorno virtual y su propia suite:
@@ -217,14 +236,16 @@ finty/
 │   ├── services.py             ProfileService. Registro, autenticación y perfil.
 │   └── api/                    Serializers, views y rutas.
 ├── services/
-│   └── finance-service/        FinancialDataContext · contexto Core, en Flask (E2-M2a).
+│   ├── finance-service/        FinancialDataContext · contexto Core, en Flask (E2-M2a).
 │       ├── domain/             ANILLO INTERIOR · Python puro. Value objects, reglas, builders,
 │       │                       la ABC Categorizer y su copia de Money (domain/shared/).
-│       ├── infra/              ANILLO EXTERNO · Categorizadores, CategorizerFactory, sesión.
+│       ├── infra/              ANILLO EXTERNO · Cliente de categorization-service, respaldo local, sesión.
 │       ├── models.py           Account, Transaction, Category en SQLAlchemy. Solo persistencia.
 │       ├── services.py         ANILLO MEDIO · AccountService y TransactionService.
 │       ├── commands.py         flask verify-invariants (auditoría de INV-07 e INV-08).
 │       └── api/                ANILLO EXTERNO · Blueprints, esquemas y traducción de errores.
+│   └── categorization-service/ Categorización, en Flask y sin base de datos (E2-M3b).
+│                               Categorizer, los tres categorizadores y CategorizerFactory.
 ├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
 ├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.

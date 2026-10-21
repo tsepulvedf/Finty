@@ -62,6 +62,16 @@ class TestSuscripciones:
             "PREMIUM", "29900.00", "COP", 1,
         )
 
+    @pytest.mark.parametrize("field, value", [
+        ("card_number", "4242424242424242"), ("cvc", "987"), ("expiry", "12/31"),
+    ])
+    def test_el_checkout_rechaza_datos_de_tarjeta(self, ana, field, value):
+        """ADR-14, C-33: el backend nunca recibe datos de tarjeta; solo `{plan}`."""
+        response = ana.client.post(CHECKOUT, {"plan": "PREMIUM", field: value})
+        assert response.status == 400
+        assert response.json == {field: ["Este campo no está permitido."]}
+        assert value not in response.text
+
     def test_free_no_se_compra(self, ana):
         response = ana.client.post(CHECKOUT, {"plan": "FREE"})
         assert (response.status, error_code(response)) == (422, "plan_not_purchasable")

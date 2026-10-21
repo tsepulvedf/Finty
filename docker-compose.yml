@@ -1,8 +1,9 @@
 # Finty — orquestacion local de la Entrega 2 (ADR-16).
 #
 # E2-M1a: monolito Django, PostgreSQL, Redis y el Gateway Nginx.
-# E2-M2a: finance-service (Flask) y su paso de migraciones, todavia sin trafico
-# de Nginx: el upstream `finance_backend` sigue apuntando a Django (E2-M2b).
+# E2-M2: finance-service (Flask) y su paso de migraciones; desde E2-M2b recibe
+# el bloque finance del Gateway.
+# E2-M3b: categorization-service (Flask, sin base), que finance-service consume.
 # Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
 #   cp .env.docker.example .env.docker                       # y completa los valores
@@ -30,6 +31,9 @@ x-finance: &finance
     context: ./services/finance-service
   image: finty/finance-service:local
   env_file: services/finance-service/.env.docker
+  environment:
+    # Sin secretos: va aqui y no en el env_file, para que un `git pull` baste.
+    CATEGORIZATION_URL: http://categorization-service:8000
 
 services:
   db:
@@ -110,11 +114,32 @@ services:
 
   # Sin `ports`: solo alcanzable desde la red interna (A-17). Nginx todavia no
   # le envia trafico.
+  # Sin base de datos y sin secretos: se configura con `environment:` y no con un
+  # env_file. El proveedor se elige al levantarlo, sin editar archivos:
+  #   CATEGORIZER_PROVIDER=MOCK docker compose up -d categorization-service
+  # Sin `ports` (A-17) y sin bloque en Nginx: solo lo alcanza la red interna.
+  categorization-service:
+    build:
+      context: ./services/categorization-service
+    image: finty/categorization-service:local
+    environment:
+      CATEGORIZER_PROVIDER: ${CATEGORIZER_PROVIDER:-RULE}
+      TIME_ZONE: America/Bogota
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   finance-service:
     <<: *finance
     depends_on:
       finance-migrate:
         condition: service_completed_successfully
+      categorization-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
       interval: 10s

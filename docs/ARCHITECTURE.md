@@ -193,26 +193,34 @@ finty/
 │                                  # estáticos copiados desde la etapa `django`)
 ├── docker-compose.yml             # db, db-init y migrate (un solo uso), redis, django,
 │                                  # finance-migrate (un solo uso), finance-service,
-│                                  # finance-outbox-relay, categorization-service, nginx
+│                                  # finance-outbox-relay, categorization-service,
+│                                  # analytics-migrate (un solo uso), analytics-service,
+│                                  # analytics-worker, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
 ├── deploy/
 │   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
-│   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`) y rutas
+│   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`,
+│   │   │                          # `analytics_backend`) y rutas
 │   │   └── snippets/
 │   │       ├── proxy.conf         # cabeceras de proxy; X-User-Id solo si lo verificó el Gateway
-│   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en el bloque finance
+│   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en los bloques
+│   │                              # finance y analytics
 │   └── postgres/
 │       └── init/                  # 01-create-databases.sh: una base lógica por servicio
 │                                  # (lo corren initdb y el servicio db-init)
 │
 ├── tests/contract/                # Suite de contrato de caja negra contra CONTRACT_BASE_URL (A-20)
-├── tests/services/                # Contratos estáticos entre servicios, por AST (A-12)
+├── tests/services/                # Contratos estáticos entre servicios, por AST: catálogo
+│                                  # (A-12) y eventos de finty.finance.events (A-25)
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 │
 └── services/
+    ├── analytics-service/         # Modelo de lectura alimentado por eventos (E2-M4b): misma
+    │                              # forma que finance-service; `flask consume-events` es el
+    │                              # worker y no hay pydantic (solo lee `?period=`)
     ├── categorization-service/    # Sin base de datos: domain/, infra/, services.py, api/ (E2-M3b)
     └── finance-service/           # Plantilla de los demás servicios Flask
         ├── Dockerfile             # python:3.11-slim, gunicorn, usuario sin root
@@ -233,9 +241,9 @@ finty/
         └── tests/                 # dominio, categorización, persistencia, servicios, contrato
 ```
 
-**Migraciones:** el servicio `migrate` de Compose usa la misma imagen que `django`, corre `manage.py migrate` y termina. `django` no arranca hasta que ese paso termina con éxito (`service_completed_successfully`). Así cada `up` deja el esquema al día sin un paso manual, una migración fallida impide arrancar contra un esquema incompleto y los workers de gunicorn nunca compiten por migrar. `finance-migrate` repite el patrón con `alembic upgrade head` sobre la imagen de `finance-service`, y cada servicio Flask nuevo tendrá el suyo.
+**Migraciones:** el servicio `migrate` de Compose usa la misma imagen que `django`, corre `manage.py migrate` y termina. `django` no arranca hasta que ese paso termina con éxito (`service_completed_successfully`). Así cada `up` deja el esquema al día sin un paso manual, una migración fallida impide arrancar contra un esquema incompleto y los workers de gunicorn nunca compiten por migrar. `finance-migrate` repite el patrón con `alembic upgrade head` sobre la imagen de `finance-service`, y `analytics-migrate` sobre la de `analytics-service`; cada servicio Flask nuevo tendrá el suyo.
 
-**Creación de bases en volúmenes existentes (`db-init`).** El script de `deploy/postgres/init/` lo ejecuta la imagen de PostgreSQL solo cuando inicializa un volumen vacío. En un volumen que ya existe, como el de la EC2, una base nueva nunca aparecería. Por eso Compose tiene un paso de un solo uso, `db-init`, que corre **ese mismo script** en cada `up`, por TCP contra `db`, antes de cualquier paso de migración (`migrate` y `finance-migrate` dependen de él). El script es idempotente: crea las bases que falten y no toca las existentes.
+**Creación de bases en volúmenes existentes (`db-init`).** El script de `deploy/postgres/init/` lo ejecuta la imagen de PostgreSQL solo cuando inicializa un volumen vacío. En un volumen que ya existe, como el de la EC2, una base nueva nunca aparecería. Por eso Compose tiene un paso de un solo uso, `db-init`, que corre **ese mismo script** en cada `up`, por TCP contra `db`, antes de cualquier paso de migración (`migrate`, `finance-migrate` y `analytics-migrate` dependen de él). El script es idempotente: crea las bases que falten y no toca las existentes.
 
 Se eligió sobre la alternativa de que cada paso de migración cree su propia base por tres razones:
 - La lista de bases sigue en **un solo lugar** (`FINTY_DATABASES`). Agregar un servicio es agregar su nombre ahí.
@@ -327,7 +335,8 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 **Expuesto:** un resumen financiero agregado en JSON (por ejemplo, gasto por categoría del período), servido por `analytics-service`. La ruta y el contrato exactos se acuerdan con el equipo aliado.
 **Consumido:** el servicio del aliado va detrás del puerto `AllyServiceProvider` (ABC), con `MockAllyAdapter` como respaldo cuando el aliado no responde. El adaptador concreto se escribe en un módulo aparte cuando lleguen el dominio, la URL y el contrato del aliado; **no se inventan** antes.
-**Estado:** aceptada, con el aliado sin asignar (D-10).
+**Implementación del expuesto (E2-M4b):** `GET /api/v1/public/spending-summary/?period=AAAA-MM`, sin autenticación, servido por `analytics-service`. Publica el gasto agregado por categoría y moneda de todos los usuarios, con número de usuarios, total y promedio por usuario. **Privacidad por k-anonimato:** una categoría solo aparece si la tienen al menos *k* usuarios distintos (*k* = 3 por defecto, `ANALYTICS_PUBLIC_MIN_USERS`). No se publica un total general del período: restándole las categorías visibles revelaría la suma de las ocultas. El bloque de Nginx no lleva `auth_request` y tiene su propia zona estricta, `finty_public` (D-17). Contrato **provisional** en §10.7, a confirmar con el aliado (D-10).
+**Estado:** aceptada. El expuesto está implementado (E2-M4b); el consumo del aliado sigue sin asignar (D-10).
 
 ### ADR-14 — `PaymentGateway`: un puerto y dos adaptadores
 
@@ -353,9 +362,19 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 - **Entrega al menos una vez:** si el relay muere entre el `XADD` y la marca, ese evento se publica otra vez. **Los consumidores deben ser idempotentes por `event_id`.** El orden está garantizado por cuenta, porque los eventos de una misma cuenta se escriben bajo el bloqueo de su fila. Entre cuentas distintas el orden es el de confirmación.
 - **Backfill:** `flask outbox-backfill` genera `TransactionManuallyAdded` para las transacciones anteriores al outbox, con `occurred_at` = `created_at`. Es idempotente, y lo garantiza también el índice único parcial `uq_outbox_manually_added_once`. Corre en `finance-migrate` después de Alembic, así que la EC2 rellena sus datos existentes en el primer `up`.
 
-Diagrama en §9.9. Consumidores: E2-M4b.
+**Consumo en `analytics-service` (E2-M4b):**
+- **Worker:** `flask consume-events`, en el contenedor `analytics-worker` con la imagen de `analytics-service` y sin puertos. Lee `finty.finance.events` con el grupo de consumidores `analytics` (`XREADGROUP`). La primera vez crea el grupo **desde el inicio del stream** (`XGROUP CREATE … 0 MKSTREAM`), así recibe la historia completa, incluido el backfill. Si el grupo ya existe, sigue donde quedó.
+- **Confirmación después del commit:** cada mensaje se aplica en su propia transacción de `finty_analytics` y se confirma con `XACK` solo después del `COMMIT`. Si el proceso muere entre los dos, el mensaje queda pendiente en el grupo y se vuelve a aplicar.
+- **Recuperación al arrancar:** antes de leer mensajes nuevos, `XAUTOCLAIM` reclama los pendientes sin confirmar de un worker anterior. Con un solo worker se reclaman sin esperar (`min-idle-time` 0); si un día hubiera varios, ese valor tendría que subir para no robarle mensajes a uno vivo.
+- **Idempotencia por `event_id`:** la tabla `processed_event` tiene el `event_id` como clave primaria y se inserta con `ON CONFLICT DO NOTHING` en la misma transacción que el cambio. Un evento repetido no toca los hechos. Además, cada hecho guarda el `occurred_at` del último evento aplicado y descarta uno más viejo, y un borrado deja una lápida (`deleted_at`) que ningún evento posterior resucita. Reprocesar el stream completo deja las cifras idénticas (evidencia en `tests/contract/runs/2026-10-20-analytics-eventos.txt`).
+- **Mensajes fuera de contrato:** si un mensaje no cumple §10.5 (versión desconocida, JSON inválido, campo faltante), se registra un aviso en el log y se confirma, para que no bloquee a los siguientes. No hay stream de mensajes muertos (D-23).
+- **Resiliencia:** si Redis o la base no responden, el worker hace `ROLLBACK`, espera de 1 a 30 s y reintenta, sin terminar con error, igual que el relay. `finance-service` no depende del worker: con el worker detenido, los registros siguen respondiendo 201 y el worker se pone al día al volver.
+- **Consistencia eventual:** el dashboard refleja una transacción **unos instantes después** de registrarla. En local, entre 0,6 y 1,1 s: el intervalo de sondeo del relay más la lectura del worker. Ningún cliente debe asumir que una lectura inmediatamente posterior a un `POST` ya la incluye. Por eso los tests de punta a punta sondean con un límite de tiempo y no duermen un tiempo fijo.
+- **analytics no publica eventos** en este módulo (D-22).
 
-**Estado:** aceptada; la publicación desde `finance-service` está implementada (E2-M4a).
+Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al dashboard).
+
+**Estado:** aceptada; la publicación (E2-M4a) y el consumo de `analytics-service` (E2-M4b) están implementados.
 
 ### ADR-16 — Despliegue en Docker Compose sobre EC2
 
@@ -391,7 +410,7 @@ Diagrama en §9.9. Consumidores: E2-M4b.
 | UserIdentityContext | monolito (`identity`) + frontend + `/internal/auth/verify/` | Django | `finty_identity` | existente; frontend en E2-M8 |
 | FinancialDataContext | `finance-service` | Flask | `finty_finance` | E2-M2 |
 | FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
-| AnalyticsInsightsContext | `analytics-service` | Flask | `finty_analytics` | E2-M4 |
+| AnalyticsInsightsContext | `analytics-service` + `analytics-worker` | Flask | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance` | E2-M4b (implementado) |
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation` | E2-M5 |
 | SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
 
@@ -401,7 +420,8 @@ La app `finance` de Django sirvió de respaldo durante la verificación del Stra
 
 - `identity` → todos los servicios: **Customer-Supplier a través del Gateway**. Ningún servicio llama a `identity`; reciben la identidad ya resuelta en `X-User-Id`.
 - `finance-service` → `categorization-service`: **HTTP síncrono** por la red interna, porque la categoría hace falta antes de persistir (INV-08). Contrato en §10.4. `finance-service` lo consume con `RemoteCategorizer`, que implementa el puerto `Categorizer` con un timeout corto (1 s por defecto). Ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o una categoría que no está en su catálogo, clasifica con su `RuleBasedCategorizer` local (A-12, A-22). La procedencia grabada es veraz: la que declara el remoto, o `rule` si actuó el respaldo (A-14). `categorization-service` no recibe `X-User-Id`: la clasificación no depende del usuario.
-- `finance-service` → `analytics-service` y `recommendation-service`: **eventos de dominio en Redis**. `recommendation` deja de depender de `finance` por llamada directa, lo que resuelve D-03.
+- `finance-service` → `analytics-service` y `recommendation-service`: **eventos de dominio en Redis**. `recommendation` deja de depender de `finance` por llamada directa, lo que resuelve D-03. **Implementado para `analytics` (E2-M4b):** `analytics-worker` consume `finty.finance.events` con su grupo y proyecta cada transacción en `finty_analytics` (ADR-15). Es una relación **Conformist**: `analytics` adopta el contrato de §10.5 tal cual, sin capa anticorrupción propia más allá de su deserializador.
+- `analytics-service` → equipo aliado: **Open Host Service**. Publica el resumen agregado de §10.7 sin autenticación y con k-anonimato (ADR-13).
 - `subscription-service` → `WompiSandboxGateway`, `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
 
 ---
@@ -687,6 +707,44 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 | `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` | `MockPaymentGateway` | Variable de entorno | ADR-14, E2-M6 |
 
 El Adapter traduce el modelo del tercero al lenguaje ubicuo de Finty. Ninguna estructura de respuesta externa cruza la frontera del puerto.
+
+### 6.5 `Dashboard`, `Insight` y `SpendingPattern` (`analytics-service`, E2-M4b)
+
+Las tres clases de §4.4 que son dueñas de `analytics-service`. Viven en `services/analytics-service/domain/`, son Python puro (A-16) y se **calculan al leer: no se persisten**. DDD Stage 1 las describe como value objects "no persistentes necesariamente", y persistirlas obligaría a invalidarlas con cada evento. Lo que se persiste son los hechos de los que salen: una fila por transacción en `transaction_fact`, alimentada solo por eventos (ADR-10, ADR-15).
+
+Las reglas son **deterministas y explicables**, como exige Phase 0: cada resultado lleva los números que lo justifican. Ninguna cifra mezcla monedas: todo se agrupa por moneda, y la conversión llega con el Adapter de tasas de E2-M5 (ADR-12). Una transacción borrada (`TransactionDeleted`) no entra en ningún cálculo.
+
+| Clase | Qué es | Regla |
+|-------|--------|-------|
+| `Period` | Mes calendario `AAAA-MM` (VO de soporte) | Un período inválido responde 400 en `period` |
+| `Dashboard` | Foto de un período, por moneda | Ingresos, gastos y neto (ingresos − gastos); desglose por categoría con su participación en el total de su tipo; totales por cuenta; tendencia de los últimos 6 meses, incluido el pedido, con ceros en los meses sin movimientos |
+| `Insight` | Hallazgo explicable de un período | `type`, `severity` (`info` / `warning`), `period`, un `code` estable en minúsculas, `params` (lo que el frontend interpola al traducir por `code`, igual que en D-21) y `evidence` (los números que lo justifican). Se ordenan con las advertencias primero |
+| `SpendingPattern` | Gasto recurrente | Misma descripción normalizada (minúsculas, sin tildes ni signos, espacios colapsados), misma categoría y misma moneda. Solo cuentan las apariciones con monto a ±10% de la mediana del grupo, y deben estar presentes en al menos 3 de los últimos 6 meses. Reporta el monto promedio, los meses con presencia, las apariciones, la frecuencia mensual (apariciones / meses con presencia) y la última aparición. Una descripción vacía nunca forma patrón; solo gastos |
+
+**Reglas de `Insight`:**
+
+| `code` | Severidad | Se emite cuando | `params` | `evidence` |
+|--------|-----------|-----------------|----------|------------|
+| `category_spike` | `warning` | El gasto de una categoría en el período supera en un 30% o más el promedio de los 3 meses anteriores (un mes sin gasto cuenta como cero), el promedio es mayor que cero y el gasto del período vale al menos el mínimo absoluto | `category_name`, `currency`, `increase_pct` | `current`, `previous_average`, `previous_months` (total de cada mes), `threshold_pct`, `min_amount` |
+| `negative_savings` | `warning` | Los gastos del período superan a los ingresos, en una moneda | `currency`, `deficit` | `income`, `expense` |
+| `top_category` | `info` | Siempre que haya gasto categorizado: la categoría con mayor participación en el gasto del período | `category_name`, `currency`, `share_pct` | `category_total`, `expense_total` |
+
+Las transacciones sin categoría cuentan en los totales, pero no generan insights de categoría.
+
+**Umbrales** (`domain/thresholds.py`, `AnalyticsThresholds`). Cada uno se puede cambiar con una variable de entorno de `analytics-service`, sin tocar código:
+
+| Umbral | Por defecto | Variable de entorno | Gobierna |
+|--------|-------------|---------------------|----------|
+| `trend_months` | 6 | `ANALYTICS_TREND_MONTHS` | Meses de la tendencia del dashboard |
+| `spike_ratio` | 0.30 | `ANALYTICS_SPIKE_RATIO` | Aumento mínimo sobre el promedio para `category_spike` |
+| `spike_min_amount` | 50000 | `ANALYTICS_SPIKE_MIN_AMOUNT` | Gasto mínimo del período para `category_spike`, en la moneda de la categoría. Evita alertas por ruido: pasar de 10 a 40 es un 300%, pero no importa |
+| `spike_lookback_months` | 3 | `ANALYTICS_SPIKE_LOOKBACK_MONTHS` | Meses anteriores del promedio |
+| `pattern_window_months` | 6 | `ANALYTICS_PATTERN_WINDOW_MONTHS` | Ventana de `SpendingPattern` |
+| `pattern_min_months` | 3 | `ANALYTICS_PATTERN_MIN_MONTHS` | Meses con presencia exigidos |
+| `pattern_amount_tolerance` | 0.10 | `ANALYTICS_PATTERN_AMOUNT_TOLERANCE` | Tolerancia del monto respecto a la mediana |
+| `public_min_users` | 3 | `ANALYTICS_PUBLIC_MIN_USERS` | *k* del k-anonimato del resumen público (§10.7) |
+
+El monto mínimo es uno solo para todas las monedas; con USD, 50000 es demasiado alto. Mientras no exista la conversión de E2-M5, en la práctica `category_spike` solo se dispara en COP.
 
 ---
 
@@ -1115,6 +1173,7 @@ flowchart LR
             FIN["finance-service<br/>Flask"]
             CAT["categorization-service<br/>Flask"]
             ANA["analytics-service<br/>Flask"]
+            ANW["analytics-worker<br/>consume eventos"]
             REC["recommendation-service<br/>Flask"]
             SUB["subscription-service<br/>Flask"]
             WRK["workers Celery"]
@@ -1131,23 +1190,24 @@ flowchart LR
     NGX -->|auth_request| DJ
     NGX -->|"frontend, auth, profile"| DJ
     NGX -->|"accounts, transactions, categories<br/>+ X-User-Id"| FIN
-    NGX -->|X-User-Id| ANA
+    NGX -->|"analytics + X-User-Id<br/>public sin auth"| ANA
     NGX -->|X-User-Id| REC
     NGX -->|X-User-Id| SUB
     FIN -->|HTTP interno| CAT
     FIN -.->|eventos| RDS
-    RDS -.->|eventos| ANA
+    RDS -.->|"eventos (grupo analytics)"| ANW
     RDS -.->|eventos| REC
     WRK ---|tareas| RDS
     DJ --> PG
     FIN --> PG
     ANA --> PG
+    ANW --> PG
     REC --> PG
     SUB --> PG
     SUB -->|PaymentGateway| WOMPI
     REC -->|ExchangeRateProvider| TRM
     DC -.->|"AllyServiceProvider<br/>servicio dueño por definir"| ALLY
-    ALLY -->|"resumen JSON expuesto"| NGX
+    ALLY -->|"GET /api/v1/public/spending-summary/"| NGX
 ```
 
 Cada servicio solo se conecta a **su** base lógica (ADR-10). El bloque `finance` completo (`accounts`, `transactions`, `categories`) apunta a `finance-service` desde E2-M2b, y el monolito ya no tiene la app (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
@@ -1375,6 +1435,47 @@ sequenceDiagram
     Note over RL,RD: Si el relay muere entre XADD y COMMIT, el evento se publica otra vez:<br/>entrega al menos una vez, consumidores idempotentes por event_id
 ```
 
+### 9.10 Diagrama de secuencia — Del registro al dashboard (E2-M4b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Navegador
+    participant NGX as nginx
+    participant FIN as finance-service
+    participant RL as finance-outbox-relay
+    participant RD as Redis Stream finty.finance.events
+    participant W as analytics-worker
+    participant DB as finty_analytics
+    participant AN as analytics-service
+
+    U->>NGX: POST /api/v1/transactions/ (Token)
+    NGX->>FIN: auth_request ok → X-User-Id
+    FIN-->>U: 201 (transacción + outbox_event en un COMMIT)
+
+    RL->>RD: XADD TransactionManuallyAdded
+    W->>RD: XREADGROUP analytics >
+    RD-->>W: entrada pendiente para el grupo
+    rect rgb(240, 245, 250)
+        Note over W,DB: una transacción
+        W->>DB: INSERT processed_event ON CONFLICT DO NOTHING
+        alt event_id nuevo
+            W->>DB: upsert de transaction_fact (o lápida si es TransactionDeleted)
+        else ya procesado
+            Note over W: duplicado: no toca los hechos
+        end
+        W->>DB: COMMIT
+    end
+    W->>RD: XACK (solo después del COMMIT)
+
+    U->>NGX: GET /api/v1/analytics/dashboard/?period=2026-10 (Token)
+    NGX->>AN: auth_request ok → X-User-Id
+    AN->>DB: SELECT hechos vigentes del usuario (período y tendencia)
+    AN-->>U: 200 Dashboard por moneda, calculado al leer
+
+    Note over U,AN: Consistencia eventual: entre el 201 y el dashboard actualizado pasan unos instantes.<br/>Si el worker está detenido, finance sigue respondiendo; el worker se pone al día al volver.
+```
+
 ---
 
 ## 10. Estrategia de API Gateway
@@ -1417,7 +1518,9 @@ sequenceDiagram
 | `/api/v1/auth/login/`, `/api/v1/auth/register/` | `django` | No | Zona estricta `finty_auth` además de la general (D-17) |
 | `/api/v1/auth/`, `/api/v1/profile/` | `django` | No (DRF lo hace dentro) | `identity` permanece en el monolito |
 | `/api/v1/accounts`, `/api/v1/transactions`, `/api/v1/categories`, con o sin barra final y con sufijo `.json` | upstream `finance_backend` → **`finance-service`** (conmutado el 2026-10-20), las tres rutas juntas | **Sí** (`auth_request`, ADR-09) | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2; responde con `X-Finty-Route: finance` |
-| Rutas de `analytics`, `recommendation`, `subscription` | su servicio | Sí | Se definen en el módulo de cada servicio |
+| `/api/v1/analytics`, con o sin barra final y con sufijo | upstream `analytics_backend` → **`analytics-service`** | **Sí** (`auth_request`) | Lectura del modelo de analytics (§10.6); responde con `X-Finty-Route: analytics`. Nace en Flask: no hay versión en el monolito que conmutar |
+| `/api/v1/public/` | upstream `analytics_backend` → **`analytics-service`** | **No** | Endpoint expuesto al equipo aliado (ADR-13, §10.7); zona estricta `finty_public`; `X-User-Id` nunca se reenvía; responde con `X-Finty-Route: public` |
+| Rutas de `recommendation`, `subscription` | su servicio | Sí | Se definen en el módulo de cada servicio |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
 **Reglas del Gateway:**
@@ -1425,7 +1528,8 @@ sequenceDiagram
 2. Solo Nginx publica un puerto en el host; los servicios escuchan únicamente en la red interna.
 3. El bloque `finance` (`accounts`, `transactions`, `categories`) se conmuta completo y de una vez, cambiando la línea `server` del upstream `finance_backend`; nunca se conmuta una ruta suelta, porque las tres comparten agregado y base (ADR-08). Es un cambio de configuración de Nginx, no de código, y se hace solo después de que `finance-service` pase la suite de contrato de las tres rutas (A-20).
 4. Las respuestas que genera el propio Gateway tienen la forma del contrato: 401 `{"detail": ...}` con el texto de DRF según el motivo (ADR-09), y 429 `{"detail": "Solicitud fue regulada (throttled)."}`, el texto de `Throttled` de DRF.
-5. `limit_req` por IP en dos zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, y `finty_api` (20/s, ráfaga 50) en todo `/api/v1/`.
+5. `limit_req` por IP en tres zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, `finty_api` (20/s, ráfaga 50) en todo `/api/v1/` salvo el público, y `finty_public` (30/min, ráfaga 10) en `/api/v1/public/`.
+6. Cada bloque de un microservicio fija `$finty_route` y responde con `X-Finty-Route`, también en el 401 del propio Gateway. La variable no se inicializa a nivel de `server`, porque la subpetición de `auth_request` comparte las variables de la petición y vuelve a ejecutar los `set` de ese nivel: borraría la marca.
 
 ### 10.4 Contratos internos entre servicios
 
@@ -1446,7 +1550,7 @@ El monto no viaja: ninguna implementación lo usa para decidir, y el puerto `Cat
 
 ### 10.5 Contrato de eventos — `finty.finance.events`
 
-Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15). Lo escribe solo `finance-outbox-relay`. Los consumidores llegan en E2-M4b, cada uno con su grupo de consumidores (`XREADGROUP`).
+Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15). Lo escribe solo `finance-outbox-relay`. Cada consumidor tiene su grupo de consumidores (`XREADGROUP`); hoy lo consume `analytics-worker` con el grupo `analytics` (E2-M4b). `tests/services/test_event_contract.py` verifica por AST que lo que `analytics-service` lee es lo que `finance-service` escribe (A-25).
 
 **Campos de cada entrada** (cadenas, como exige Redis Streams):
 
@@ -1465,15 +1569,43 @@ Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15).
   "user_id": "333c736c-…", "transaction_id": "983e19f9-…", "account_id": "558a76ab-…",
   "amount": "120000.00", "currency": "COP", "transaction_type": "expense",
   "category_name": "Alimentación", "categorization_source": "rule",
-  "occurred_on": "2026-10-19"
+  "occurred_on": "2026-10-19", "description": "Almuerzo en el restaurante"
 }
 ```
 
 - `amount` es texto decimal con dos cifras, nunca un número de punto flotante. `transaction_type` es `income` o `expense`.
 - `category_name` y `categorization_source` pueden ser `null`. La procedencia es `rule`, `mock`, `ai` o `manual` (A-14).
+- `description` es texto, `""` si la transacción no tiene. Se agregó en E2-M4b **sin subir la versión**, porque `SpendingPattern` la necesita: es un campo nuevo y opcional para el consumidor, así que los eventos anteriores siguen siendo válidos. Un evento sin `description` se lee como `""` y nunca forma un patrón.
 - `TransactionManuallyAdded` trae la transacción tal como se registró. `TransactionCategorized`, con su categoría nueva (`manual`). `TransactionDeleted`, como estaba antes de borrarse.
 
 **Cómo consumirlo:** aplicar cada evento como el último estado conocido de `transaction_id`: un alta o una reclasificación reemplazan lo que hubiera, y un borrado lo elimina. Hay que descartar un `event_id` ya aplicado. Un `TransactionManuallyAdded` del backfill puede llegar después de un `TransactionCategorized` de la misma transacción si esta se registró antes del outbox. Como ambos traen la foto vigente, aplicarlos como reemplazo da el estado correcto.
+
+### 10.6 Contrato de `analytics-service` — lectura autenticada (E2-M4b)
+
+Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde Nginx (§10.3). El servicio toma la identidad de `X-User-Id` y solo ve los hechos de ese usuario. Errores con la misma forma que `finance-service`: 400 `{"period": ["Periodo invalido. Use el formato AAAA-MM, por ejemplo 2026-10."]}`, 405 `{"detail": "Método \"POST\" no permitido."}` y 404 `{"detail": "No encontrado."}`. Solo `GET`.
+
+`?period=AAAA-MM` es opcional: sin él, el mes actual en `America/Bogota`. Dinero como texto decimal con dos cifras; porcentajes y participaciones también como texto. **Las cifras son eventualmente consistentes** (ADR-15).
+
+| Ruta | Respuesta 200 |
+|------|---------------|
+| `GET /api/v1/analytics/dashboard/?period=` | `{"period": "2026-10", "currencies": [{"currency": "COP", "income": "500000.00", "expense": "120000.00", "net": "380000.00", "categories": [{"category_name": "Alimentación", "transaction_type": "expense", "total": "120000.00", "share": "1.0000"}], "accounts": [{"account_id": "…", "income": …, "expense": …, "net": …}], "trend": [{"period": "2026-05", "income": …, "expense": …, "net": …}, … 6 meses]}]}`. Sin movimientos, `currencies` es `[]` |
+| `GET /api/v1/analytics/insights/?period=` | `{"period": "2026-10", "insights": [{"type": "NEGATIVE_SAVINGS", "code": "negative_savings", "severity": "warning", "period": "2026-10", "params": {"currency": "COP", "deficit": "50000.00"}, "evidence": {"income": "100000.00", "expense": "150000.00"}}]}`. `params` y `evidence` de cada `code` en §6.5 |
+| `GET /api/v1/analytics/spending-patterns/?period=` | `{"reference_period": "2026-10", "window_months": 6, "patterns": [{"description": "netflix", "category_name": "Entretenimiento", "currency": "COP", "average_amount": "39900.00", "months_present": 3, "window_months": 6, "occurrences": 3, "monthly_frequency": "1.00", "last_seen": "2026-10-03"}]}`. `period` marca el último mes de la ventana |
+
+El frontend traduce un insight por su `code` e interpola `params` (E2-M8). El texto nunca viaja en la respuesta.
+
+### 10.7 Contrato expuesto al equipo aliado — `GET /api/v1/public/spending-summary/` (PROVISIONAL)
+
+> **Provisional (D-10):** el aliado no está asignado. La ruta, los campos y el valor de *k* se confirman cuando se acuerde el contrato con él. Un cambio incompatible iría a `/api/v2/`.
+
+Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por minuto por IP, con ráfaga de 10; por encima responde 429 `{"detail": "Solicitud fue regulada (throttled)."}`.
+
+| | Contenido |
+|---|---|
+| Parámetro | `period=AAAA-MM`, opcional (por defecto, el mes actual). Inválido → 400 `{"period": [...]}` |
+| 200 | `{"period": "2026-10", "min_users": 3, "categories": [{"category_name": "Alimentación", "currency": "COP", "users": 12, "total": "1710004.40", "average_per_user": "142500.37"}]}`, ordenado por moneda y, dentro de cada una, por total descendente. `category_name` es `null` para el gasto sin categoría, que también exige *k* usuarios |
+| Privacidad | Una fila (categoría, moneda) solo aparece si la tienen al menos `min_users` usuarios distintos. No hay total general ni conteo de usuarios del período: con ellos se podrían deducir las categorías ocultas. Solo gastos, solo transacciones vigentes |
+| Consistencia | Eventual, igual que §10.6 |
 
 ---
 
@@ -1486,7 +1618,7 @@ Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15).
 | JN-TB-01 | 1 | FT-001 Autenticación | `POST /auth/login/` | `User` |
 | JN-TB-01 | 2 | FT-002 Dashboard | `GET /accounts/` | `Account`, `AccountService` |
 | JN-TB-01 | 3 | FT-003 Categorización | `POST /transactions/` | `TransactionService`, `CategorizerFactory`, `Categorizer`, `TransactionBuilder` |
-| JN-TB-01 | 4 | FT-004 Insights | Por definir en E2-M4 | `analytics-service`: `Insight`, `SpendingPattern`, `Dashboard` |
+| JN-TB-01 | 4 | FT-004 Insights | `GET /analytics/dashboard/`, `GET /analytics/insights/`, `GET /analytics/spending-patterns/` (E2-M4b) | `analytics-service`: `Dashboard`, `Insight`, `SpendingPattern`, `AnalyticsService`, `EventProjector` |
 | JN-TB-01 | 5 | FT-005 Recomendaciones | Por definir en E2-M5 | `recommendation-service`: `Recommendation`, `RiskProfile`, `InvestmentPlan` |
 | JN-TB-02 | 2 | FT-003 Categorización | `POST /transactions/{id}/categorize/` | `TransactionService` |
 | JN-TB-04 | 1–2 | FT-002 Dashboard | `GET /accounts/` | `Account`, `BalanceCalculator` |
@@ -1511,7 +1643,7 @@ Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15).
 |------------------------|------|----------|--------|
 | Correcciones E1: frontend intuitivo y agradable (eliminatorio) | 10% | ADR-11 | E2-M8 |
 | Diagramas con AWS, Nginx, Flask y broker | 10% | §9.4 a §9.8 | E2-M0; finales en E2-M9 |
-| Exponer un endpoint JSON | 30% | ADR-13 (`analytics-service`) | E2-M4 |
+| Exponer un endpoint JSON | 30% | ADR-13 (`analytics-service`, `GET /api/v1/public/spending-summary/`, §10.7) | E2-M4b (implementado; contrato provisional, D-10) |
 | Consumir el servicio del equipo aliado | (30%) | ADR-13, `AllyServiceProvider` + `MockAllyAdapter` | E2-M9 |
 | Consumir una API de terceros mediante Adapter | (30%) | ADR-12, `ExchangeRateProvider` | E2-M5 |
 | Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 |
@@ -1546,8 +1678,15 @@ Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15).
 | Transacción eliminada | finance | `TransactionDeleted` | Evento de dominio (E2-M4a, no está en DDD Stage 1: lo necesita `analytics`) | TransactionRemoved |
 | Foto de una transacción | finance | `TransactionFacts` | Value Object: payload de los eventos | TransactionData, TransactionDTO |
 | Outbox | finance | `EventOutbox` / `outbox_event` | Puerto y tabla del outbox transaccional (ADR-15) | EventQueue |
+| Tablero | analytics | `Dashboard` | Value Object calculado al leer (§6.5) | — |
+| Hallazgo | analytics | `Insight` | Value Object calculado al leer (§6.5) | Metrics, Stats (DDD Stage 1) |
+| Gasto recurrente | analytics | `SpendingPattern` | Value Object calculado al leer (§6.5) | Habit (DDD Stage 1) |
+| Período | analytics | `Period` | Value Object: mes `AAAA-MM` | — |
+| Hecho de transacción | analytics | `TransactionFact` / `transaction_fact` | Value Object y tabla del modelo de lectura | — |
+| Evento procesado | analytics | `processed_event` | Tabla de idempotencia por `event_id` (ADR-15) | — |
+| Resumen público de gasto | analytics | `SpendingSummary` | Value Object del endpoint expuesto (§10.7) | — |
 
-Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `SpendingPattern`, `Dashboard`, `Recommendation`, `RiskProfile`, `InvestmentPlan`, `Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
+Los términos de `recommendation` y `subscription` (`Recommendation`, `RiskProfile`, `InvestmentPlan`, `Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
 
 **Polisemias resueltas y vigentes:**
 
@@ -1564,25 +1703,27 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | # | Tema | Decisión provisional | A revisar en |
 |---|------|---------------------|--------------|
 | D-01 | Categorías globales vs. por usuario | Globales; se mantienen en la Entrega 2 (el catálogo migra tal cual a `finance-service`) | Post-Entrega 2 |
-| D-02 | Balance persistido vs. calculado | Persistido, con recálculo transaccional. `analytics` consume eventos y no relee balances | E2-M4 |
+| D-02 | Balance persistido vs. calculado | Persistido, con recálculo transaccional en `finance-service`, que es su única autoridad. **`analytics` no relee ni replica balances (E2-M4b):** calcula ingresos, gastos y neto **del período** a partir de los hechos de transacción que le llegan por eventos, y eso no es un balance (no incluye el saldo de apertura, que no viaja en los eventos). El dashboard de analytics nunca muestra un saldo: el saldo de cada cuenta lo sirve `GET /accounts/` | **Cerrada** (E2-M4b) |
 | D-03 | Dependencia circular `Recommendation → FinancialData` | **Resuelta por diseño:** `recommendation` consume eventos de `finance` (ADR-15) | Implementación en E2-M5 |
 | D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación** hacia `preferred_currency` (ADR-12); la multi-moneda contable sigue fuera | Post-MVP |
-| D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). Pendiente: los consumidores | Consumo: E2-M4b |
+| D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). **Consumo implementado (E2-M4b):** `analytics-worker`, idempotente por `event_id` | **Cerrada** para `analytics`; `recommendation` en E2-M5 |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
 | D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Trasladado sin cambios a `categorization-service` en E2-M3b | Abierta, sin módulo asignado |
 | D-08 | Enumeración de cuentas ajenas | `get_owned_account` devuelve 404 y no 403 para no revelar existencia. Se conserva en `finance-service` filtrando por `X-User-Id` | Cerrada |
 | D-09 | Métrica del 70% para el bono | La distribución de §4.4 supera el umbral por clases (90%), por contextos (4 de 5) y por endpoints de negocio | **Abierta** — confirmar con el profesor |
-| D-10 | Equipo aliado | Sin asignar. Solo `MockAllyAdapter`; no se inventan dominio, URL ni contrato. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
+| D-10 | Equipo aliado | Sin asignar. Solo `MockAllyAdapter`; no se inventan dominio, URL ni contrato. Lo que Finty expone ya existe con un contrato **provisional** (§10.7) que se ajusta al acordarlo. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
 | D-11 | Formato de los diagramas | Mermaid dentro del Markdown, porque la Wiki de GitHub lo renderiza | **Abierta** — confirmar que el curso no exige otro formato |
 | D-12 | TLS en el Gateway | Sin TLS: la instancia se expone por IP elástica, sin dominio. ADR-14 evita depender de HTTPS para los pagos | Abierta — requiere dominio |
 | D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | **Copia propia en el `domain/shared/` de cada servicio**, con las mismas reglas del original. Un paquete compartido acoplaría los despliegues: cambiarlo obligaría a reconstruir y desplegar a la vez todos los servicios que lo usan. El costo aceptado es mantener las copias alineadas a mano; el glosario (§12) sigue siendo uno solo | **Cerrada** (E2-M2a) |
 | D-14 | Mecanismo concreto de INV-06 | Sin decidir: en el Gateway o en cada servicio que ofrece funciones premium | Abierta, E2-M6 |
 | D-15 | Borrado de usuario sin FK entre bases | No existe caso de uso de borrado; si aparece, se propaga por evento | Abierta, sin módulo asignado |
 | D-16 | Datos de `finance` del monolito al conmutar | `finty_finance` arranca vacía, solo con el catálogo de categorías sembrado (equivalente a `0002_seed_categories`). Las cuentas y transacciones del monolito no se migran en esta entrega (ADR-08) | Abierta — post-Entrega 2 |
-| D-17 | Rate limiting en el Gateway | **`limit_req` por IP en dos zonas, con respuesta 429 en JSON.** **`finty_auth`** (login y registro): `rate=6r/m`, `burst=10`, `nodelay`. La cuota anónima de DRF (60/h por IP) sigue en Django para esas rutas y es la autoridad horaria; Nginx no la endurece en régimen sostenido (6/min = 360/h), pero corta las ráfagas de fuerza bruta antes de que lleguen a Django, donde cada intento cuesta un hash de contraseña: diez intentos seguidos y luego uno cada 10 s. **`finty_api`** (todo `/api/v1/`): `rate=20r/s`, `burst=50`, `nodelay`. La cuota de usuario de DRF (1000/h ≈ 0,28/s en promedio) es horaria y por usuario; esta zona es protección contra inundación por segundo y por IP, holgada para el uso legítimo (una pantalla del frontend hace a lo sumo unas seis peticiones juntas). **Residuo aceptado:** las rutas de `finance`, servidas ahora por Flask, ya no tienen la cuota horaria por usuario de DRF, solo este límite por IP; si se necesitara, una zona con clave `$http_authorization` la aproximaría | **Cerrada** (E2-M2b) |
+| D-17 | Rate limiting en el Gateway | **`limit_req` por IP en dos zonas, con respuesta 429 en JSON.** **`finty_auth`** (login y registro): `rate=6r/m`, `burst=10`, `nodelay`. La cuota anónima de DRF (60/h por IP) sigue en Django para esas rutas y es la autoridad horaria; Nginx no la endurece en régimen sostenido (6/min = 360/h), pero corta las ráfagas de fuerza bruta antes de que lleguen a Django, donde cada intento cuesta un hash de contraseña: diez intentos seguidos y luego uno cada 10 s. **`finty_api`** (todo `/api/v1/`): `rate=20r/s`, `burst=50`, `nodelay`. La cuota de usuario de DRF (1000/h ≈ 0,28/s en promedio) es horaria y por usuario; esta zona es protección contra inundación por segundo y por IP, holgada para el uso legítimo (una pantalla del frontend hace a lo sumo unas seis peticiones juntas). **Residuo aceptado:** las rutas de `finance`, servidas ahora por Flask, ya no tienen la cuota horaria por usuario de DRF, solo este límite por IP; si se necesitara, una zona con clave `$http_authorization` la aproximaría. **`finty_public`** (E2-M4b, `/api/v1/public/`): `rate=30r/m`, `burst=10`, `nodelay`. Es la única ruta de datos sin token, así que no tiene cuota de usuario detrás; un agregado mensual no se consulta en bucle, y 30 por minuto sobra para un servicio aliado que lo lee de vez en cuando | **Cerrada** (E2-M2b; `finty_public` en E2-M4b) |
 | D-18 | Dependencias de desarrollo en la imagen de producción | Hay un solo `requirements.txt`, así que `pytest` y similares quedan instalados en la imagen `django`. Separarlas en un archivo de desarrollo | Abierta, sin módulo asignado |
 | D-19 | Texto del 404 de un id válido inexistente | `GET /accounts/{uuid}/` y `GET /categories/{uuid}/` responden `{"detail": "No Account matches the given query."}` (o `Category`): el mensaje de `get_object_or_404` de Django, en inglés, que DRF conservaba y `finance-service` reproduce por contrato. Un id mal formado sí responde `No encontrado.` | Abierta, E2-M8: traducir por `code` junto con el resto del i18n |
 | D-20 | Tablas de `finance` en `finty_identity` | Al retirar la app (E2-M3a) quedaron `finance_account`, `finance_transaction` y `finance_category` sin uso, junto con sus filas en `django_migrations`, sus tipos de contenido y sus permisos. No se borran en esta entrega: son el único lugar donde están los datos que el monolito tenía antes de la conmutación (D-16) | Abierta — post-Entrega 2: migrarlos a `finty_finance` o descartarlos, y después borrar las tablas |
+| D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos** en E2-M4b: nada los consume todavía. Si `recommendation-service` necesita insights o patrones, se decide en E2-M5 entre consumirlos por evento (por ejemplo, `InsightDetected`) o calcularlos desde sus propios hechos | Abierta, E2-M5 |
+| D-23 | Mensajes fuera de contrato en `finty.finance.events` | El worker los registra en el log como aviso y los confirma con `XACK` para no bloquear el stream. No hay stream de mensajes muertos: si apareciera uno, el evento se perdería para `analytics`. `tests/services/test_event_contract.py` (A-25) evita esa situación antes de desplegar | Abierta — un stream `finty.finance.events.dead` si llega un segundo productor |
 | D-21 | Traducción de las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext y sus respuestas llevan solo `{"detail": ...}`, la forma de DRF. **Decisión:** el frontend las traduce por **código de estado HTTP** (401 → sesión no válida, 429 → demasiadas peticiones), no por un `code` en el cuerpo. El Gateway y la suite de contrato (A-20) no cambian: el cuerpo de esas respuestas sigue siendo el de DRF. Se descartó agregar `code` al cuerpo porque cambiaría la forma del contrato | **Cerrada** (E2-M3b): la traducción por estado se implementa en E2-M8 |
 
 ---
@@ -1620,6 +1761,9 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz. Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`) | E2-M3b (categorización), E2-M5, E2-M9 |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext | E2-M8 |
 | A-24 | Despliegue verificable | `curl http://<ip-elastica>/api/v1/health/` responde desde AWS | E2-M1 |
+| A-25 | Consumidor de eventos idempotente y alineado con el productor | `services/analytics-service/tests/test_projection.py` (duplicados, fuera de orden, lápida, XACK solo tras el commit); `tests/services/test_event_contract.py` (lo que analytics lee es lo que finance escribe); evidencia de reprocesar el stream completo con `XGROUP SETID … 0` en `tests/contract/runs/2026-10-20-analytics-eventos.txt` | E2-M4b |
+| A-26 | Resumen público con k-anonimato | Con menos de *k* usuarios en una categoría, la categoría no aparece: `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato` y `services/analytics-service/tests/api/test_api.py::TestResumenPublico` | E2-M4b |
+| A-27 | Lecturas de analytics eventualmente consistentes | Registrar, reclasificar y eliminar por el Gateway se refleja en el dashboard dentro de 15 s, por sondeo: `tests/contract/test_analytics.py::TestDePuntaAPunta`. Con `analytics-worker` detenido, `finance` responde 201 y el worker se pone al día al volver (evidencia en `runs/`) | E2-M4b |
 
 ---
 

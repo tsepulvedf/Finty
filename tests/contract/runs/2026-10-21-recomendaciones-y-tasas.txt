@@ -1,0 +1,58 @@
+# Evidencia E2-M5 - recommendation-service y Adapter de tasas de cambio
+# Fecha: 2026-10-21T12:37:50-05:00
+
+## 1. A-22 para tasas: live -> cached -> fallback
+  cache vaciado (DEL finty:fx:USD-COP:day:2026-10-21 finty:fx:USD-COP:last)
+  API disponible, sin cache:            {"base":"USD","target":"COP","rate":"3163.76","source":"live","valid_from":"2026-10-21","valid_until":"2026-10-21","fetched_on":"2026-10-21"}
+  segunda consulta del dia:             {"base":"USD","target":"COP","rate":"3163.76","source":"cached","valid_from":"2026-10-21","valid_until":"2026-10-21","fetched_on":"2026-10-21"}
+  claves en Redis: finty:fx:USD-COP:last finty:fx:USD-COP:day:2026-10-21 
+  TTL de la clave del dia: 40926 s (hasta la medianoche)
+
+  EXCHANGE_RATE_API_URL=http://127.0.0.1:9 docker compose up -d recommendation-service   (API inalcanzable)
+  DEL finty:fx:USD-COP:day:2026-10-21   (como si cambiara el dia)
+  API inalcanzable, con ultima conocida: {"base":"USD","target":"COP","rate":"3163.76","source":"cached","valid_from":"2026-10-21","valid_until":"2026-10-21","fetched_on":"2026-10-21"}
+  log:
+    API de tasas no disponible (URLError: <urlopen error [Errno 111] Connection refused>); se degrada
+  DEL finty:fx:USD-COP:last
+  API inalcanzable, sin cache:           {"base":"USD","target":"COP","rate":"3200","source":"fallback","valid_from":null,"valid_until":null,"fetched_on":null}
+
+  docker compose up -d recommendation-service   (URL oficial otra vez)
+  API de nuevo disponible:               {"base":"USD","target":"COP","rate":"3163.76","source":"live","valid_from":"2026-10-21","valid_until":"2026-10-21","fetched_on":"2026-10-21"}
+
+## 2. Un perfil de cada tipo, con excedente positivo (ingreso de 300000 el 2026-09-15)
+  PUT risk-profile {"investment_horizon":1,"loss_reaction":1,"experience":1,"income_stability":1,"goal":1} -> 200
+    degraded=False perfil=conservative
+    invest_by_risk_profile   source=risk_profile instrumentos=['cdt', 'liquidity_fund'] excedente=100000.00 aviso=investment_disclaimer
+  PUT risk-profile {"investment_horizon":2,"loss_reaction":2,"experience":2,"income_stability":2,"goal":2} -> 200
+    degraded=False perfil=moderate
+    invest_by_risk_profile   source=risk_profile instrumentos=['collective_investment_fund'] excedente=100000.00 aviso=investment_disclaimer
+  PUT risk-profile {"investment_horizon":3,"loss_reaction":3,"experience":3,"income_stability":3,"goal":3} -> 200
+    degraded=False perfil=aggressive
+    invest_by_risk_profile   source=risk_profile instrumentos=['etf', 'stocks'] excedente=100000.00 aviso=investment_disclaimer
+
+## 3. Excedente negativo: solo fondo de emergencia (gasto de 900000 el 2026-09-15)
+  PUT risk-profile (agresivo) -> 200
+    degraded=False perfil=aggressive
+    build_emergency_fund     source=risk_profile instrumentos=- excedente=-300000.00 aviso=investment_disclaimer
+
+## 4. Degradacion: docker compose stop analytics-service
+  analytics-service: exited
+  GET /api/v1/recommendations/ -> HTTP 200
+    degraded=True perfil=aggressive
+    invest_by_risk_profile   source=risk_profile instrumentos=['etf', 'stocks'] excedente=None aviso=investment_disclaimer
+  log:
+    analytics-service no disponible (URLError: <urlopen error [Errno -2] Name or service not known>); recomendaciones degradadas
+  suite de contrato con CONTRACT_ANALYTICS_DOWN=1:
+    1 passed, 18 deselected in 2.56s
+  docker compose start analytics-service
+    degraded=False perfil=aggressive
+    invest_by_risk_profile   source=risk_profile instrumentos=['etf', 'stocks'] excedente=100000.00 aviso=investment_disclaimer
+
+## Observacion: degradacion real durante una corrida anterior (2026-10-21, ~10:20)
+  Al restaurar la URL oficial, la primera consulta del contenedor recien creado no
+  completo el handshake TLS con datos.gov.co dentro del timeout de 3 s:
+    API de tasas no disponible (URLError: <urlopen error _ssl.c:999: The handshake operation timed out>); se degrada
+  Con el cache vaciado por la prueba, la cadena respondio la tasa fija:
+    {"base":"USD","target":"COP","rate":"3200","source":"fallback","valid_from":null,"valid_until":null,"fetched_on":null}
+  La consulta siguiente a la API, desde el mismo contenedor, respondio en 0,72 s.
+  Es A-22 fuera del laboratorio: el tercero fallo de verdad y la respuesta lo dijo.

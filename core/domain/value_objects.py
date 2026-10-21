@@ -1,9 +1,10 @@
 """Value Objects transversales del dominio (anillo de Dominio, Python puro).
 
 Aqui vive `Money`, el Value Object que representa una cantidad monetaria como la
-union indivisible de un `Decimal` y una moneda. Se ubica en `core` porque lo
-comparten los contextos `identity` y `finance`, y duplicarlo romperia el lenguaje
-ubicuo del glosario (ARCHITECTURE.md 12).
+union indivisible de un `Decimal` y una moneda. Se ubica en `core` porque es
+nucleo compartido del monolito (`identity` valida monedas con
+`validate_currency_code`). Desde la Entrega 2, `finance-service` lleva su propia
+copia con las mismas reglas (D-13).
 
 Este modulo no importa Django ni ninguna dependencia de infraestructura.
 """

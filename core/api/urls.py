@@ -22,11 +22,12 @@ cumple este modulo junto con la configuracion de DRF.
    protege la logica, no el ancho de banda. La contencion de trafico bruto es de
    Nginx en la Etapa 2.
 
-3. **Abstraccion del enrutamiento.** Este archivo monta `identity.api.urls` y
-   `finance.api.urls` bajo el mismo prefijo, asi que la particion interna en apps
-   es invisible desde fuera: el cliente pide `/api/v1/transactions/` sin saber que
-   app la sirve. Es lo que permitira mover un contexto a un servicio propio sin
-   romper clientes, aplicando el Strangler Pattern sobre el prefijo de version.
+3. **Abstraccion del enrutamiento.** Este archivo monta las rutas de `identity`
+   bajo `/api/v1/`. Desde la Entrega 2 el enrutamiento entre servicios lo hace
+   Nginx: `accounts`, `transactions` y `categories` las sirve `finance-service`
+   desde la conmutacion de E2-M2b, y la app `finance` se retiro del monolito en
+   E2-M3a (ADR-08). El cliente sigue pidiendo `/api/v1/...` sin saber quien
+   responde.
 
 4. **Agregacion de datos.** No aplica en un monolito: una peticion se resuelve
    contra una sola base y no hay nada que consolidar. Sera relevante cuando el
@@ -60,5 +61,4 @@ class HealthView(APIView):
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
     path("", include("identity.api.urls")),
-    path("", include("finance.api.urls")),
 ]

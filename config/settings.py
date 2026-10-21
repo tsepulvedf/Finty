@@ -57,7 +57,6 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "core",
     "identity",
-    "finance",
 ]
 
 MIDDLEWARE = [
@@ -166,8 +165,3 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
-# --- Finty -----------------------------------------------------------------
-
-# Proveedor de clasificacion que resolvera CategorizerFactory (M4).
-CATEGORIZER_PROVIDER = _env("CATEGORIZER_PROVIDER", "RULE")

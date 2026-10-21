@@ -1,21 +1,18 @@
-"""Tests del cliente de demostracion y del blindaje del admin.
+"""Tests del cliente de demostracion.
 
 **Lo que se verifica aqui no es la interfaz, es la frontera.** El cliente existe
 para evidenciar que el backend es headless: si Django renderizara datos de
 negocio en la plantilla, esa demostracion seria falsa. `TestPlantillaSinDatos`
 comprueba mecanicamente que no lo hace.
 
-El blindaje del admin se prueba en el mismo modulo porque responde a la misma
-idea: con la interfaz disponible, el admin deja de ser necesario para escribir y
-pasa a ser un camino que evade la capa de servicios.
+Hasta E2-M3a este modulo probaba tambien que el admin de las cuentas y
+transacciones fuera de solo lectura. Esos modelos ya no viven en el monolito
+(ADR-08), asi que esas pruebas se fueron con ellos.
 """
 import re
 from pathlib import Path
 
 import pytest
-from django.contrib import admin
-
-from finance.models import Account, Category, Transaction
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 PLANTILLA = RAIZ / "frontend" / "app.html"
@@ -118,68 +115,3 @@ class TestPlantillaSinDatos:
         archivos = sorted(p.name for p in (RAIZ / "frontend").iterdir() if p.is_file())
 
         assert archivos == ["app.html"]
-
-
-class TestAdminDeSoloLectura:
-    """El admin escribe por el ORM, saltandose las invariantes.
-
-    Crear una `Transaction` desde el admin no pasaria por `TransactionService`:
-    no bloquearia la cuenta, no recalcularia el balance y no verificaria INV-14.
-    Quedaria una transaccion persistida con el balance sin mover, o sea INV-07
-    violada desde dentro del propio sistema.
-    """
-
-    MODELOS = [Account, Transaction, Category]
-
-    @pytest.fixture
-    def peticion(self, rf, django_user_model, db):
-        """Peticion de un superusuario: ni con todos los permisos puede escribir."""
-        solicitud = rf.get("/admin/")
-        solicitud.user = django_user_model.objects.create_superuser(
-            email="admin@finty.co", password="Contrasena-Segura-2026"
-        )
-        return solicitud
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_no_permite_agregar(self, modelo, peticion):
-        assert admin.site._registry[modelo].has_add_permission(peticion) is False
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_no_permite_modificar(self, modelo, peticion):
-        assert admin.site._registry[modelo].has_change_permission(peticion) is False
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_no_permite_eliminar(self, modelo, peticion):
-        assert admin.site._registry[modelo].has_delete_permission(peticion) is False
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_todos_los_campos_son_de_solo_lectura(self, modelo, peticion):
-        registro = admin.site._registry[modelo]
-        declarados = set(registro.get_readonly_fields(peticion))
-        concretos = {campo.name for campo in modelo._meta.fields}
-
-        assert concretos <= declarados, (
-            f"{modelo.__name__}: quedan campos editables "
-            f"{sorted(concretos - declarados)}"
-        )
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_sigue_permitiendo_inspeccionar(self, modelo, peticion):
-        """Leer si: el admin sigue siendo util para revisar datos en la demo."""
-        assert admin.site._registry[modelo].has_view_permission(peticion) is True
-
-    @pytest.mark.parametrize("modelo", MODELOS)
-    def test_el_formulario_de_alta_devuelve_403(self, modelo, client, peticion):
-        """No es solo cosmetico: un POST a mano tampoco pasa."""
-        client.force_login(peticion.user)
-        etiqueta = modelo._meta.app_label
-        nombre = modelo._meta.model_name
-
-        respuesta = client.get(f"/admin/{etiqueta}/{nombre}/add/")
-
-        assert respuesta.status_code == 403
-
-    def test_la_lista_sigue_siendo_accesible(self, client, peticion):
-        client.force_login(peticion.user)
-
-        assert client.get("/admin/finance/account/").status_code == 200

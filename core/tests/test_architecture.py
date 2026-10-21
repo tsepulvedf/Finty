@@ -7,12 +7,15 @@ daba positivo por `serializer.is_valid(raise_exception=True)`, porque
 arreglaba, pero seguia siendo una heuristica sobre caracteres. `ast` examina la
 estructura real del programa: un `ast.Try` es un `try`, y nada mas lo es.
 
-**Consecuencia para quien escriba docstrings.** En M2 hubo que reformular varios
-docstrings de `finance/domain/` porque mencionaban `django`, `finance.models` o
-`identity` como prosa —explicando justamente que no se importaban— y los `grep`
-de pureza daban falso positivo. Esa restriccion de vocabulario **ya no existe**:
-estos tests miran nodos `ast.Import` e `ast.ImportFrom`, no texto. Los docstrings
-de `finance/domain/` pueden volver a nombrar lo que necesiten nombrar.
+**Consecuencia para quien escriba docstrings.** Estos tests miran nodos
+`ast.Import` e `ast.ImportFrom`, no texto: un docstring puede nombrar `django`
+como prosa sin dar un falso positivo.
+
+**Alcance desde E2-M3a.** La app `finance` se retiro del monolito (ADR-08). Sus
+criterios (A-01, A-09 y A-10 sobre el dominio de finanzas, los modelos, la
+fabrica y el comando de auditoria) se verifican ahora en
+`services/finance-service/tests/test_architecture.py`. Aqui quedan `core` e
+`identity`.
 
 Estos tests no tocan la base de datos ni importan los modulos que analizan: leen
 el archivo y lo parsean. Corren sin PostgreSQL levantado.
@@ -30,23 +33,15 @@ RAIZ = Path(__file__).resolve().parent.parent.parent
 PROHIBIDOS_EN_DOMINIO = (
     "django",
     "rest_framework",
-    "finance.models",
-    "finance.infra",
     "identity",
     "config",
 )
 
-PAQUETES_DE_DOMINIO = ("core/domain", "finance/domain")
+PAQUETES_DE_DOMINIO = ("core/domain",)
 
-MODULOS_DE_VISTAS = ("finance/api/views.py", "identity/api/views.py")
-MODULOS_DE_MODELOS = ("finance/models.py", "identity/models.py")
-MODULOS_DE_SERVICIOS = ("finance/services.py", "identity/services.py")
-MODULOS_DE_SERIALIZERS = (
-    "finance/api/serializers.py",
-    "identity/api/serializers.py",
-)
-
-PAQUETES_DE_COMANDOS = ("finance/management/commands",)
+MODULOS_DE_VISTAS = ("identity/api/views.py",)
+MODULOS_DE_MODELOS = ("identity/models.py",)
+MODULOS_DE_SERIALIZERS = ("identity/api/serializers.py",)
 
 # Piezas del dominio que una vista jamas debe manipular directamente: si las
 # necesita, es que esta haciendo el trabajo del servicio.
@@ -56,12 +51,6 @@ PIEZAS_DE_DOMINIO_VETADAS_EN_VISTAS = (
     "TransactionBuilder",
     "AccountBuilder",
     "TransactionRules",
-)
-
-CATEGORIZADORES_CONCRETOS = (
-    "AICategorizer",
-    "RuleBasedCategorizer",
-    "MockCategorizer",
 )
 
 METODOS_DE_MODELO_PROHIBIDOS = (
@@ -80,11 +69,10 @@ DECORADORES_DE_MODELO_PROHIBIDOS = ("property", "cached_property")
 # comprobaciones de ADR-03, que es justo lo que este test descubrio.
 BASES_DE_MODELO = ("Model", "AbstractUser", "AbstractBaseUser")
 
-# Unico acceso directo al ORM tolerado fuera de un servicio. Se permite por
-# nombre completo y no por comodin: `CategoryViewSet` es un catalogo global de
-# solo lectura sin ninguna regla que orquestar (ADR-05), asi que interponer un
-# servicio que solo reenviara el queryset seria ceremonia vacia.
-ACCESO_A_ORM_PERMITIDO_EN_VISTAS = {("CategoryViewSet", "queryset")}
+# Accesos directos al ORM tolerados fuera de un servicio, por nombre completo.
+# Hasta E2-M3a lo era `CategoryViewSet.queryset`; con `finance` fuera del
+# monolito no queda ninguno.
+ACCESO_A_ORM_PERMITIDO_EN_VISTAS = set()
 
 
 def arbol_de(ruta_relativa):
@@ -199,21 +187,7 @@ class TestPurezaDelDominio:
 
     def test_se_analizo_algo(self):
         """Red de seguridad: si el recorrido no encuentra archivos, no prueba nada."""
-        assert len(modulos_de(*PAQUETES_DE_DOMINIO)) >= 8
-
-    def test_los_builders_solo_conocen_la_stdlib_y_el_dominio(self):
-        """El Builder vive en `domain/` y no puede arrastrar el ORM (C-11, C-12)."""
-        importados = modulos_importados(arbol_de("finance/domain/builders.py"))
-
-        permitidos = ("core.domain", "finance.domain")
-        externos = [
-            modulo
-            for modulo in importados
-            if "." in modulo and not any(coincide(modulo, p) for p in permitidos)
-        ]
-
-        assert not externos, f"builders.py importa modulos externos: {externos}"
-
+        assert len(modulos_de(*PAQUETES_DE_DOMINIO)) >= 3
 
 class TestVistasSinLogica:
     """A-02: las views traducen HTTP y nada mas."""
@@ -251,16 +225,6 @@ class TestVistasSinLogica:
         assert not vetados, f"{ruta} importa piezas del dominio: {sorted(vetados)}"
 
     @pytest.mark.parametrize("ruta", MODULOS_DE_VISTAS)
-    def test_no_importa_categorizadores_concretos(self, ruta):
-        """La vista pide uno a la fabrica; no conoce implementaciones."""
-        importados = simbolos_importados(arbol_de(ruta))
-        vetados = importados & set(CATEGORIZADORES_CONCRETOS)
-
-        assert not vetados, (
-            f"{ruta} importa categorizadores concretos: {sorted(vetados)}"
-        )
-
-    @pytest.mark.parametrize("ruta", MODULOS_DE_VISTAS)
     def test_todo_acceso_a_datos_pasa_por_un_servicio(self, ruta):
         arbol = arbol_de(ruta)
         permitidos = self._asignaciones_permitidas(arbol)
@@ -296,90 +260,6 @@ class TestVistasSinLogica:
                             if hasattr(n, "lineno")
                         )
         return lineas
-
-
-class TestComandosSinLogica:
-    """Un comando de gestion es un mecanismo de entrega, igual que una vista.
-
-    Le aplica el mismo criterio: orquesta llamadas al servicio y formatea la
-    salida, pero no calcula, no reimplementa reglas y no consulta el ORM. Un
-    comando que recalculara el balance por su cuenta duplicaria `BalanceCalculator`
-    y podria estar de acuerdo con un error del servicio.
-    """
-
-    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
-    def test_no_importan_piezas_del_dominio(self, ruta):
-        importados = simbolos_importados(arbol_de(ruta))
-        vetados = importados & set(PIEZAS_DE_DOMINIO_VETADAS_EN_VISTAS)
-
-        assert not vetados, (
-            f"{ruta} importa piezas del dominio: {sorted(vetados)}. Un comando "
-            f"pide los datos ya calculados al servicio."
-        )
-
-    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
-    def test_no_importan_modelos(self, ruta):
-        importados = modulos_importados(arbol_de(ruta))
-        vetados = [
-            modulo
-            for modulo in importados
-            if modulo.endswith(".models") or modulo.endswith("models")
-        ]
-
-        assert not vetados, (
-            f"{ruta} importa modelos directamente: {vetados}. El acceso a datos "
-            f"pasa por un servicio."
-        )
-
-    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
-    def test_no_importan_el_dominio_ni_la_infraestructura(self, ruta):
-        importados = modulos_importados(arbol_de(ruta))
-        vetados = [
-            modulo
-            for modulo in importados
-            for prohibido in ("finance.domain", "finance.infra", "core.domain")
-            if coincide(modulo, prohibido)
-        ]
-
-        assert not vetados, f"{ruta} importa {vetados}; solo puede usar servicios."
-
-    @pytest.mark.parametrize("ruta", modulos_de(*PAQUETES_DE_COMANDOS))
-    def test_cero_aritmetica(self, ruta):
-        """Si un comando suma, esta calculando algo que le toca al dominio.
-
-        El formateo de anchos de columna usa multiplicacion de cadenas y sumas de
-        enteros, asi que se excluyen los modulos de soporte y se revisa solo el
-        cuerpo de `handle`, que es donde viviria una regla infiltrada.
-        """
-        arbol = arbol_de(ruta)
-        handles = [
-            nodo
-            for nodo in ast.walk(arbol)
-            if isinstance(nodo, ast.FunctionDef) and nodo.name == "handle"
-        ]
-
-        operaciones = [
-            nodo.lineno
-            for handle in handles
-            for nodo in ast.walk(handle)
-            if isinstance(nodo, ast.BinOp)
-            and isinstance(nodo.op, (ast.Add, ast.Sub, ast.Mult, ast.Div))
-        ]
-
-        assert not operaciones, (
-            f"{ruta}: handle() hace aritmetica en la(s) linea(s) {operaciones}"
-        )
-
-    def test_se_encontraron_comandos(self):
-        """Test centinela: sin el, mover el paquete dejaria la suite en verde."""
-        comandos = [
-            ruta
-            for ruta in modulos_de(*PAQUETES_DE_COMANDOS)
-            if not ruta.endswith("__init__.py")
-        ]
-
-        assert comandos, "No se encontro ningun comando de gestion que analizar"
-        assert any(r.endswith("verify_invariants.py") for r in comandos)
 
 
 class TestModelosAnemicos:
@@ -470,26 +350,7 @@ class TestModelosAnemicos:
             for clase in clases_de_modelo(arbol_de(ruta))
         }
 
-        assert {"Account", "Transaction", "Category", "User", "UserProfile"} <= nombres
-
-
-class TestServiciosSinImplementacionesConcretas:
-    """A-10: el servicio depende de la abstraccion, nunca de una concrecion."""
-
-    @pytest.mark.parametrize("ruta", MODULOS_DE_SERVICIOS)
-    def test_no_importan_categorizadores_ni_la_fabrica(self, ruta):
-        importados = simbolos_importados(arbol_de(ruta))
-        vetados = importados & set(CATEGORIZADORES_CONCRETOS + ("CategorizerFactory",))
-
-        assert not vetados, (
-            f"{ruta} importa {sorted(vetados)}. Quien elige la implementacion es la "
-            f"vista, que pide una al Factory Method y la inyecta por constructor."
-        )
-
-    def test_finance_services_no_importa_nada_de_infra(self):
-        importados = modulos_importados(arbol_de("finance/services.py"))
-
-        assert not [m for m in importados if coincide(m, "finance.infra")]
+        assert {"User", "UserProfile"} <= nombres
 
 
 class TestSerializersSinAccesoADatos:
@@ -520,16 +381,11 @@ class TestMigracionesSinCodigoVivo:
     """
 
     PROHIBIDOS = (
-        "finance.domain",
-        "finance.infra",
-        "finance.services",
         "core.domain",
         "identity.services",
     )
 
-    @pytest.mark.parametrize(
-        "ruta", modulos_de("finance/migrations", "identity/migrations")
-    )
+    @pytest.mark.parametrize("ruta", modulos_de("identity/migrations"))
     def test_ninguna_migracion_importa_codigo_vivo(self, ruta):
         importados = modulos_importados(arbol_de(ruta))
 
@@ -546,6 +402,6 @@ class TestMigracionesSinCodigoVivo:
         )
 
     def test_se_analizaron_las_migraciones(self):
-        rutas = modulos_de("finance/migrations", "identity/migrations")
+        rutas = modulos_de("identity/migrations")
 
-        assert len([r for r in rutas if not r.endswith("__init__.py")]) >= 6
+        assert len([r for r in rutas if not r.endswith("__init__.py")]) >= 2

@@ -87,15 +87,15 @@ Se consume una API pública de tasas de cambio detrás de un **Adapter** (`Excha
 - **Consumido:** el servicio del equipo aliado también va detrás de un Adapter (`AllyServiceProvider` ABC), con un `MockAllyAdapter` de respaldo si el aliado no responde (es resiliencia, que también se evalúa).
 - **TAREA PENDIENTE (Tomás):** el equipo aliado **aún no está asignado**; Tomás lo consultará con el profesor. Hasta entonces se trabaja solo con `MockAllyAdapter`. **No inventes** el dominio, la URL ni el contrato del aliado: cuando lleguen, se escribe el adaptador concreto en un módulo aparte. Datos a obtener: proyecto del aliado, URL y método del endpoint, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha en que su endpoint estará en línea.
 
-### D-E2-08 — Pagos: puerto + dos adaptadores
-`PaymentGateway` (ABC) en `subscription-service`, con:
-- `MockPaymentGateway` — por defecto en tests y en la demo; nunca falla por red.
-- `WompiSandboxGateway` — sandbox real de Wompi (Bancolombia), con llaves de prueba `pub_test_` / `prv_test_` y URL base `https://sandbox.wompi.co/v1`.
+### D-E2-08 — Pagos: puerto, Factory y pago simulado (revisada en E2-M6b)
+**Sin pasarela real.** Es un ejercicio académico: el pago del plan PREMIUM es una **simulación de interfaz**, y `MockPaymentGateway` es la única implementación de `PaymentGateway` (ABC) en `subscription-service`. `PaymentGatewayFactory` solo acepta `PAYMENT_GATEWAY=MOCK`, y otro valor impide arrancar el servicio.
 
-El adaptador se elige por variable de entorno, igual que `CategorizerFactory`. **La confirmación del pago no depende de webhooks:** una tarea de Celery consulta el estado de la transacción en Wompi hasta resolverla. Así no se necesita una URL pública con HTTPS para recibir eventos. *Estado: confirmada por Tomás.*
+Se conservan el puerto y la Factory para que una pasarela real se agregue como un adaptador más, sin tocar el dominio (OCP). Dos salvaguardas: el backend rechaza con 400 cualquier campo del checkout además de `{plan}`, así que nunca recibe datos de tarjeta, y el formulario del frontend es una simulación identificada como tal (§8).
+
+*Decisión anterior, cancelada:* `WompiSandboxGateway` con confirmación por Celery. Se descartó porque la consulta por referencia que exigía no está documentada por Wompi, la redirección no debe usarse para validar y los webhooks requieren HTTPS. El análisis quedó en `ARCHITECTURE.md` ADR-14 y C-33. El requisito de API de terceros lo cumple la TRM (D-E2-06). *Estado: decidida al cancelar E2-M6b con Wompi.*
 
 ### D-E2-09 — Tareas asíncronas (Celery + Redis)
-Candidatas: generación del reporte mensual (CSV o PDF), notificaciones (backend de email en consola o archivo), consulta del estado de pagos, y recategorización por lotes. Cada servicio publica eventos de dominio en Redis en lugar de llamar a otro servicio de forma síncrona cuando no necesita la respuesta. Esto resuelve la deuda D-03 (dependencia circular `Recommendation → FinancialData`) y D-05 (eventos de dominio).
+Candidatas: generación del reporte mensual (CSV o PDF), notificaciones (backend de email en consola o archivo), recategorización por lotes y, como primera tarea periódica de E2-M7, `expire_subscriptions` (pasar a EXPIRED las suscripciones cuyo período terminó). Sin pasarela real no hay consulta del estado de pagos (D-E2-08). Cada servicio publica eventos de dominio en Redis en lugar de llamar a otro servicio de forma síncrona cuando no necesita la respuesta. Esto resuelve la deuda D-03 (dependencia circular `Recommendation → FinancialData`) y D-05 (eventos de dominio).
 
 ## 5. Plan por módulos
 
@@ -107,8 +107,8 @@ Candidatas: generación del reporte mensual (CSV o PDF), notificaciones (backend
 | **E2-M3** | `categorization-service` extraído; `finance-service` lo consume por HTTP con respaldo determinista | Procedencia `rule` / `ai` / `mock` intacta |
 | **E2-M4** | `analytics-service` + endpoint expuesto al equipo aliado | JSON público documentado |
 | **E2-M5** | `recommendation-service` + Adapter de tasas de cambio | Recomendaciones explicables; TRM con respaldo |
-| **E2-M6** | `subscription-service` + `PaymentGateway` + gating de funciones premium (INV-05, INV-06) | Flujo de pago simulado y en sandbox |
-| **E2-M7** | Celery: reportes, notificaciones, consulta de pagos | Tareas visibles en el worker |
+| **E2-M6** | `subscription-service` + `PaymentGateway` + gating de funciones premium (INV-05, INV-06) | Flujo de pago simulado (sin pasarela real, D-E2-08) |
+| **E2-M7** | Celery: `expire_subscriptions` (primera tarea periódica), reportes y notificaciones | Tareas visibles en el worker |
 | **E2-M8** | Frontend: plantillas Django e i18n `es`/`en` según el diseño de Claude Design | Cero textos quemados (verificable por test) |
 | **E2-M9** | Integración con el equipo aliado, diagramas finales, Wiki, ensayo de la sustentación en EC2 | Checklist del enunciado al 100% |
 
@@ -130,3 +130,20 @@ El diseño en Claude Design corre **en paralelo** desde E2-M1; solo se implement
 3. Decisiones que tomaste y no estaban especificadas.
 4. Reglas que te obligaron a resolver algo de forma no obvia.
 5. Secuencia de commits sugerida para ese módulo.
+
+## 8. Requisitos acumulados para el frontend (E2-M8)
+
+Lo que los módulos anteriores dejaron decidido para las pantallas. E2-M8 los implementa sobre las plantillas Django con gettext (D-E2-05).
+
+- **Checkout simulado.** Al elegir PREMIUM se muestra un formulario de tarjeta (número, nombre, vencimiento y CVC):
+  - La validación de formato ocurre solo en el navegador.
+  - Muestra un aviso visible: "Modo demostración: no se realiza ningún cobro".
+  - Lleva `autocomplete="off"`.
+  - Ningún dato del formulario se envía, se guarda ni se registra. "Continuar" llama a `POST /api/v1/subscriptions/checkout/` solo con `{plan}`; el backend rechaza con 400 cualquier otro campo (ADR-14).
+- **Bienvenida.** Si el checkout responde con el pago APPROVED, se muestra una pantalla de agradecimiento y bienvenida al plan premium. La lista de beneficios desbloqueados sale de `GET /api/v1/subscriptions/plans/` y se traduce por `code`.
+- **Errores.** Las respuestas 401 y 429 se traducen por código de estado (D-21), y los errores de dominio por su `code`.
+- **Gating premium (INV-06).**
+  - Un 403 `premium_required` lleva al usuario a la pantalla de planes.
+  - Un 503 `entitlements_unavailable` muestra "intenta de nuevo", no la invitación a pagar.
+- **Recomendaciones bloqueadas.** Cuando `GET /api/v1/recommendations/` trae `locked`, se muestra la parte bloqueada con una invitación al plan premium.
+- **Moneda de presentación.** Sale de `preferred_currency` (`GET /api/v1/profile/`) y se envía como `?display_currency=` (ADR-12).

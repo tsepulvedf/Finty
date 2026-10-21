@@ -1,0 +1,45 @@
+# Evidencia E2-M4a - outbox de finance-service y stream finty.finance.events
+# Fecha: 2026-10-20T21:05:26-05:00
+
+## 1. Registrar, reclasificar y eliminar por el Gateway
+  POST /api/v1/transactions/                 -> 983e19f9-7634-4d36-be7c-de402c4b1ea0
+  POST /api/v1/transactions/983e19f9-7634-4d36-be7c-de402c4b1ea0/categorize/ -> 200
+  DELETE /api/v1/transactions/983e19f9-7634-4d36-be7c-de402c4b1ea0/          -> 204
+
+## 2. docker compose exec redis redis-cli XRANGE finty.finance.events - +   (solo las entradas de 983e19f9-7634-4d36-be7c-de402c4b1ea0)
+  Entradas totales en el stream: 541
+  1792548327680-0
+    event_id     9bccdfb2-a15b-4211-b2a4-94c625a7e3cd
+    event_type   TransactionManuallyAdded
+    version      1
+    occurred_at  2026-10-21T02:05:27.006784Z
+    payload      {"account_id": "558a76ab-ad34-4fd3-8bd1-8b7ab3fd316b", "amount": "120000.00", "categorization_source": "rule", "category_name": "Alimentación", "currency": "COP", "occurred_on": "2026-10-19", "transaction_id": "983e19f9-7634-4d36-be7c-de402c4b1ea0", "transaction_type": "expense", "user_id": "333c736c-a5d8-48ed-91b6-504108e14888"}
+  1792548327687-0
+    event_id     360eb0a4-d95a-4b9f-aa79-189185deae88
+    event_type   TransactionCategorized
+    version      1
+    occurred_at  2026-10-21T02:05:27.107931Z
+    payload      {"account_id": "558a76ab-ad34-4fd3-8bd1-8b7ab3fd316b", "amount": "120000.00", "categorization_source": "manual", "category_name": "Compras", "currency": "COP", "occurred_on": "2026-10-19", "transaction_id": "983e19f9-7634-4d36-be7c-de402c4b1ea0", "transaction_type": "expense", "user_id": "333c736c-a5d8-48ed-91b6-504108e14888"}
+  1792548327694-0
+    event_id     44cdb670-a305-4d26-8b18-c9cbe784a6b4
+    event_type   TransactionDeleted
+    version      1
+    occurred_at  2026-10-21T02:05:27.220213Z
+    payload      {"account_id": "558a76ab-ad34-4fd3-8bd1-8b7ab3fd316b", "amount": "120000.00", "categorization_source": "manual", "category_name": "Compras", "currency": "COP", "occurred_on": "2026-10-19", "transaction_id": "983e19f9-7634-4d36-be7c-de402c4b1ea0", "transaction_type": "expense", "user_id": "333c736c-a5d8-48ed-91b6-504108e14888"}
+
+## 3. Resiliencia: docker compose stop redis
+  redis: exited
+  pendientes en el outbox antes: 0
+  POST /api/v1/transactions/ con Redis caido -> HTTP 201, id 2ff3636a-2c91-422f-a396-04e2c90064d8
+  pendientes en el outbox despues de 6 s: 1
+  log del relay:
+    relay-outbox: no se pudo publicar (EventStreamUnavailable: ConnectionError: Error -2 connecting to redis:6379. Name or service not known.); reintento en 1 s
+  estado del contenedor del relay: running (reinicios: 0)
+
+## 4. docker compose start redis
+  pendientes en el outbox: 0
+  log del relay:
+    relay-outbox: 1 evento(s) publicados en finty.finance.events
+  ultima entrada del stream:
+    1792548344667-0  TransactionManuallyAdded  transaction_id=2ff3636a-2c91-422f-a396-04e2c90064d8
+  (la transaccion registrada con Redis caido era 2ff3636a-2c91-422f-a396-04e2c90064d8)

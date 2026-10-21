@@ -53,3 +53,36 @@ class Categorizer(ABC):
            escribe en base de datos, ni muta sus argumentos, ni lleva contadores
            internos que alteren respuestas posteriores.
         """
+
+
+class EventOutbox(ABC):
+    """Puerto para registrar eventos de dominio junto con el cambio que los produce.
+
+    La implementacion escribe en la **misma transaccion** que el cambio de
+    negocio (outbox transaccional, ADR-15): si el cambio se revierte, el evento
+    tampoco existe, y si el evento no se puede escribir, el cambio se revierte.
+    Publicarlo fuera del servicio es trabajo de otro proceso, el relay.
+    """
+
+    @abstractmethod
+    def record(self, event):
+        """Registra un `DomainEvent` pendiente de publicar."""
+
+
+class EventStreamUnavailable(Exception):
+    """El destino de los eventos no esta disponible. El relay reintenta.
+
+    No es un `DomainError`: no la provoca ninguna regla de negocio ni la ve un
+    usuario, solo el proceso que publica.
+    """
+
+
+class EventStream(ABC):
+    """Puerto del destino al que el relay publica los eventos ya serializados."""
+
+    @abstractmethod
+    def publish(self, message):
+        """Publica un mensaje (`dict` de cadenas) y devuelve su id en el destino.
+
+        Lanza `EventStreamUnavailable` si el destino no responde.
+        """

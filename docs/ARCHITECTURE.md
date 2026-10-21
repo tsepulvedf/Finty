@@ -196,18 +196,20 @@ finty/
 │                                  # finance-outbox-relay, categorization-service,
 │                                  # analytics-migrate (un solo uso), analytics-service,
 │                                  # analytics-worker, recommendation-migrate (un solo
-│                                  # uso), recommendation-service, nginx
+│                                  # uso), recommendation-service, subscription-migrate
+│                                  # (un solo uso), subscription-service, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
 ├── deploy/
 │   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
 │   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`,
-│   │   │                          # `analytics_backend`, `recommendation_backend`) y rutas
+│   │   │                          # `analytics_backend`, `recommendation_backend`,
+│   │   │                          # `subscription_backend`) y rutas
 │   │   └── snippets/
 │   │       ├── proxy.conf         # cabeceras de proxy; X-User-Id solo si lo verificó el Gateway
 │   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en los bloques
-│   │                              # finance, analytics y recommendation
+│   │                              # finance, analytics, recommendation y subscription
 │   └── postgres/
 │       └── init/                  # 01-create-databases.sh: una base lógica por servicio
 │                                  # (lo corren initdb y el servicio db-init)
@@ -223,6 +225,7 @@ finty/
     │                              # forma que finance-service; `flask consume-events` es el
     │                              # worker y no hay pydantic (solo lee `?period=`)
     ├── categorization-service/    # Sin base de datos: domain/, infra/, services.py, api/ (E2-M3b)
+    ├── subscription-service/      # Planes, suscripciones, pagos y derechos premium (E2-M6a)
     ├── recommendation-service/    # Perfil de riesgo, recomendaciones, planes y tasas (E2-M5).
     │                              # infra/: cliente HTTP de analytics, TRM oficial, tasa
     │                              # fija y cache de Redis
@@ -313,7 +316,9 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 - **Respuesta al cliente:** Nginx traduce `X-Auth-Error` con un `map` al mismo `{"detail": ...}` y el mismo `WWW-Authenticate: Token` que respondía DRF.
 - **Hacia el servicio:** el token no sigue hacia `finance-service`, que no lo necesita (`Authorization` se borra en el bloque).
 
-**Estado:** aceptada e **implementada el 2026-10-20** en el bloque `finance` (E2-M2b). Realiza la "validación una sola vez en la entrada del Gateway" que §10.1 dejaba como futura.
+**Llamadas entre servicios (E2-M6a):** un servicio que llama a otro por la red interna se identifica con `X-Finty-Caller` (hoy, `recommendation-service` → `analytics-service`). Tiene el mismo modelo de confianza que `X-User-Id`: **Nginx la borra de toda petición externa** (`proxy_set_header X-Finty-Caller ""` en `proxy.conf`), así que solo puede llegar desde la red interna. `analytics-service` no aplica el gating de INV-06 a esas llamadas (§7.1). La suite de contrato verifica que un cliente que la envía sigue recibiendo 403.
+
+**Estado:** aceptada e **implementada el 2026-10-20** en el bloque `finance` (E2-M2b); hoy cubre también analytics, recommendation y subscription. Realiza la "validación una sola vez en la entrada del Gateway" que §10.1 dejaba como futura.
 
 ### ADR-10 — Una base de datos lógica por servicio
 
@@ -365,7 +370,14 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 **Confirmación sin webhooks:** una tarea de Celery consulta el estado de la transacción en Wompi hasta resolverla. Así no hace falta una URL pública con HTTPS para recibir eventos. La suscripción solo se activa con el pago confirmado (INV-05).
 **Lenguaje ubicuo:** lo que Wompi llama *transaction* se traduce a `Payment` dentro del adaptador. `Transaction` no aparece en `subscription-service` (§12).
-**Estado:** aceptada.
+
+**Implementación (E2-M6a; Wompi y Celery en E2-M6b):**
+- **Puerto:** `PaymentGateway.submit(PaymentRequest) → PaymentOutcome` (`domain/interfaces.py`). La petición lleva la referencia, el monto en centavos, la moneda y el usuario. El resultado lleva el estado (`APPROVED`, `DECLINED`, `ERROR` o, con Wompi, `PENDING`). Ningún campo de la pasarela cruza el puerto. El método no se llama *charge*, porque Charge es sinónimo prohibido de `Payment` (§12).
+- **Factory Method:** `PaymentGatewayFactory` (`infra/factories.py`) lee `PAYMENT_GATEWAY`, sin distinguir mayúsculas y con `MOCK` por defecto, con la misma tabla de despacho que `CategorizerFactory` (§6.1). Hoy solo existe `MOCK`; agregar `WOMPI` será agregar una fila. **Diferencia deliberada con la categorización:** `CategorizerFactory` falla al clasificar, mientras que esta factory se llama en `create_app()`. Un valor desconocido impide **arrancar** el servicio con `ConfigurationError`, en lugar de fallar en el primer checkout de un usuario.
+- **`MockPaymentGateway`:** aprueba de forma síncrona y determinista, y nunca sale a la red. Los pagos rechazados, con error o con una pasarela que lanza excepción se prueban con dobles. Una excepción de la pasarela deja el pago en `ERROR`, nunca un 500.
+- **Orden del checkout:** la suscripción (`PENDING_PAYMENT`) y el pago (`PENDING`) se confirman en la base **antes** de llamar a la pasarela. Si el proceso muere durante la llamada, queda el registro para conciliarlo. Después, `confirm_payment()` aplica el resultado; E2-M6b lo reutilizará desde la consulta periódica en Celery.
+
+**Estado:** aceptada. Puerto, factory y mock implementados (E2-M6a); `WompiSandboxGateway` y la confirmación por Celery, en E2-M6b.
 
 ### ADR-15 — Eventos de dominio y tareas asíncronas
 
@@ -440,7 +452,7 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 | FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
 | AnalyticsInsightsContext | `analytics-service` + `analytics-worker` | Flask | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance` | E2-M4b (implementado) |
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation`: perfiles de riesgo y planes de inversión; las recomendaciones se calculan al leer | E2-M5 (implementado) |
-| SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
+| SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription`: suscripciones y pagos | E2-M6a (implementado; Wompi en E2-M6b) |
 
 La app `finance` de Django sirvió de respaldo durante la verificación del Strangler y se retiró en E2-M3a (ADR-08). Sus tablas antiguas siguen en `finty_identity` sin uso (D-20).
 
@@ -451,7 +463,8 @@ La app `finance` de Django sirvió de respaldo durante la verificación del Stra
 - `finance-service` → `analytics-service`: **eventos de dominio en Redis**. **Implementado (E2-M4b):** `analytics-worker` consume `finty.finance.events` con su grupo y proyecta cada transacción en `finty_analytics` (ADR-15). Es una relación **Conformist**: `analytics` adopta el contrato de §10.5 tal cual, sin capa anticorrupción propia más allá de su deserializador.
 - `recommendation-service` → `analytics-service`: **HTTP síncrono por la red interna**, con degradación (E2-M5). `recommendation` es **Customer** de `analytics`: consume sus insights, patrones y dashboard tal como §10.6 los publica, y los traduce a sus propios value objects (`domain/analytics.py`). Ya no depende de `finance` ni por llamada ni por eventos, así que D-03 queda resuelto sin ciclo (ADR-15).
 - `analytics-service` → equipo aliado: **Open Host Service**. Publica el resumen agregado de §10.7 sin autenticación y con k-anonimato (ADR-13).
-- `subscription-service` → `WompiSandboxGateway`, `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
+- `analytics-service` y `recommendation-service` → `subscription-service`: **HTTP síncrono por la red interna** a `GET /internal/entitlements/<user_id>`, con caché corta en Redis, para el gating de INV-06 (§7.1, D-14). Es una relación **Customer-Supplier**: `subscription` publica el derecho (`premium`, `until`), y cada consumidor decide qué funciones suyas protege. Si no responde, se niega lo premium y lo gratuito sigue.
+- `subscription-service` → `WompiSandboxGateway` (E2-M6b), `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
 
 ---
 
@@ -734,7 +747,8 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 | `ExchangeRateProvider` | `recommendation-service` | `TrmExchangeRateProvider`: TRM oficial de datos.gov.co, timeout de 3 s, con caché en Redis (`RedisExchangeRateCache`, puerto `ExchangeRateCache`) | `FixedExchangeRateProvider`: tasa fija configurable | `ExchangeRateService`: caché del día → API → última conocida → tasa fija; procedencia `live` / `cached` / `fallback` | ADR-12, A-22 |
 | `AnalyticsReader` | `recommendation-service` | `HttpAnalyticsReader`: los endpoints de §10.6 por la red interna, reenviando `X-User-Id`, timeout de 1 s | Sin adaptador: la respuesta se degrada (`degraded: true`) | Ante timeout, error de red, no-200 o cuerpo fuera de contrato | ADR-15, A-28 |
 | `AllyServiceProvider` | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` | Respaldo ante fallo; solo mock hasta que exista el aliado | ADR-13, E2-M9 |
-| `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` | `MockPaymentGateway` | Variable de entorno | ADR-14, E2-M6 |
+| `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` (E2-M6b) | `MockPaymentGateway` (E2-M6a: hoy el único) | `PaymentGatewayFactory` con `PAYMENT_GATEWAY`; un valor desconocido impide arrancar | ADR-14 |
+| `EntitlementsReader` | `analytics-service` y `recommendation-service` | `HttpEntitlementsReader`: `GET /internal/entitlements/<user_id>`, timeout de 1 s, envuelto en `CachedEntitlementsReader` (Redis, solo los "sí") | Sin respaldo que conceda: si falla, se **niega** lo premium (fail-closed) | Siempre; la caché solo guarda derechos premium, por `min(30 s, fin del período)` | §7.1, D-14 |
 
 El Adapter traduce el modelo del tercero al lenguaje ubicuo de Finty. Ninguna estructura de respuesta externa cruza la frontera del puerto.
 
@@ -831,6 +845,36 @@ Se persisten las cinco respuestas; el puntaje y el tipo se derivan en el dominio
 
 Las tasas ilustrativas no son la rentabilidad de ningún producto: son números redondos crecientes con el riesgo, para que la proyección enseñe el efecto del interés compuesto.
 
+### 6.7 `SubscriptionPlan`, `Subscription` y `Payment` (`subscription-service`, E2-M6a)
+
+Las tres clases de §4.4 que son dueñas de `subscription-service`, en `services/subscription-service/domain/`, Python puro (A-16).
+
+**`SubscriptionPlan`** (value object, `domain/plans.py`). Cada plan lista sus beneficios como `code` estables, que traduce el frontend (Phase 0):
+
+| Plan | Precio | Historial | Beneficios (`code`) |
+|---|---|---|---|
+| `FREE` | 0 | 3 meses | `transaction_tracking`, `standard_dashboard`, `history_3_months` |
+| `PREMIUM` | 29 900 COP al mes (`SUBSCRIPTION_PREMIUM_PRICE_IN_CENTS`, por defecto 2 990 000) | ilimitado | `transaction_tracking`, `standard_dashboard`, `insights`, `spending_patterns`, `unlimited_history`, `investment_recommendations`, `investment_plans` |
+
+**`Subscription`** (entidad, `domain/subscription.py`). Máquina de estados:
+
+```
+PENDING_PAYMENT ──pago APPROVED──▶ ACTIVE ──cancelar──▶ CANCELED ──fin del período──▶ EXPIRED
+       ▲                              └──────────────fin del período──────────────▶ EXPIRED
+       └── pago DECLINED / ERROR: sigue PENDING_PAYMENT; un checkout nuevo reintenta con otro Payment
+```
+
+- **Período:** un mes calendario desde la activación (el 31 cae en el último día del mes siguiente), **sin renovación automática**: renovar es un checkout y un pago nuevos cuando el período termina (D-26).
+- **CANCELED** sigue dando acceso hasta `current_period_end`. Cancelar dos veces es idempotente; cancelar algo que no está activo responde 409 `no_active_subscription`.
+- **EXPIRED** se deriva al leer cuando termina el período, sin escribir en un GET. Se persiste justo antes de un checkout nuevo, para liberar el lugar único del usuario.
+- **Una sola suscripción vigente por usuario** (invariante implícita de DDD Stage 1): índice único parcial `uq_subscription_one_current_per_user` sobre `user_id` para `PENDING_PAYMENT`, `ACTIVE` y `CANCELED`. "Vigente" incluye la pendiente y la cancelada en período, porque las dos ocupan el lugar de la suscripción del usuario. Dos checkouts simultáneos chocan con el índice, y el segundo responde 409.
+
+**`Payment`** (entidad). `PENDING → APPROVED | DECLINED | ERROR`. Guarda el monto en **centavos** (`BIGINT`), la moneda, una referencia única (`finty-<hex>`), la pasarela que lo procesó y cuándo se resolvió. Un pago ya resuelto no cambia de estado.
+
+**INV-05:** `Subscription.activate()` exige un `Payment` APPROVED, y solo actúa desde `PENDING_PAYMENT`. **Idempotencia:** `confirm_payment()` bloquea la fila del pago (`FOR UPDATE`). Si ya estaba resuelto, no hace nada, y una suscripción ya activa no extiende su período. Confirmar dos veces el mismo pago no regala otro mes (`tests/api/test_api.py::TestIdempotencia`).
+
+**`Entitlement`** (value object de soporte): `{premium, until}`. `premium` es verdadero si la suscripción está ACTIVE o CANCELED y el período no ha terminado; `until` es el fin del período. Es lo que publica `/internal/entitlements/<user_id>` y lo que consultan los servicios que hacen gating (§7.1).
+
 ---
 
 ## 7. Catálogo de invariantes mapeado a Django
@@ -866,8 +910,23 @@ Las invariantes no cambian; cambia dónde y cómo se hacen cumplir cuando su due
 | INV-02 | `finance-service` | `ForeignKey` de SQLAlchemy dentro de `finty_finance`, `nullable=False`, `ondelete="RESTRICT"` | E2-M2 |
 | INV-03 | `finance-service` | Toda consulta filtrada por el `user_id` de `X-User-Id`; cuenta ajena o inexistente → `AccountNotFoundError` (404, D-08) | E2-M2 |
 | INV-04 | `finance-service` | `TransactionBuilder.build()` **y** `CheckConstraint` de SQLAlchemy | E2-M2 |
-| INV-05 | `subscription-service` | La suscripción solo se activa cuando `PaymentGateway` confirma el pago; la confirmación llega por la consulta periódica en Celery | E2-M6, E2-M7 |
-| INV-06 | `subscription-service` | Gating de funciones premium; el mecanismo concreto (Gateway o servicio consumidor) se decide en el módulo (D-14) | E2-M6 |
+| INV-05 | `subscription-service` | `Subscription.activate()` exige un `Payment` APPROVED y solo actúa desde `PENDING_PAYMENT`. `confirm_payment()` bloquea el pago y es idempotente: confirmar dos veces no extiende el período. Con el mock, la confirmación es síncrona en el checkout; con Wompi llegará por la consulta periódica en Celery (E2-M6b) | E2-M6a (implementada) |
+| INV-06 | `analytics-service` y `recommendation-service`, con el derecho que publica `subscription-service` | **Middleware en la capa de entrada de cada servicio** (`api/gating.py`, `before_request`), que consulta `GET /internal/entitlements/<user_id>` con caché corta en Redis. Premium: insights, patrones, dashboard fuera de los últimos 3 meses, recomendaciones de inversión y todo `/investment-plans/`. Sin derecho: 403 `premium_required`. Sin respuesta de `subscription-service`: 503 `entitlements_unavailable` (fail-closed). Detalle abajo | E2-M6a (implementada) |
+
+**INV-06 en detalle (cierra D-14).**
+
+| Ruta | FREE | PREMIUM | `subscription-service` caído |
+|---|---|---|---|
+| `GET /analytics/insights/`, `/analytics/spending-patterns/` | 403 `premium_required` | 200 | 503 `entitlements_unavailable` |
+| `GET /analytics/dashboard/?period=` | Solo los últimos 3 meses, incluido el actual (otro período: 403); la tendencia cubre esos 3 meses | 200, con tendencia de 6 meses | Dentro de la ventana, 200 como FREE; fuera, 503 |
+| `GET /recommendations/` | 200 solo con las de optimización; `locked: [{"kind": "investment", "code": "premium_required"}]` | 200 completo | 200 solo con optimización; `locked` con `entitlements_unavailable` |
+| `/investment-plans/` (todo) | 403 `premium_required` | 200 | 503 |
+| `/recommendations/risk-profile/`, `/exchange-rates/`, `/public/spending-summary/`, `finance` | sin gating | sin gating | sin gating |
+
+- **Por qué en cada servicio y no en el Gateway:** la regla no siempre es "ruta sí o no". El dashboard depende del período pedido, y `/recommendations/` responde a un usuario FREE con una parte de su contenido. Nginx solo puede decidir por ruta, así que la decisión vive donde se conoce la respuesta. El gating está en la capa de entrada (`api/gating.py`) y el `domain/` sigue sin saber de planes: `RecommendationService` solo recibe un `investment_lock`.
+- **Por qué se niega cuando `subscription-service` no responde (fail-closed):** INV-06 dice "premium requiere suscripción activa". Si no se puede verificar la suscripción, conceder violaría la invariante, y negar solo degrada la experiencia por un rato. El error es 503 y no 403 porque no se trata de "paga para usar", sino de "no se pudo verificar; intenta luego". El frontend los distingue por `code`. Lo gratuito no consulta nada que pueda fallar y sigue respondiendo. *La consecuencia de negocio que DDD Stage 1 asigna a INV-06 no está transcrita en este documento (el catálogo de §7 no tiene esa columna); hay que citarla aquí cuando se incorpore.*
+- **Caché:** solo se guardan los "sí", por `min(ENTITLEMENTS_CACHE_SECONDS = 30 s, tiempo hasta until)`. Un "no" nunca se guarda, así que quien acaba de pagar tiene acceso en la siguiente petición. Un "sí" no dura más que el período pagado, y en esta entrega nada revoca un período antes de su fin. Efecto: con `subscription-service` caído, un usuario premium que consultó en los últimos 30 s conserva el acceso hasta que expire su entrada de caché; uno sin entrada recibe 503.
+- **Llamadas internas:** `recommendation-service` lee insights, patrones y dashboard para calcular las recomendaciones de optimización, que son gratuitas. Se identifica con `X-Finty-Caller`, y `analytics-service` no aplica el gating a esas llamadas (ADR-09).
 | INV-07 | `finance-service` | `BalanceCalculator` dentro de una transacción SQLAlchemy con `with_for_update()` sobre `Account` | E2-M2 |
 | INV-08 | `finance-service` | `TransactionBuilder.build()`; la categoría la aporta el puerto `Categorizer` (HTTP o respaldo local) | E2-M2, E2-M3 |
 | INV-09 | `finance-service` | `StrEnum` en el dominio + `CheckConstraint` | E2-M2 |
@@ -1277,7 +1336,9 @@ flowchart LR
     NGX -->|"accounts, transactions, categories<br/>+ X-User-Id"| FIN
     NGX -->|"analytics + X-User-Id<br/>public sin auth"| ANA
     NGX -->|"recommendations, investment-plans,<br/>exchange-rates + X-User-Id"| REC
-    NGX -->|X-User-Id| SUB
+    NGX -->|"subscriptions + X-User-Id"| SUB
+    ANA -->|"/internal/entitlements"| SUB
+    REC -->|"/internal/entitlements"| SUB
     FIN -->|HTTP interno| CAT
     FIN -.->|eventos| RDS
     RDS -.->|"eventos (grupo analytics)"| ANW
@@ -1607,6 +1668,55 @@ sequenceDiagram
     RS-->>U: 200 {degraded, exchange_rates: [{..., source}], recommendations: [{code, params, evidence, display, disclaimer}]}
 ```
 
+### 9.12 Diagrama de secuencia — Checkout y gating premium (E2-M6a)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Navegador
+    participant NGX as nginx
+    participant SS as subscription-service
+    participant DB as finty_subscription
+    participant PG as PaymentGateway (MOCK)
+    participant AN as analytics-service
+    participant RD as Redis (caché de derechos)
+
+    U->>NGX: POST /api/v1/subscriptions/checkout/ {"plan": "PREMIUM"}
+    NGX->>SS: auth_request ok → X-User-Id
+    rect rgb(240, 245, 250)
+        Note over SS,DB: una transacción
+        SS->>DB: UPDATE vencidas → EXPIRED; SELECT vigente FOR UPDATE
+        alt ya hay una ACTIVE o CANCELED en período
+            SS-->>U: 409 subscription_already_active
+        end
+        SS->>DB: INSERT subscription PENDING_PAYMENT (índice único por usuario)
+        SS->>DB: INSERT payment PENDING (centavos, moneda, referencia) + COMMIT
+    end
+    SS->>PG: submit(PaymentRequest)
+    PG-->>SS: PaymentOutcome APPROVED
+    rect rgb(240, 245, 250)
+        SS->>DB: payment FOR UPDATE; si sigue PENDING → APPROVED
+        SS->>DB: subscription PENDING_PAYMENT → ACTIVE, período de un mes (INV-05) + COMMIT
+    end
+    SS-->>U: 201 {subscription: ACTIVE, payment: APPROVED}
+
+    U->>NGX: GET /api/v1/analytics/insights/
+    NGX->>AN: auth_request ok → X-User-Id (X-Finty-Caller borrada)
+    AN->>RD: GET finty:entitlements:<user_id>
+    alt hay un "sí" vigente en caché
+        RD-->>AN: premium hasta until
+    else no hay
+        AN->>SS: GET /internal/entitlements/<user_id> (timeout 1 s)
+        alt responde
+            SS-->>AN: {premium: true, until}
+            AN->>RD: SET (TTL min(30 s, until))
+        else no responde
+            AN-->>U: 503 entitlements_unavailable (fail-closed)
+        end
+    end
+    AN-->>U: 200 insights (o 403 premium_required si premium = false)
+```
+
 ---
 
 ## 10. Estrategia de API Gateway
@@ -1652,7 +1762,7 @@ sequenceDiagram
 | `/api/v1/analytics`, con o sin barra final y con sufijo | upstream `analytics_backend` → **`analytics-service`** | **Sí** (`auth_request`) | Lectura del modelo de analytics (§10.6); responde con `X-Finty-Route: analytics`. Nace en Flask: no hay versión en el monolito que conmutar |
 | `/api/v1/public/` | upstream `analytics_backend` → **`analytics-service`** | **No** | Endpoint expuesto al equipo aliado (ADR-13, §10.7); zona estricta `finty_public`; `X-User-Id` nunca se reenvía; responde con `X-Finty-Route: public` |
 | `/api/v1/recommendations`, `/api/v1/investment-plans`, `/api/v1/exchange-rates`, con o sin barra final y con sufijo | upstream `recommendation_backend` → **`recommendation-service`** | **Sí** (`auth_request`) | §10.8; responde con `X-Finty-Route: recommendation` |
-| Rutas de `subscription` | su servicio | Sí | Se definen en su módulo |
+| `/api/v1/subscriptions`, con o sin barra final y con sufijo | upstream `subscription_backend` → **`subscription-service`** | **Sí** (`auth_request`) | §10.9; responde con `X-Finty-Route: subscription`. Su `/internal/entitlements/` no es alcanzable desde fuera: `/internal/` responde 404 |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
 **Reglas del Gateway:**
@@ -1662,6 +1772,7 @@ sequenceDiagram
 4. Las respuestas que genera el propio Gateway tienen la forma del contrato: 401 `{"detail": ...}` con el texto de DRF según el motivo (ADR-09), y 429 `{"detail": "Solicitud fue regulada (throttled)."}`, el texto de `Throttled` de DRF.
 5. `limit_req` por IP en tres zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, `finty_api` (20/s, ráfaga 50) en todo `/api/v1/` salvo el público, y `finty_public` (30/min, ráfaga 10) en `/api/v1/public/`.
 6. Cada bloque de un microservicio fija `$finty_route` y responde con `X-Finty-Route`, también en el 401 del propio Gateway. La variable no se inicializa a nivel de `server`, porque la subpetición de `auth_request` comparte las variables de la petición y vuelve a ejecutar los `set` de ese nivel: borraría la marca.
+7. `X-Finty-Caller`, igual que `X-User-Id`, se borra de toda petición externa (`proxy.conf`): solo un servicio de la red interna puede declararse como llamador interno (ADR-09, §7.1).
 
 ### 10.4 Contratos internos entre servicios
 
@@ -1726,6 +1837,8 @@ Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde 
 
 El frontend traduce un insight por su `code` e interpola `params` (E2-M8). El texto nunca viaja en la respuesta.
 
+**INV-06 (E2-M6a):** insights y patrones son premium (403 `premium_required`), y el dashboard de un usuario FREE cubre los últimos 3 meses, con su tendencia recortada a esos meses. Si `subscription-service` no responde, lo premium devuelve 503 `entitlements_unavailable` (§7.1).
+
 ### 10.7 Contrato expuesto al equipo aliado — `GET /api/v1/public/spending-summary/` (PROVISIONAL)
 
 > **Provisional (D-10):** el aliado no está asignado. La ruta, los campos y el valor de *k* se confirman cuando se acuerde el contrato con él. Un cambio incompatible iría a `/api/v2/`.
@@ -1758,6 +1871,22 @@ Todas autenticadas por el Gateway, con identidad por `X-User-Id`. Errores con la
 
 Las recomendaciones dependen de analytics, así que son eventualmente consistentes (ADR-15).
 
+**INV-06 (E2-M6a):** todo `/investment-plans/` es premium (403 `premium_required`; 503 `entitlements_unavailable` si `subscription-service` no responde). `GET /recommendations/` nunca responde 403: a un usuario sin derecho le devuelve solo las de optimización y declara lo que falta en `"locked": [{"kind": "investment", "code": "premium_required" | "entitlements_unavailable"}]`, vacío para un premium. El perfil de riesgo y las tasas no tienen gating (§7.1).
+
+### 10.9 Contrato de `subscription-service` (E2-M6a)
+
+Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la forma de `finance-service`. Las fechas van en la zona del proceso (`-05:00`).
+
+| Ruta | Contrato |
+|---|---|
+| `GET /api/v1/subscriptions/plans/` | 200 `{"results": [Plan FREE, Plan PREMIUM]}`. `Plan`: `{"code", "price": "29900.00", "price_in_cents": 2990000, "currency": "COP", "period_months": 1, "history_months": 3 \| null, "benefits": [code…]}` |
+| `GET /api/v1/subscriptions/me/` | 200 `{"plan": "FREE" \| "PREMIUM", "premium": bool, "status": null \| "PENDING_PAYMENT" \| "ACTIVE" \| "CANCELED" \| "EXPIRED", "current_period_start", "current_period_end", "canceled_at", "benefits": [code…], "last_payment": Payment \| null}`. Sin suscripción: `plan: "FREE"`, `status: null` y los beneficios FREE. `plan` es el que da acceso **ahora**: una vencida o pendiente muestra FREE |
+| `POST /api/v1/subscriptions/checkout/` | Cuerpo `{"plan": "PREMIUM"}`. 201 `{"subscription": Me, "payment": Payment}`, también cuando el pago se rechaza: el resultado está en `payment.status` y la suscripción queda `PENDING_PAYMENT`. 400 si `plan` no es FREE ni PREMIUM; 422 `plan_not_purchasable` con FREE; 409 `subscription_already_active` si hay una ACTIVE o CANCELED en período; 409 `payment_in_progress` si el último pago sigue PENDING (Wompi, E2-M6b). Tras un rechazo, otro checkout reintenta sobre la misma suscripción con un pago nuevo |
+| `POST /api/v1/subscriptions/me/cancel/` | 200 `Me` con `status: "CANCELED"` y `premium: true` hasta el fin del período. Idempotente; 409 `no_active_subscription` si no hay una activa |
+| `GET /internal/entitlements/<user_id>` | **Solo red interna.** 200 `{"premium": bool, "until": fecha \| null}`. Sin `X-User-Id`: lo consultan otros servicios con el usuario en la ruta |
+
+- **`Payment`:** `{"id", "reference": "finty-…", "status": "PENDING" | "APPROVED" | "DECLINED" | "ERROR", "amount_in_cents", "currency", "gateway": "mock", "created_at", "resolved_at"}`.
+
 ---
 
 ## 11. Trazabilidad
@@ -1771,6 +1900,7 @@ Las recomendaciones dependen de analytics, así que son eventualmente consistent
 | JN-TB-01 | 3 | FT-003 Categorización | `POST /transactions/` | `TransactionService`, `CategorizerFactory`, `Categorizer`, `TransactionBuilder` |
 | JN-TB-01 | 4 | FT-004 Insights | `GET /analytics/dashboard/`, `GET /analytics/insights/`, `GET /analytics/spending-patterns/` (E2-M4b) | `analytics-service`: `Dashboard`, `Insight`, `SpendingPattern`, `AnalyticsService`, `EventProjector` |
 | JN-TB-01 | 5 | FT-005 Recomendaciones | `PUT /recommendations/risk-profile/`, `GET /recommendations/`, `POST /investment-plans/`, `GET /exchange-rates/` (E2-M5) | `recommendation-service`: `RiskProfile`, `Recommendation`, `InvestmentPlan`, `ExchangeRate`, `RecommendationService`, `ExchangeRateService`, `AnalyticsReader`, `ExchangeRateProvider` |
+| JN-TB-01 | 4–5 | Funciones premium (gating de INV-06) | `GET /subscriptions/plans/`, `POST /subscriptions/checkout/`, `GET /subscriptions/me/`, `POST /subscriptions/me/cancel/` (E2-M6a) | `subscription-service`: `SubscriptionPlan`, `Subscription`, `Payment`, `SubscriptionService`, `PaymentGateway`, `PaymentGatewayFactory`; `EntitlementsReader` en analytics y recommendation |
 | JN-TB-02 | 2 | FT-003 Categorización | `POST /transactions/{id}/categorize/` | `TransactionService` |
 | JN-TB-04 | 1–2 | FT-002 Dashboard | `GET /accounts/` | `Account`, `BalanceCalculator` |
 
@@ -1782,6 +1912,7 @@ Las recomendaciones dependen de analytics, así que son eventualmente consistent
 |-----------|----------------|---------|
 | Service Layer | `TransactionService`, `AccountService`, `ProfileService` | `*/services.py` |
 | Factory | `CategorizerFactory` | `services/categorization-service/infra/factories.py` |
+| Factory | `PaymentGatewayFactory` (misma forma, falla al arrancar) | `services/subscription-service/infra/factories.py` |
 | Builder | `TransactionBuilder`, `AccountBuilder` | `services/finance-service/domain/builders.py` |
 | Vistas sin lógica de negocio | Todas las views delegan | `*/api/views.py` |
 | Modelos sin lógica de negocio | ADR-03 | `*/models.py` |
@@ -1831,6 +1962,12 @@ Las recomendaciones dependen de analytics, así que son eventualmente consistent
 | Tipo de instrumento | recommendation | `InstrumentType` | Value Object (`StrEnum`), siempre genérico | — |
 | Lector de analytics | recommendation | `AnalyticsReader` | Puerto (ABC) | — |
 | Pasarela de pago | subscription | `PaymentGateway` | Puerto (ABC) | — |
+| Plan de suscripción | subscription | `SubscriptionPlan` | Value Object: `FREE`, `PREMIUM` | Plan a secas (DDD Stage 1) |
+| Suscripción | subscription | `Subscription` | Entidad con máquina de estados (§6.7) | Membership (DDD Stage 1) |
+| Pago | subscription | `Payment` | Entidad: `PENDING` → `APPROVED` / `DECLINED` / `ERROR` | Billing, Charge (DDD Stage 1) |
+| Beneficio | subscription | `Benefit` | Value Object (`StrEnum`): `code` estable que traduce el frontend | — |
+| Derecho premium | subscription, analytics, recommendation | `Entitlement` | Value Object `{premium, until}` (§7.1) | — |
+| Lector de derechos | analytics, recommendation | `EntitlementsReader` | Puerto (ABC) | — |
 | Proveedor del servicio aliado | por definir | `AllyServiceProvider` | Puerto (ABC) | — |
 | Identificador de usuario propagado | todos los servicios Flask | `user_id` (cabecera `X-User-Id`) | Dato de frontera | customer_id, client_id (derivan de los sinónimos prohibidos de `User`) |
 | Transacción registrada | finance | `TransactionManuallyAdded` | Evento de dominio (DDD Stage 1) | TransactionCreated, TransactionAdded |
@@ -1846,7 +1983,7 @@ Las recomendaciones dependen de analytics, así que son eventualmente consistent
 | Evento procesado | analytics | `processed_event` | Tabla de idempotencia por `event_id` (ADR-15) | — |
 | Resumen público de gasto | analytics | `SpendingSummary` | Value Object del endpoint expuesto (§10.7) | — |
 
-Los términos de `subscription` (`Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
+Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tests/test_architecture.py::TestSinonimosProhibidos` de cada servicio. En `subscription-service` falla si un identificador contiene Membership, Billing o Charge, o si una clase se llama `Plan` a secas.
 
 **Polisemias resueltas y vigentes:**
 
@@ -1875,7 +2012,7 @@ Los términos de `subscription` (`Subscription`, `SubscriptionPlan`, `Payment`) 
 | D-11 | Formato de los diagramas | Mermaid dentro del Markdown, porque la Wiki de GitHub lo renderiza | **Abierta** — confirmar que el curso no exige otro formato |
 | D-12 | TLS en el Gateway | Sin TLS: la instancia se expone por IP elástica, sin dominio. ADR-14 evita depender de HTTPS para los pagos | Abierta — requiere dominio |
 | D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | **Copia propia en el `domain/shared/` de cada servicio**, con las mismas reglas del original. Un paquete compartido acoplaría los despliegues: cambiarlo obligaría a reconstruir y desplegar a la vez todos los servicios que lo usan. El costo aceptado es mantener las copias alineadas a mano; el glosario (§12) sigue siendo uno solo | **Cerrada** (E2-M2a) |
-| D-14 | Mecanismo concreto de INV-06 | Sin decidir: en el Gateway o en cada servicio que ofrece funciones premium | Abierta, E2-M6 |
+| D-14 | Mecanismo concreto de INV-06 | **En cada servicio que ofrece funciones premium** (`analytics` y `recommendation`), como middleware de su capa de entrada, que consulta el endpoint interno de derechos de `subscription-service` con caché corta en Redis. No en el Gateway, porque la regla depende del período pedido y de partes de la respuesta, no solo de la ruta. Fail-closed si `subscription-service` no responde (§7.1) | **Cerrada** (E2-M6a) |
 | D-15 | Borrado de usuario sin FK entre bases | No existe caso de uso de borrado; si aparece, se propaga por evento | Abierta, sin módulo asignado |
 | D-16 | Datos de `finance` del monolito al conmutar | `finty_finance` arranca vacía, solo con el catálogo de categorías sembrado (equivalente a `0002_seed_categories`). Las cuentas y transacciones del monolito no se migran en esta entrega (ADR-08) | Abierta — post-Entrega 2 |
 | D-17 | Rate limiting en el Gateway | **`limit_req` por IP en dos zonas, con respuesta 429 en JSON.** **`finty_auth`** (login y registro): `rate=6r/m`, `burst=10`, `nodelay`. La cuota anónima de DRF (60/h por IP) sigue en Django para esas rutas y es la autoridad horaria; Nginx no la endurece en régimen sostenido (6/min = 360/h), pero corta las ráfagas de fuerza bruta antes de que lleguen a Django, donde cada intento cuesta un hash de contraseña: diez intentos seguidos y luego uno cada 10 s. **`finty_api`** (todo `/api/v1/`): `rate=20r/s`, `burst=50`, `nodelay`. La cuota de usuario de DRF (1000/h ≈ 0,28/s en promedio) es horaria y por usuario; esta zona es protección contra inundación por segundo y por IP, holgada para el uso legítimo (una pantalla del frontend hace a lo sumo unas seis peticiones juntas). **Residuo aceptado:** las rutas de `finance`, servidas ahora por Flask, ya no tienen la cuota horaria por usuario de DRF, solo este límite por IP; si se necesitara, una zona con clave `$http_authorization` la aproximaría. **`finty_public`** (E2-M4b, `/api/v1/public/`): `rate=30r/m`, `burst=10`, `nodelay`. Es la única ruta de datos sin token, así que no tiene cuota de usuario detrás; un agregado mensual no se consulta en bucle, y 30 por minuto sobra para un servicio aliado que lo lee de vez en cuando | **Cerrada** (E2-M2b; `finty_public` en E2-M4b) |
@@ -1885,6 +2022,9 @@ Los términos de `subscription` (`Subscription`, `SubscriptionPlan`, `Payment`) 
 | D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos**. Decidido en E2-M5: `recommendation-service` lee los insights y patrones por HTTP cuando calcula, así que un evento `InsightDetected` no tiene consumidor | **Cerrada** (E2-M5) |
 | D-23 | Mensajes fuera de contrato en `finty.finance.events` | El worker los registra en el log como aviso y los confirma con `XACK` para no bloquear el stream. No hay stream de mensajes muertos: si apareciera uno, el evento se perdería para `analytics`. `tests/services/test_event_contract.py` (A-25) evita esa situación antes de desplegar | Abierta — un stream `finty.finance.events.dead` si llega un segundo productor |
 | D-24 | `OptimizationRecommendationGenerated` (DDD Stage 1) | **No se publica.** Las recomendaciones son value objects calculados al leer y no se persisten (§6.6): no hay un instante en que se "generen" que valga la pena anunciar, y ningún servicio consumiría el evento. Si E2-M7 necesitara notificar recomendaciones nuevas, tendría que persistirlas o compararlas entre lecturas | Abierta — E2-M7, solo si las notificaciones lo exigen |
+| D-26 | Renovación de la suscripción | **Sin renovación automática**: el período es de un mes, y renovar es un checkout y un pago nuevos cuando termina (EXPIRED). Mientras haya una suscripción ACTIVE o CANCELED en período, un checkout responde 409, así que no se puede pagar por adelantado el mes siguiente. Un cobro recurrente exigiría guardar un medio de pago (tokenización de Wompi), fuera del alcance | Abierta — post-Entrega 2 |
+| D-27 | `SubscriptionActivated` y `PremiumFeaturesUnlocked` (DDD Stage 1) | **No se publican en E2-M6a.** Los consumidores del derecho lo consultan cuando lo necesitan (`/internal/entitlements/`), y como la caché solo guarda los "sí", un pago se refleja en la siguiente petición sin necesidad de un evento que invalide nada. E2-M7 decidirá si `SubscriptionActivated` hace falta para notificaciones (correo de bienvenida); si se publica, irá por un outbox como el de finance (ADR-15) | Abierta — E2-M7 |
+| D-28 | Consecuencia de INV-06 en DDD Stage 1 | La justificación del fail-closed (§7.1) se apoya en el texto de la invariante. La consecuencia que DDD Stage 1 le asigna no está transcrita en este documento y no se inventó | Abierta — incorporarla cuando se tenga el texto |
 | D-25 | Dependencia síncrona `recommendation → analytics` | Aceptada con degradación (`degraded: true`) y timeout de 1 s. No hay caché de lo que responde analytics: una recomendación degradada se recupera sola en la siguiente lectura. Si la latencia de las tres llamadas (insights, patrones y dashboard) pesara, se podrían paralelizar o pedir a analytics un endpoint combinado | Abierta, sin módulo asignado |
 | D-21 | Traducción de las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext y sus respuestas llevan solo `{"detail": ...}`, la forma de DRF. **Decisión:** el frontend las traduce por **código de estado HTTP** (401 → sesión no válida, 429 → demasiadas peticiones), no por un `code` en el cuerpo. El Gateway y la suite de contrato (A-20) no cambian: el cuerpo de esas respuestas sigue siendo el de DRF. Se descartó agregar `code` al cuerpo porque cambiaría la forma del contrato | **Cerrada** (E2-M3b): la traducción por estado se implementa en E2-M8 |
 
@@ -1926,6 +2066,9 @@ Los términos de `subscription` (`Subscription`, `SubscriptionPlan`, `Payment`) 
 | A-25 | Consumidor de eventos idempotente y alineado con el productor | `services/analytics-service/tests/test_projection.py` (duplicados, fuera de orden, lápida, XACK solo tras el commit); `tests/services/test_event_contract.py` (lo que analytics lee es lo que finance escribe); evidencia de reprocesar el stream completo con `XGROUP SETID … 0` en `tests/contract/runs/2026-10-20-analytics-eventos.txt` | E2-M4b |
 | A-26 | Resumen público con k-anonimato | Con menos de *k* usuarios en una categoría, la categoría no aparece: `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato` y `services/analytics-service/tests/api/test_api.py::TestResumenPublico` | E2-M4b |
 | A-28 | Recomendaciones degradadas, nunca un 500 | Con `docker compose stop analytics-service`, `GET /api/v1/recommendations/` responde 200 con `degraded: true` y solo la recomendación de inversión por perfil: `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1`, `services/recommendation-service/tests/api/test_api.py` y la evidencia de `runs/` | E2-M5 |
+| A-30 | INV-05 e idempotencia del pago | La suscripción solo pasa a ACTIVE con el pago APPROVED; un rechazo o un error la dejan en PENDING_PAYMENT; confirmar dos veces no extiende el período; un segundo checkout con una activa responde 409 y no crea filas: `services/subscription-service/tests/` y `tests/contract/test_subscriptions.py` | E2-M6a |
+| A-31 | INV-06 por el Gateway | Un usuario FREE recibe 403 en las rutas premium y 200 en las gratuitas; tras el checkout, 200; tras cancelar, sigue con acceso hasta el fin del período: `tests/contract/test_subscriptions.py::TestSuscripciones::test_de_free_a_premium_y_cancelacion` | E2-M6a |
+| A-32 | INV-06 fail-closed | Con `docker compose stop subscription-service`, lo premium responde 503 `entitlements_unavailable` y lo gratuito sigue: `tests/contract/test_subscriptions.py::TestSubscriptionCaido` con `CONTRACT_SUBSCRIPTION_DOWN=1` y la evidencia en `runs/` | E2-M6a |
 | A-29 | Instrumento según el perfil | Un perfil de cada tipo produce su instrumento genérico, y un excedente ≤ 0 solo produce `build_emergency_fund`: `tests/contract/test_recommendations.py::TestInversionPorPerfil` y `services/recommendation-service/tests/domain/` | E2-M5 |
 | A-27 | Lecturas de analytics eventualmente consistentes | Registrar, reclasificar y eliminar por el Gateway se refleja en el dashboard dentro de 15 s, por sondeo: `tests/contract/test_analytics.py::TestDePuntaAPunta`. Con `analytics-worker` detenido, `finance` responde 201 y el worker se pone al día al volver (evidencia en `runs/`) | E2-M4b |
 

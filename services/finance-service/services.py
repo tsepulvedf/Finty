@@ -167,6 +167,14 @@ class CategoryService:
             select(Category).order_by(Category.applies_to, Category.name),
         )
 
+    def catalog(self):
+        """`{nombre: applies_to}` del catalogo completo.
+
+        Lo usa `RemoteCategorizer` para rechazar una sugerencia del servicio de
+        categorizacion que no exista aqui o no aplique al tipo (A-12).
+        """
+        return dict(self._session.execute(select(Category.name, Category.applies_to)).all())
+
     def find_category(self, category_id):
         """Una categoria por id, o `None` si no existe o el id no tiene forma."""
         pk = _as_uuid(category_id)

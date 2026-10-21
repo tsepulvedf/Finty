@@ -14,9 +14,10 @@ se distinguen ahora en la respuesta HTTP por procedencia, y no solo por el nombr
 de la categoria que devuelven.
 
 Portado de `finance/tests/test_categorization_provenance.py` del monolito
-(E2-M3a). La parte sin base de datos se copio tal cual, cambiando solo los
-imports; la parte HTTP usa la identidad en `X-User-Id` y conmuta el proveedor
-con la variable de entorno.
+(E2-M3a). Desde E2-M3b la parte sin red vive en
+`categorization-service`, con los categorizadores; aqui queda lo que solo este
+servicio puede probar: que la procedencia llega intacta a la fila y que, sin el
+remoto, la que se graba es la del respaldo.
 """
 from datetime import date, timedelta
 from uuid import UUID
@@ -24,13 +25,6 @@ from uuid import UUID
 import pytest
 from sqlalchemy import update
 
-from domain.shared.value_objects import Money
-from domain.value_objects import CategorizationSource, TransactionType
-from infra.categorizers import (
-    AICategorizer,
-    MockCategorizer,
-    RuleBasedCategorizer,
-)
 from models import Transaction
 
 YESTERDAY = date.today() - timedelta(days=1)
@@ -39,100 +33,6 @@ ACCOUNTS_URL = "/api/v1/accounts/"
 TRANSACTIONS_URL = "/api/v1/transactions/"
 
 DESCRIPCION_DE_GASTO = "Almuerzo en el restaurante"
-
-
-class ClienteQueResponde:
-    """Cliente de proveedor externo que devuelve una sugerencia valida."""
-
-    def suggest_category(self, description, amount, transaction_type):
-        return ("Transporte", 0.93)
-
-
-class ClienteQueFalla:
-    """Cliente de proveedor externo que se cae."""
-
-    def suggest_category(self, description, amount, transaction_type):
-        raise TimeoutError("el proveedor no respondio")
-
-
-# ---------------------------------------------------------------------------
-# Nivel de dominio e infraestructura, sin base de datos
-# ---------------------------------------------------------------------------
-
-
-class TestProcedenciaDeCadaCategorizador:
-    """Cada implementacion declara la suya y ninguna suplanta a otra."""
-
-    ARGUMENTOS = (DESCRIPCION_DE_GASTO, Money("120000", "COP"), TransactionType.EXPENSE)
-
-    def test_el_mock_reporta_mock(self):
-        """A-14: antes reportaba `rule` y falseaba la traza."""
-        assert MockCategorizer().categorize(*self.ARGUMENTOS).source is (
-            CategorizationSource.MOCK
-        )
-
-    def test_el_mock_con_categoria_configurada_tambien_reporta_mock(self):
-        suggestion = MockCategorizer("Transporte", 0.5).categorize(*self.ARGUMENTOS)
-
-        assert suggestion.category_name == "Transporte"
-        assert suggestion.source is CategorizationSource.MOCK
-
-    def test_la_procedencia_del_mock_sigue_siendo_configurable(self):
-        """El parametro no desaparece: un test puede simular otra procedencia."""
-        suggestion = MockCategorizer(
-            source=CategorizationSource.AI
-        ).categorize(*self.ARGUMENTOS)
-
-        assert suggestion.source is CategorizationSource.AI
-
-    def test_las_reglas_reportan_rule(self):
-        assert RuleBasedCategorizer().categorize(*self.ARGUMENTOS).source is (
-            CategorizationSource.RULE
-        )
-
-    def test_el_proveedor_externo_con_cliente_reporta_ai(self):
-        suggestion = AICategorizer(client=ClienteQueResponde()).categorize(
-            *self.ARGUMENTOS
-        )
-
-        assert suggestion.source is CategorizationSource.AI
-        assert suggestion.category_name == "Transporte"
-
-    def test_sin_cliente_reporta_la_procedencia_del_respaldo(self):
-        """Quien clasifico fue el respaldo, asi que la procedencia es la suya."""
-        suggestion = AICategorizer(client=None).categorize(*self.ARGUMENTOS)
-
-        assert suggestion.source is CategorizationSource.RULE
-
-    def test_con_cliente_caido_reporta_la_procedencia_del_respaldo(self):
-        suggestion = AICategorizer(client=ClienteQueFalla()).categorize(
-            *self.ARGUMENTOS
-        )
-
-        assert suggestion.source is CategorizationSource.RULE
-
-    def test_con_respaldo_mock_la_degradacion_reporta_mock(self):
-        """La procedencia sigue al mecanismo real, sea cual sea el respaldo."""
-        suggestion = AICategorizer(
-            client=ClienteQueFalla(), fallback=MockCategorizer()
-        ).categorize(*self.ARGUMENTOS)
-
-        assert suggestion.source is CategorizationSource.MOCK
-
-    def test_ninguna_implementacion_comparte_procedencia_con_otra(self):
-        procedencias = {
-            RuleBasedCategorizer().categorize(*self.ARGUMENTOS).source,
-            MockCategorizer().categorize(*self.ARGUMENTOS).source,
-            AICategorizer(client=ClienteQueResponde())
-            .categorize(*self.ARGUMENTOS)
-            .source,
-        }
-
-        assert procedencias == {
-            CategorizationSource.RULE,
-            CategorizationSource.MOCK,
-            CategorizationSource.AI,
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -173,13 +73,20 @@ class TestProcedenciaPorHttp:
         return respuesta.json
 
     @pytest.mark.parametrize(
-        "proveedor,procedencia", [("MOCK", "mock"), ("RULE", "rule"), ("AI", "rule")]
+        "modo,procedencia",
+        [
+            ("rule", "rule"),
+            ("mock", "mock"),
+            ("error", "rule"),
+            ("slow", "rule"),
+            ("garbage", "rule"),
+            ("unknown", "rule"),
+            ("manual", "rule"),
+        ],
     )
-    def test_la_respuesta_dice_quien_clasifico(
-        self, monkeypatch, ana, cuenta, proveedor, procedencia
-    ):
-        """Con `AI` sin cliente clasifico el respaldo, y eso es lo que se graba."""
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", proveedor)
+    def test_la_fila_dice_quien_clasifico(self, categorization, ana, cuenta, modo, procedencia):
+        """El remoto declara la suya; si no sirve, clasifica el respaldo (`rule`)."""
+        categorization.mode = modo
         assert self._registrar(ana, cuenta)["categorization_source"] == procedencia
 
     def test_la_recategorizacion_manual_dice_manual(self, ana, cuenta):
@@ -191,15 +98,6 @@ class TestProcedenciaPorHttp:
 
         assert respuesta.status_code == 200
         assert respuesta.json["categorization_source"] == "manual"
-
-    def test_el_mismo_cuerpo_produce_procedencias_distintas(self, monkeypatch, ana, cuenta):
-        """A-13 y A-14 juntos: el Factory es observable por la procedencia."""
-        procedencias = {}
-        for proveedor in ("RULE", "MOCK", "AI"):
-            monkeypatch.setenv("CATEGORIZER_PROVIDER", proveedor)
-            procedencias[proveedor] = self._registrar(ana, cuenta)["categorization_source"]
-
-        assert procedencias == {"RULE": "rule", "MOCK": "mock", "AI": "rule"}
 
     @pytest.mark.parametrize("procedencia", ["ai", "rule", "manual", "mock"])
     def test_los_cuatro_valores_se_persisten_y_se_recuperan(

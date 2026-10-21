@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import update
 
-from infra.categorizers import MockCategorizer
+from tests.doubles import MockCategorizer
 from models import Account
 from services import AccountService, TransactionService
 

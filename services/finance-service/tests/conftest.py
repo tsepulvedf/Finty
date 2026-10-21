@@ -102,12 +102,42 @@ def session(connection):
     test_session.close()
 
 
+@pytest.fixture(scope="session")
+def _fake_categorization():
+    from tests.fakes import FakeCategorization
+
+    fake = FakeCategorization()
+    yield fake
+    fake.close()
+
+
 @pytest.fixture
-def app(connection):
-    """Aplicacion Flask cuyas peticiones usan la conexion del test."""
+def categorization(_fake_categorization):
+    """Servidor falso de `categorization-service`, en modo `rule` al empezar."""
+    _fake_categorization.reset()
+    return _fake_categorization
+
+
+# Timeout de los tests: corto para que el caso `slow` no alargue la suite.
+TEST_CATEGORIZATION_TIMEOUT = 0.3
+
+
+@pytest.fixture
+def app(connection, categorization):
+    """Aplicacion Flask cuyas peticiones usan la conexion del test.
+
+    Su `CATEGORIZATION_URL` apunta al servidor falso, que por defecto clasifica
+    con las mismas reglas que `categorization-service`.
+    """
     from app import create_app
 
-    application = create_app(session_factory=lambda: _session_on(connection))
+    application = create_app(
+        session_factory=lambda: _session_on(connection),
+        config={
+            "CATEGORIZATION_URL": categorization.url,
+            "CATEGORIZATION_TIMEOUT_SECONDS": TEST_CATEGORIZATION_TIMEOUT,
+        },
+    )
     application.testing = True
     return application
 

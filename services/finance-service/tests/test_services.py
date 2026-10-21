@@ -29,7 +29,8 @@ from domain.value_objects import (
     CategorySuggestion,
     TransactionType,
 )
-from infra.categorizers import MockCategorizer, RuleBasedCategorizer
+from infra.categorizers import RuleBasedCategorizer
+from tests.doubles import MockCategorizer
 from models import Account, Transaction
 from services import AccountService, TransactionService
 

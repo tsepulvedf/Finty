@@ -4,7 +4,9 @@
 
 Configuracion por entorno:
 - `DATABASE_URL` (obligatoria): URL de `finty_finance`, y solo de ella (A-21).
-- `CATEGORIZER_PROVIDER` (opcional, `RULE` por defecto): ver `infra/factories.py`.
+- `CATEGORIZATION_URL` (obligatoria): URL interna de `categorization-service`.
+- `CATEGORIZATION_TIMEOUT_SECONDS` (opcional, `1.0`): espera maxima por el remoto
+  antes de clasificar con el respaldo local (A-22).
 - `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida y
   del proceso (el "hoy" de INV-12), la misma de `settings.py` en el monolito.
 
@@ -26,7 +28,8 @@ from api.errors import register_error_handlers
 from api.routes import blueprint as finance_blueprint
 from commands import verify_invariants
 from infra.database import build_engine, build_session_factory, ping
-from infra.factories import ConfigurationError
+from infra.categorization_client import DEFAULT_TIMEOUT_SECONDS
+from infra.configuration import ConfigurationError
 
 DEFAULT_TIME_ZONE = "America/Bogota"
 
@@ -65,14 +68,25 @@ def _session_factory_from_environment():
     return build_session_factory(build_engine(database_url))
 
 
-def create_app(session_factory=None):
+def create_app(session_factory=None, config=None):
     """Construye la aplicacion.
 
     `session_factory` permite a los tests inyectar sesiones atadas a una
-    transaccion que se revierte al final de cada test.
+    transaccion que se revierte al final de cada test, y `config` sobrescribir
+    la configuracion que se lee del entorno.
     """
     app = Flask(__name__)
     app.config["TIME_ZONE"] = os.environ.get("TIME_ZONE", DEFAULT_TIME_ZONE)
+    app.config["CATEGORIZATION_URL"] = os.environ.get("CATEGORIZATION_URL")
+    app.config["CATEGORIZATION_TIMEOUT_SECONDS"] = float(
+        os.environ.get("CATEGORIZATION_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+    )
+    app.config.update(config or {})
+    if not app.config["CATEGORIZATION_URL"]:
+        raise ConfigurationError(
+            "Falta la variable de entorno obligatoria 'CATEGORIZATION_URL' con la "
+            "URL interna de categorization-service."
+        )
     _set_process_time_zone(app.config["TIME_ZONE"])
 
     # Mismo JSON que el renderer de DRF: compacto, en UTF-8 y sin reordenar los

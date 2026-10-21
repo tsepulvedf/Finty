@@ -17,7 +17,6 @@ from infra.categorizers import (
     FALLBACK_INCOME_CATEGORY,
     INCOME_KEYWORDS,
     KEYWORDS_BY_TYPE,
-    AICategorizer,
     RuleBasedCategorizer,
 )
 from models import Category
@@ -69,9 +68,9 @@ class TestCoherenciaDeTipo:
         assert aplica_a(session, FALLBACK_INCOME_CATEGORY) == "income"
 
 
-class TestAllowedCategoriesCoincideConLaBase:
+class TestLasReglasDelRespaldoCoincidenConLaBase:
     def test_coincide_exactamente(self, session):
-        assert AICategorizer().allowed_categories == nombres_en_base(session)
+        assert set(ALL_CATEGORY_NAMES) == nombres_en_base(session)
 
     def test_el_mapa_de_respaldo_cubre_los_dos_tipos(self):
         assert set(FALLBACK_BY_TYPE) == set(TransactionType)

@@ -1,7 +1,8 @@
-"""Tests de los tres categorizadores concretos.
+"""Tests de `RuleBasedCategorizer`, el respaldo local de finance-service.
 
-Sin base de datos: corren sin PostgreSQL. Portado del monolito sin cambiar
-las aserciones (E2-M2a); solo cambian los imports.
+Desde E2-M3b los tests de `AICategorizer` y `MockCategorizer` viven en
+`categorization-service`, con esos categorizadores. Aqui quedan los de las
+reglas, que son las que clasifican cuando el remoto no responde (A-22).
 """
 import pytest
 
@@ -16,8 +17,6 @@ from infra.categorizers import (
     FALLBACK_EXPENSE_CATEGORY,
     FALLBACK_INCOME_CATEGORY,
     MATCH_CONFIDENCE,
-    AICategorizer,
-    MockCategorizer,
     RuleBasedCategorizer,
     normalize_description,
 )
@@ -25,37 +24,6 @@ from infra.categorizers import (
 EXPENSE = TransactionType.EXPENSE
 INCOME = TransactionType.INCOME
 AMOUNT = Money("25000", "COP")
-
-
-class ProviderQueFalla:
-    """Cliente que siempre lanza la excepcion configurada."""
-
-    def __init__(self, exception):
-        self._exception = exception
-
-    def suggest_category(self, description, amount, transaction_type):
-        raise self._exception
-
-
-class ProviderQueResponde:
-    """Cliente que devuelve una respuesta fija."""
-
-    def __init__(self, category_name, confidence):
-        self._category_name = category_name
-        self._confidence = confidence
-        self.calls = 0
-
-    def suggest_category(self, description, amount, transaction_type):
-        self.calls += 1
-        return self._category_name, self._confidence
-
-
-class ErrorDelProveedor(Exception):
-    """Excepcion personalizada de un proveedor imaginario."""
-
-
-class ExpiracionDura(BaseException):
-    """Expiracion de tiempo que no deriva de `Exception`."""
 
 
 @pytest.fixture
@@ -254,158 +222,3 @@ class TestDeterminismo:
         assert isinstance(
             rule_based.categorize("almuerzo", AMOUNT, "transfer"), CategorySuggestion
         )
-
-
-class TestAICategorizerCaminoFeliz:
-    """Respuesta valida del proveedor."""
-
-    def test_devuelve_fuente_ai(self):
-        categorizer = AICategorizer(client=ProviderQueResponde("Transporte", 0.9))
-
-        suggestion = categorizer.categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert suggestion.category_name == "Transporte"
-        assert suggestion.confidence == 0.9
-        assert suggestion.source is CategorizationSource.AI
-
-    def test_consulta_al_proveedor_una_sola_vez(self):
-        client = ProviderQueResponde("Transporte", 0.9)
-        AICategorizer(client=client).categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert client.calls == 1
-
-    def test_allowed_categories_por_defecto_tiene_quince_nombres(self):
-        assert len(AICategorizer().allowed_categories) == 15
-
-
-class TestAICategorizerDegradacion:
-    """Las cuatro degradaciones terminan en el respaldo."""
-
-    def test_sin_cliente_delega_en_el_respaldo(self):
-        suggestion = AICategorizer(client=None).categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert suggestion.category_name == "Transporte"
-        assert suggestion.source is CategorizationSource.RULE
-
-    @pytest.mark.parametrize(
-        "exception",
-        [
-            RuntimeError("cayo el proveedor"),
-            TimeoutError("expiro"),
-            ErrorDelProveedor("error propio"),
-            ValueError("respuesta ilegible"),
-            ExpiracionDura("no deriva de Exception"),
-        ],
-    )
-    def test_un_cliente_que_lanza_no_propaga(self, exception):
-        categorizer = AICategorizer(client=ProviderQueFalla(exception))
-
-        suggestion = categorizer.categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert suggestion.category_name == "Transporte"
-        assert suggestion.source is CategorizationSource.RULE
-
-    def test_una_categoria_alucinada_se_descarta(self):
-        categorizer = AICategorizer(client=ProviderQueResponde("Criptomonedas", 0.99))
-
-        suggestion = categorizer.categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert suggestion.category_name == "Transporte"
-        assert suggestion.source is CategorizationSource.RULE
-
-    def test_una_respuesta_con_forma_inesperada_se_descarta(self):
-        categorizer = AICategorizer(client=ProviderQueResponde(None, 0.9))
-
-        assert (
-            categorizer.categorize("Taxi", AMOUNT, EXPENSE).source
-            is CategorizationSource.RULE
-        )
-
-    def test_una_confianza_no_numerica_se_descarta(self):
-        categorizer = AICategorizer(client=ProviderQueResponde("Transporte", "alta"))
-
-        assert (
-            categorizer.categorize("Taxi", AMOUNT, EXPENSE).source
-            is CategorizationSource.RULE
-        )
-
-    def test_el_respaldo_es_inyectable(self):
-        categorizer = AICategorizer(
-            client=ProviderQueFalla(RuntimeError()),
-            fallback=MockCategorizer("Compras", 0.5),
-        )
-
-        assert categorizer.categorize("Taxi", AMOUNT, EXPENSE).category_name == "Compras"
-
-    def test_allowed_categories_es_inyectable(self):
-        categorizer = AICategorizer(
-            client=ProviderQueResponde("Solo esta", 0.9),
-            allowed_categories={"Solo esta"},
-        )
-
-        assert (
-            categorizer.categorize("x", AMOUNT, EXPENSE).source
-            is CategorizationSource.AI
-        )
-
-
-class TestAICategorizerRecorteDeConfianza:
-    """La confianza fuera de rango se recorta, no se descarta."""
-
-    @pytest.mark.parametrize(
-        "recibida,esperada", [(1.7, 1.0), (-0.3, 0.0), (100.0, 1.0), (2, 1.0)]
-    )
-    def test_recorte(self, recibida, esperada):
-        categorizer = AICategorizer(client=ProviderQueResponde("Transporte", recibida))
-
-        suggestion = categorizer.categorize("Taxi", AMOUNT, EXPENSE)
-
-        assert suggestion.confidence == esperada
-        assert suggestion.source is CategorizationSource.AI
-
-    @pytest.mark.parametrize("confianza", [0.0, 0.5, 1.0])
-    def test_una_confianza_en_rango_no_se_toca(self, confianza):
-        categorizer = AICategorizer(client=ProviderQueResponde("Transporte", confianza))
-
-        assert categorizer.categorize("Taxi", AMOUNT, EXPENSE).confidence == confianza
-
-
-class TestMockCategorizer:
-    """`MockCategorizer`."""
-
-    def test_con_categoria_configurada(self):
-        suggestion = MockCategorizer("Compras", 0.5).categorize("x", AMOUNT, EXPENSE)
-
-        assert suggestion.category_name == "Compras"
-        assert suggestion.confidence == 0.5
-
-    def test_sin_categoria_devuelve_el_respaldo_de_gasto(self):
-        assert (
-            MockCategorizer().categorize("x", AMOUNT, EXPENSE).category_name
-            == FALLBACK_EXPENSE_CATEGORY
-        )
-
-    def test_sin_categoria_devuelve_el_respaldo_de_ingreso(self):
-        assert (
-            MockCategorizer().categorize("x", AMOUNT, INCOME).category_name
-            == FALLBACK_INCOME_CATEGORY
-        )
-
-    def test_confianza_por_defecto(self):
-        assert MockCategorizer().categorize("x", AMOUNT, EXPENSE).confidence == 1.0
-
-    def test_fuente_configurable(self):
-        suggestion = MockCategorizer(
-            "Compras", 1.0, CategorizationSource.MANUAL
-        ).categorize("x", AMOUNT, EXPENSE)
-
-        assert suggestion.source is CategorizationSource.MANUAL
-
-    def test_siempre_devuelve_lo_mismo(self):
-        categorizer = MockCategorizer("Compras")
-        resultados = [
-            categorizer.categorize(texto, AMOUNT, EXPENSE)
-            for texto in ["taxi", "nomina", "", "xyz"]
-        ]
-
-        assert len(set(resultados)) == 1

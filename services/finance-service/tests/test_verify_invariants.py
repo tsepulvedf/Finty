@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import select, update
 
 from domain.shared.value_objects import Money
-from infra.categorizers import MockCategorizer
+from tests.doubles import MockCategorizer
 from models import Account, Transaction
 from services import (
     MISSING_CATEGORY,

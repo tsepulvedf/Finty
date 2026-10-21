@@ -9,7 +9,7 @@ regla 3).
 
 La identidad sale solo de `X-User-Id` (`api/context.py`).
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify
 
 from api.context import current_user_id, db_session
 from api.errors import or_404
@@ -25,7 +25,8 @@ from api.schemas import (
     validate_input,
 )
 from api.serializers import account_to_dict, category_to_dict, transaction_to_dict
-from infra.factories import CategorizerFactory
+from infra.categorization_client import RemoteCategorizer
+from infra.categorizers import RuleBasedCategorizer
 from services import AccountService, CategoryService, TransactionService
 
 blueprint = Blueprint("finance", __name__, url_prefix="/api/v1")
@@ -41,12 +42,20 @@ CREATED = 201
 
 
 def _transaction_service():
-    """Servicio con el categorizador de la fabrica inyectado.
+    """Servicio con el categorizador remoto y su respaldo local inyectados.
 
-    El blueprint es el unico punto del servicio que conoce `CategorizerFactory`;
-    `TransactionService` solo conoce la ABC `Categorizer` (DIP).
+    El blueprint es el unico punto que conoce las implementaciones concretas;
+    `TransactionService` solo conoce la ABC `Categorizer` (DIP). La eleccion
+    entre proveedores (el Factory Method) vive en `categorization-service`.
     """
-    return TransactionService(db_session(), CategorizerFactory.get_categorizer())
+    session = db_session()
+    categorizer = RemoteCategorizer(
+        base_url=current_app.config["CATEGORIZATION_URL"],
+        catalog=CategoryService(session).catalog,
+        fallback=RuleBasedCategorizer(),
+        timeout=current_app.config["CATEGORIZATION_TIMEOUT_SECONDS"],
+    )
+    return TransactionService(session, categorizer)
 
 
 # --- /categories/ ------------------------------------------------------------

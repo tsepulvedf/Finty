@@ -1,4 +1,8 @@
-"""Criterio A-08: `TransactionService` funciona igual con los tres categorizadores.
+"""Criterio A-08: `TransactionService` funciona igual con cualquier `Categorizer`.
+
+Desde E2-M3b las implementaciones que ve este servicio son el adaptador remoto
+(`RemoteCategorizer`, contra el servidor falso de `categorization-service`), su
+respaldo local (`RuleBasedCategorizer`) y un doble de pruebas.
 
 Portado de `TestLSPEnElServicio` (`finance/tests/test_services.py` del monolito,
 E2-M3a). Ni el servicio ni estos tests contienen una sola linea condicional sobre
@@ -11,23 +15,29 @@ from uuid import uuid4
 import pytest
 
 from domain.exceptions import ZeroAmountError
-from infra.categorizers import AICategorizer, MockCategorizer, RuleBasedCategorizer
+from infra.categorization_client import RemoteCategorizer
+from infra.categorizers import RuleBasedCategorizer
+from tests.doubles import MockCategorizer
 from models import Account, Category, Transaction
-from services import AccountService, TransactionService
+from services import AccountService, CategoryService, TransactionService
 
 YESTERDAY = date.today() - timedelta(days=1)
 
 
-@pytest.fixture(
-    params=[
-        RuleBasedCategorizer,
-        MockCategorizer,
-        lambda: AICategorizer(client=None),
-    ],
-    ids=["rule", "mock", "ai-sin-cliente"],
-)
-def factory(request):
-    return request.param
+@pytest.fixture(params=["remoto", "remoto-caido", "rule", "mock"])
+def factory(request, session, categorization):
+    """Constructor sin argumentos del categorizador de cada caso."""
+    builders = {
+        "remoto": lambda: RemoteCategorizer(
+            categorization.url, CategoryService(session).catalog, RuleBasedCategorizer(), timeout=0.3
+        ),
+        "remoto-caido": lambda: RemoteCategorizer(
+            "http://127.0.0.1:9", CategoryService(session).catalog, RuleBasedCategorizer(), timeout=0.3
+        ),
+        "rule": RuleBasedCategorizer,
+        "mock": MockCategorizer,
+    }
+    return builders[request.param]
 
 
 @pytest.fixture

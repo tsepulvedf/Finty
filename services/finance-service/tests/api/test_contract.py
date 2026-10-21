@@ -638,88 +638,53 @@ class TestContratoDeSerializacion:
         assert set(cuerpo["error"]) == {"code", "message"}
 
 
-class TestFactoryPorHttpConMock:
-    """El mismo request con el proveedor conmutado a MOCK."""
+class TestCategorizacionRemota:
+    """Lo que antes conmutaba `CATEGORIZER_PROVIDER` aqui, ahora lo decide
+    `categorization-service` (E2-M3b). Estos tests fijan que la respuesta del
+    remoto llega intacta a la transaccion, y que sin el actua el respaldo.
+    """
 
-    def test_la_categoria_la_pone_el_mock(self, monkeypatch, ana, cuenta):
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "MOCK")
-        creada = crear_transaccion(
-            ana, cuenta["id"], description="Almuerzo en el restaurante"
-        ).json
+    def test_con_el_remoto_en_mock_la_categoria_la_pone_el_mock(self, ana, cuenta, categorization):
+        categorization.mode = "mock"
+        creada = crear_transaccion(ana, cuenta["id"], description="Almuerzo en el restaurante").json
 
         assert creada["category_name"] == "Otros gastos"
+        assert creada["categorization_source"] == "mock"
         assert creada["categorization_confidence"] == 1.0
 
-    def test_un_ingreso_cae_en_el_respaldo_de_ingresos(self, monkeypatch, ana, cuenta):
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "MOCK")
-        creada = crear_transaccion(
-            ana, cuenta["id"], "500000", "income", description="Pago de nomina"
-        ).json
-
-        assert creada["category_name"] == "Otros ingresos"
-
-
-class TestFactoryPorHttpConReglas:
-    """El mismo request con el proveedor en RULE."""
-
-    def test_la_categoria_la_ponen_las_reglas(self, monkeypatch, ana, cuenta):
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "RULE")
-        creada = crear_transaccion(
-            ana, cuenta["id"], description="Almuerzo en el restaurante"
-        ).json
+    def test_con_el_remoto_en_reglas_la_categoria_la_ponen_las_reglas(self, ana, cuenta):
+        creada = crear_transaccion(ana, cuenta["id"], description="Almuerzo en el restaurante").json
 
         assert creada["category_name"] == "Alimentación"
         assert creada["categorization_source"] == "rule"
         assert creada["categorization_confidence"] == 0.75
 
-    def test_un_ingreso_se_clasifica_con_el_mapa_de_ingresos(self, monkeypatch, ana, cuenta):
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "RULE")
+    def test_un_ingreso_se_clasifica_con_el_mapa_de_ingresos(self, ana, cuenta):
         creada = crear_transaccion(
             ana, cuenta["id"], "500000", "income", description="Pago de nomina"
         ).json
 
         assert creada["category_name"] == "Salario"
 
+    def test_el_mismo_request_da_resultados_distintos_segun_el_remoto(self, ana, cuenta, categorization):
+        """A-13 visto desde finance-service: mismo cuerpo, mismo codigo."""
+        con_reglas = crear_transaccion(ana, cuenta["id"], description="Almuerzo en el restaurante").json
+        categorization.mode = "mock"
+        con_mock = crear_transaccion(ana, cuenta["id"], description="Almuerzo en el restaurante").json
 
-class TestFactoryMismoRequestDistintoResultado:
-    """La evidencia end-to-end del Factory Method.
+        assert (con_reglas["category_name"], con_reglas["categorization_source"]) == ("Alimentación", "rule")
+        assert (con_mock["category_name"], con_mock["categorization_source"]) == ("Otros gastos", "mock")
 
-    Exactamente el mismo cuerpo de peticion, exactamente el mismo codigo, y dos
-    resultados distintos segun una variable de configuracion. Nadie toco una linea
-    entre una corrida y la otra.
-    """
+    def test_con_el_remoto_caido_registra_igual_con_el_respaldo(self, app, ana, cuenta):
+        """A-22: sin categorization-service la transaccion se registra, con `rule`."""
+        app.config["CATEGORIZATION_URL"] = "http://127.0.0.1:9"
 
-    PAYLOAD_DESCRIPTION = "Almuerzo en el restaurante"
+        respuesta = crear_transaccion(ana, cuenta["id"], description="Almuerzo en el restaurante")
 
-    def _categoria_con(self, monkeypatch, provider, ana, cuenta):
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", provider)
-        return crear_transaccion(
-            ana, cuenta["id"], description=self.PAYLOAD_DESCRIPTION
-        ).json["category_name"]
+        assert respuesta.status_code == 201
+        assert respuesta.json["category_name"] == "Alimentación"
+        assert respuesta.json["categorization_source"] == "rule"
 
-    def test_el_resultado_cambia_con_el_proveedor(self, monkeypatch, ana, cuenta):
-        con_reglas = self._categoria_con(monkeypatch, "RULE", ana, cuenta)
-        con_mock = self._categoria_con(monkeypatch, "MOCK", ana, cuenta)
-
-        assert con_reglas == "Alimentación"
-        assert con_mock == "Otros gastos"
-        assert con_reglas != con_mock
-
-    def test_con_ai_sin_cliente_degrada_al_respaldo_determinista(self, monkeypatch, ana, cuenta):
-        """Sin cliente configurado, el resultado es el del respaldo."""
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "AI")
-        creada = crear_transaccion(
-            ana, cuenta["id"], description=self.PAYLOAD_DESCRIPTION
-        ).json
-
-        assert creada["category_name"] == "Alimentación"
-        assert creada["categorization_source"] == "rule"
-
-    def test_un_proveedor_desconocido_falla_ruidosamente(self, monkeypatch, ana, cuenta):
-        """No degrada en silencio: revienta antes de clasificar nada."""
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "PROVEEDOR_INEXISTENTE")
-        # El test client de Django relanzaba `ImproperlyConfigured`; aqui el
-        # handler la convierte en 500 y no queda ninguna transaccion registrada.
-        assert crear_transaccion(ana, cuenta["id"]).status_code == 500
-        monkeypatch.setenv("CATEGORIZER_PROVIDER", "RULE")
-        assert ana.get(TRANSACTIONS_URL).json["count"] == 0
+    def test_con_categoria_manual_no_se_consulta_el_remoto(self, ana, cuenta, categorization):
+        crear_transaccion(ana, cuenta["id"], category_name="Compras")
+        assert categorization.requests == []

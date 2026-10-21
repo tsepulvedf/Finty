@@ -9,7 +9,7 @@ Estado a la fecha de este documento (2026-10-20):
 | Suite | Tests | Cómo se corre |
 |---|---|---|
 | Monolito (`core`, `identity`) | **175**, todos en verde | `pytest` en la raíz |
-| `finance-service` | **689**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
+| `finance-service` | **730**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
 | Contrato de caja negra (A-20) | **111**, más 5 opcionales (2 de throttling, A-13 y dos de A-22) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **4** | `pytest` en `tests/services/` |
@@ -50,6 +50,17 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/` y `cs/` abrevia `
 | **A-21** | `services/finance-service/.env.docker` solo contiene `DATABASE_URL` y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido) | ✅ (categorización) |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
+
+## Eventos de dominio (ADR-15, E2-M4a)
+
+| Qué se verifica | Test o evidencia |
+|---|---|
+| Los eventos son value objects inmutables y su serialización es la de §10.5 | `fs/test_outbox.py::TestEventosDeDominio`, `TestSerializacion` |
+| Registrar, reclasificar y eliminar escriben su evento | `fs/test_outbox.py::TestCadaEscrituraRegistraSuEvento`, `TestPorHttp` |
+| Atomicidad: sin cambio no hay evento, y sin evento no hay cambio | `fs/test_outbox.py::TestAtomicidad` |
+| El relay publica en orden, no republica y no pierde eventos con el stream caído | `fs/test_outbox.py::TestRelay`, `TestComandos` |
+| El backfill es idempotente | `fs/test_outbox.py::TestBackfill` |
+| Por el Gateway: tres eventos en `XRANGE`; con `docker compose stop redis` el registro sigue y el evento se publica al volver | `tests/contract/runs/2026-10-20-outbox-eventos.txt` |
 
 ---
 

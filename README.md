@@ -131,6 +131,18 @@ docker compose down -v                                        # detener y BORRAR
 
 **Estáticos.** `collectstatic` corre al construir la imagen de Django, y la etapa `gateway` del `Dockerfile` copia el resultado en la imagen de Nginx, que sirve `/static/` sin pasar por Django.
 
+## Eventos de dominio
+
+`finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el Redis Stream `finty.finance.events`, con un outbox transaccional: el evento se escribe en la misma transacción que el cambio, y el contenedor `finance-outbox-relay` lo publica después. El contrato está en la §10.5 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+```bash
+docker compose exec redis redis-cli XRANGE finty.finance.events - +     # eventos publicados
+docker compose logs -f finance-outbox-relay                             # el relay
+docker compose exec finance-service flask outbox-backfill               # eventos de transacciones previas (idempotente)
+```
+
+Si Redis se detiene, las transacciones se siguen registrando y sus eventos quedan pendientes en `outbox_event`. Al volver Redis, el relay los publica. `finance-migrate` corre el backfill en cada `up`.
+
 ## Conmutar el categorizador
 
 `CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` usa `categorization-service`. Es el Factory Method del proyecto y su efecto es observable desde fuera. `finance-service` le pide la categoría por HTTP y, si no responde, clasifica con sus reglas locales.

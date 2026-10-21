@@ -3,6 +3,7 @@ SQLAlchemy==2.0.43
 alembic==1.16.5
 psycopg2-binary==2.9.10
 pydantic==2.11.9
+redis==5.2.1
 gunicorn==23.0.0
 pytest==8.4.2
 # Base IANA de zonas horarias para `zoneinfo` solo en Windows, igual que la

@@ -6,11 +6,13 @@
 # E2-M3b: categorization-service (Flask, sin base), que finance-service consume.
 # E2-M4a: finance-outbox-relay publica los eventos de dominio en Redis Streams.
 # E2-M4b: analytics-service y analytics-worker, que consume esos eventos.
+# E2-M5: recommendation-service, que lee analytics por HTTP y consulta la TRM.
 # Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
 #   cp .env.docker.example .env.docker                       # y completa los valores
 #   cp services/finance-service/.env.docker.example services/finance-service/.env.docker
 #   cp services/analytics-service/.env.docker.example services/analytics-service/.env.docker
+#   cp services/recommendation-service/.env.docker.example services/recommendation-service/.env.docker
 #   docker compose up -d --build
 #
 # Solo `nginx` publica un puerto en el host (A-17). El resto se comunica por la
@@ -49,6 +51,21 @@ x-analytics: &analytics
   env_file: services/analytics-service/.env.docker
   environment:
     REDIS_URL: redis://redis:6379/0
+
+# recommendation-service: proceso web y paso de migraciones. Lee analytics por
+# HTTP en la red interna (no consume eventos) y cachea la TRM en Redis (ADR-12).
+x-recommendation: &recommendation
+  build:
+    context: ./services/recommendation-service
+  image: finty/recommendation-service:local
+  env_file: services/recommendation-service/.env.docker
+  environment:
+    ANALYTICS_URL: http://analytics-service:8000
+    REDIS_URL: redis://redis:6379/0
+    # La API oficial de la TRM. Se puede apuntar a una URL inalcanzable para
+    # verificar la degradacion (A-22) sin editar archivos:
+    #   EXCHANGE_RATE_API_URL=http://127.0.0.1:9 docker compose up -d recommendation-service
+    EXCHANGE_RATE_API_URL: ${EXCHANGE_RATE_API_URL:-https://www.datos.gov.co/resource/32sa-8pi3.json}
 
 services:
   db:
@@ -212,6 +229,30 @@ services:
     depends_on:
       analytics-migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Paso de un solo uso: migraciones de finty_recommendation con Alembic.
+  recommendation-migrate:
+    <<: *recommendation
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Sin `ports` (A-17). No depende de analytics-service a proposito: si analytics
+  # no esta, las recomendaciones salen degradadas, no fallan.
+  recommendation-service:
+    <<: *recommendation
+    depends_on:
+      recommendation-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   nginx:

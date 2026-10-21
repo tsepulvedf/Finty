@@ -207,10 +207,12 @@ finty/
 │                                  # (lo corren initdb y el servicio db-init)
 │
 ├── tests/contract/                # Suite de contrato de caja negra contra CONTRACT_BASE_URL (A-20)
+├── tests/services/                # Contratos estáticos entre servicios, por AST (A-12)
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 │
 └── services/
+    ├── categorization-service/    # Sin base de datos: domain/, infra/, services.py, api/ (E2-M3b)
     └── finance-service/           # Plantilla de los demás servicios Flask
         ├── Dockerfile             # python:3.11-slim, gunicorn, usuario sin root
         ├── requirements.txt       # dependencias propias del servicio
@@ -373,7 +375,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 |----------|----------------------|------------|---------------|--------|
 | UserIdentityContext | monolito (`identity`) + frontend + `/internal/auth/verify/` | Django | `finty_identity` | existente; frontend en E2-M8 |
 | FinancialDataContext | `finance-service` | Flask | `finty_finance` | E2-M2 |
-| FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código | E2-M3 |
+| FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
 | AnalyticsInsightsContext | `analytics-service` | Flask | `finty_analytics` | E2-M4 |
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation` | E2-M5 |
 | SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
@@ -383,7 +385,7 @@ La app `finance` de Django sirvió de respaldo durante la verificación del Stra
 **Relaciones de la Entrega 2** (diagrama en §9.5):
 
 - `identity` → todos los servicios: **Customer-Supplier a través del Gateway**. Ningún servicio llama a `identity`; reciben la identidad ya resuelta en `X-User-Id`.
-- `finance-service` → `categorization-service`: **HTTP síncrono**, porque la categoría hace falta antes de persistir (INV-08). Si el servicio no responde, `finance-service` usa un respaldo determinista local y la procedencia sigue siendo veraz (A-14).
+- `finance-service` → `categorization-service`: **HTTP síncrono** por la red interna, porque la categoría hace falta antes de persistir (INV-08). Contrato en §10.4. `finance-service` lo consume con `RemoteCategorizer`, que implementa el puerto `Categorizer` con un timeout corto (1 s por defecto). Ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o una categoría que no está en su catálogo, clasifica con su `RuleBasedCategorizer` local (A-12, A-22). La procedencia grabada es veraz: la que declara el remoto, o `rule` si actuó el respaldo (A-14). `categorization-service` no recibe `X-User-Id`: la clasificación no depende del usuario.
 - `finance-service` → `analytics-service` y `recommendation-service`: **eventos de dominio en Redis**. `recommendation` deja de depender de `finance` por llamada directa, lo que resuelve D-03.
 - `subscription-service` → `WompiSandboxGateway`, `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
 
@@ -588,7 +590,7 @@ cambia el comportamiento del sistema sin tocar una línea de código. Esto adem�
 
 **Fallback y LSP:** `AICategorizer` nunca propaga excepciones hacia arriba. Si el proveedor externo falla, delega internamente en `RuleBasedCategorizer` y devuelve un `CategorySuggestion` con `source="rule"` y confianza reducida. El contrato se mantiene: el Service no necesita saber qué ocurrió.
 
-**En la Entrega 2:** `CategorizerFactory` y los categorizadores concretos pasan a `categorization-service`. `finance-service` conserva el puerto `Categorizer` y lo implementa con un adaptador HTTP hacia ese servicio, con respaldo determinista local si no responde. Es el mismo patrón de fallback, un nivel más afuera. La procedencia `rule` / `ai` / `mock` debe llegar intacta a la fila (E2-M3). El ejemplo de pagos que este apartado descartaba aparece ahora en ADR-14, también elegido por variable de entorno.
+**En la Entrega 2 (E2-M3b):** `CategorizerFactory` y los tres categorizadores viven en **`services/categorization-service/infra/`**, y `CATEGORIZER_PROVIDER` es configuración de ese servicio. Se conmuta sin tocar código ni archivos: `CATEGORIZER_PROVIDER=MOCK docker compose up -d categorization-service`. `finance-service` conserva el puerto `Categorizer` y lo implementa con `RemoteCategorizer` (`services/finance-service/infra/categorization_client.py`), con `RuleBasedCategorizer` local como respaldo. Es el mismo patrón de fallback de `AICategorizer`, un nivel más afuera. La procedencia `rule` / `ai` / `mock` llega intacta a la fila (A-14). El ejemplo de pagos que este apartado descartaba aparece ahora en ADR-14, también elegido por variable de entorno.
 
 ### 6.2 Builder → `TransactionBuilder`
 
@@ -664,7 +666,7 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 
 | Puerto (ABC) | Servicio | Adaptador concreto | Adaptador de respaldo | Selección | Referencia |
 |--------------|----------|--------------------|-----------------------|-----------|------------|
-| `Categorizer` | `finance-service` | Cliente HTTP de `categorization-service` | Categorizador determinista local | Siempre el concreto; respaldo ante fallo | §6.1, E2-M3 |
+| `Categorizer` | `finance-service` | `RemoteCategorizer`: cliente HTTP de `categorization-service` (§10.4), timeout de 1 s | `RuleBasedCategorizer` local | Siempre el remoto; respaldo ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o categoría fuera del catálogo | §6.1, A-12, A-22 |
 | `ExchangeRateProvider` | `recommendation-service` | API pública de tasas de cambio, con caché | Tasa fija | Respaldo ante fallo | ADR-12, E2-M5 |
 | `AllyServiceProvider` | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` | Respaldo ante fallo; solo mock hasta que exista el aliado | ADR-13, E2-M9 |
 | `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` | `MockPaymentGateway` | Variable de entorno | ADR-14, E2-M6 |
@@ -1201,7 +1203,7 @@ sequenceDiagram
     participant BP as Blueprint de transacciones
     participant TS as TransactionService
     participant R as Sesión SQLAlchemy
-    participant CP as Categorizer (adaptador HTTP)
+    participant CP as RemoteCategorizer (puerto Categorizer)
     participant CS as categorization-service
     participant B as TransactionBuilder
     participant BC as BalanceCalculator
@@ -1222,12 +1224,12 @@ sequenceDiagram
         R-->>TS: AccountSnapshot
         TS->>B: for_account(snapshot).with_amount()...categorized_by(CP)
         B->>CP: categorize(description, amount, type)
-        CP->>CS: POST por la red interna
+        CP->>CS: POST /v1/suggestions/ por la red interna, timeout 1 s
 
-        alt categorization-service responde
-            CS-->>CP: sugerencia con procedencia rule, ai o mock
-        else no responde
-            Note over CP: respaldo determinista local<br/>procedencia veraz (A-14)
+        alt responde con una categoría del catálogo y del tipo
+            CS-->>CP: category_name, confidence, source (rule, mock o ai)
+        else timeout, error de red, 4xx/5xx o categoría fuera del catálogo
+            Note over CP: RuleBasedCategorizer local<br/>procedencia rule (A-12, A-14, A-22)
         end
 
         CP-->>B: CategorySuggestion
@@ -1375,6 +1377,23 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 4. Las respuestas que genera el propio Gateway tienen la forma del contrato: 401 `{"detail": ...}` con el texto de DRF según el motivo (ADR-09), y 429 `{"detail": "Solicitud fue regulada (throttled)."}`, el texto de `Throttled` de DRF.
 5. `limit_req` por IP en dos zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, y `finty_api` (20/s, ráfaga 50) en todo `/api/v1/`.
 
+### 10.4 Contratos internos entre servicios
+
+No pasan por Nginx ni se publican al host: solo los alcanza la red interna de Compose.
+
+**`categorization-service` — `POST /v1/suggestions/`** (E2-M3b). Lo consume `finance-service` (`RemoteCategorizer`). Sin `X-User-Id`: la clasificación no depende del usuario.
+
+| | Contenido |
+|---|---|
+| Petición | `{"description": "Almuerzo en el restaurante", "transaction_type": "expense"}`. `description`: texto, opcional (por defecto `""`), hasta 255 caracteres. `transaction_type`: `"income"` o `"expense"` |
+| 200 | `{"category_name": "Alimentación", "confidence": 0.75, "source": "rule"}`. `source` es el mecanismo que clasificó: `rule`, `mock` o `ai`. Con `AI` sin cliente (D-07), `rule` |
+| 400 | `{"error": {"code": "invalid_request", "message": ..., "fields": {campo: [mensajes]}}}` |
+| 404 / 405 | `{"error": {"code": "not_found" \| "method_not_allowed", "message": ...}}` |
+| 500 | `{"error": {"code": "configuration_error", ...}}` si `CATEGORIZER_PROVIDER` no es válido |
+| Sonda | `GET /health/` → `{"status": "ok"}` |
+
+El monto no viaja: ninguna implementación lo usa para decidir, y el puerto `Categorizer` de este servicio lo recibe como `None`. Si un cliente concreto de IA llegara a necesitarlo (D-07), habría que extender el contrato.
+
 ---
 
 ## 11. Trazabilidad
@@ -1398,11 +1417,12 @@ Las relaciones internas de `analytics`, `recommendation` y `subscription` se fij
 | Requisito | Implementación | Archivo |
 |-----------|----------------|---------|
 | Service Layer | `TransactionService`, `AccountService`, `ProfileService` | `*/services.py` |
-| Factory | `CategorizerFactory` | `services/finance-service/infra/factories.py` |
+| Factory | `CategorizerFactory` | `services/categorization-service/infra/factories.py` |
 | Builder | `TransactionBuilder`, `AccountBuilder` | `services/finance-service/domain/builders.py` |
 | Vistas sin lógica de negocio | Todas las views delegan | `*/api/views.py` |
 | Modelos sin lógica de negocio | ADR-03 | `*/models.py` |
-| Inversión de dependencias | `Categorizer` ABC inyectada | `services/finance-service/domain/interfaces.py` |
+| Inversión de dependencias | `Categorizer` ABC inyectada | `services/finance-service/domain/interfaces.py` (implementada por `RemoteCategorizer`) y `services/categorization-service/domain/interfaces.py` |
+| Adapter | `RemoteCategorizer` | `services/finance-service/infra/categorization_client.py` |
 
 ### 11.3 Requisito de la Entrega 2 → Decisión → Módulo
 
@@ -1463,7 +1483,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación** hacia `preferred_currency` (ADR-12); la multi-moneda contable sigue fuera | Post-MVP |
 | D-05 | Eventos de dominio | **Resuelta por diseño:** eventos en Redis (ADR-15); nombres definitivos en el módulo que los publique | E2-M4, E2-M5 |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
-| D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Se traslada sin cambios a `categorization-service` | Abierta, E2-M3 |
+| D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Trasladado sin cambios a `categorization-service` en E2-M3b | Abierta, sin módulo asignado |
 | D-08 | Enumeración de cuentas ajenas | `get_owned_account` devuelve 404 y no 403 para no revelar existencia. Se conserva en `finance-service` filtrando por `X-User-Id` | Cerrada |
 | D-09 | Métrica del 70% para el bono | La distribución de §4.4 supera el umbral por clases (90%), por contextos (4 de 5) y por endpoints de negocio | **Abierta** — confirmar con el profesor |
 | D-10 | Equipo aliado | Sin asignar. Solo `MockAllyAdapter`; no se inventan dominio, URL ni contrato. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
@@ -1496,9 +1516,9 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-09 | Builder no conoce el ORM | `services/finance-service/domain/` no importa `models`, `infra` ni `sqlalchemy`: `TestPurezaDelDominio` de `services/finance-service/tests/test_architecture.py` (A-16) |
 | A-10 | Servicio no conoce implementaciones concretas | `grep -rnE "AICategorizer\|RuleBasedCategorizer\|MockCategorizer" services/finance-service/services.py` devuelve vacío; por AST: `TestServiciosSinImplementacionesConcretas` de `services/finance-service/tests/test_architecture.py` |
 | A-11 | Escritura bajo bloqueo | El SQL de `register_transaction` contiene `FOR UPDATE` |
-| A-12 | Categoría emitida siempre existe | Test de contrato entre el mapa de reglas y la tabla `Category` |
-| A-13 | El Factory es observable desde fuera | El mismo `POST /transactions/` con `CATEGORIZER_PROVIDER` en `RULE` y en `MOCK` produce categoría y procedencia distintas |
-| A-14 | La procedencia registrada es veraz | `categorization_source` identifica el mecanismo que realmente clasificó, sin que una implementación se haga pasar por otra |
+| A-12 | Categoría emitida siempre existe | Desde E2-M3b, entre servicios, con dos garantías. **En ejecución:** `RemoteCategorizer` rechaza una sugerencia que no esté en el catálogo de `finty_finance` o no aplique al tipo, y clasifica con el respaldo local (`services/finance-service/tests/test_categorization_client.py::TestCatalogoA12`). **Antes de desplegar:** `tests/services/test_category_catalog.py` lee por AST las reglas de `categorization-service` y la siembra de `finance-service`, y falla si una categoría emitible no está sembrada con el mismo tipo. Las reglas del respaldo local se verifican contra la base en `services/finance-service/tests/persistence/test_catalog_contract.py` |
+| A-13 | El Factory es observable desde fuera | El mismo `POST /api/v1/transactions/` por el Gateway, con `CATEGORIZER_PROVIDER` de `categorization-service` en `RULE` y en `MOCK`, graba `rule` y `mock`: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZER_PROVIDER` (procedimiento en el módulo; evidencia en `tests/contract/runs/2026-10-20-a13-a22-categorizacion.txt`) |
+| A-14 | La procedencia registrada es veraz | `categorization_source` identifica el mecanismo que realmente clasificó, sin que una implementación se haga pasar por otra. Desde E2-M3b: cada categorizador declara la suya en `categorization-service`; `finance-service` graba la del remoto o, si actuó el respaldo, `rule`, y rechaza un `manual` del remoto (`test_categorization_provenance.py` y `test_categorization_client.py`) |
 | A-15 | Reglas de capas verificadas en la suite | `core/tests/test_architecture.py` recorre el AST de cada módulo. Sustituye a los `grep` como criterio autoritativo: un regex sobre texto no distingue un `except` real de una subcadena |
 
 ### A.2 Criterios de la Entrega 2
@@ -1511,7 +1531,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | A-19 | Ownership a través del Gateway | El usuario B recibe 404 (no 403) sobre la cuenta de A servida por `finance-service` | E2-M2 |
 | A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez. Implementada en `tests/contract/` (incluye A-18 en `test_auth.py` y A-19 en `test_isolation.py`); corridas guardadas en `tests/contract/runs/` | E2-M2b (cumplido) |
 | A-21 | Sin acceso a bases ajenas | Cada servicio recibe en su configuración solo la URL de su propia base lógica | E2-M1 en adelante |
-| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz | E2-M3, E2-M5, E2-M9 |
+| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz. Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`) | E2-M3b (categorización), E2-M5, E2-M9 |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext | E2-M8 |
 | A-24 | Despliegue verificable | `curl http://<ip-elastica>/api/v1/health/` responde desde AWS | E2-M1 |
 

@@ -1,4 +1,5 @@
 """Contrato HTTP de analytics-service (ARCHITECTURE.md §10.6)."""
+import os
 from datetime import date
 from uuid import uuid4
 
@@ -22,6 +23,11 @@ def feed(session):
             projector.project(event(message), f"{i}-0")
 
     return _feed
+
+
+def test_la_zona_horaria_del_proceso_es_la_de_time_zone(app):
+    """RULES.md: cada servicio Flask fija la zona del proceso a `TIME_ZONE`."""
+    assert os.environ["TZ"] == app.config["TIME_ZONE"] == "America/Bogota"
 
 
 class TestAutenticacion:

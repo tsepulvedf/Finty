@@ -1,0 +1,45 @@
+# Evidencia E2-M6a - subscription-service, INV-05 e INV-06 por el Gateway
+# Fecha: 2026-10-21T14:02:40-05:00
+
+## 1. Usuario FREE
+  GET    /api/v1/subscriptions/me/                      -> 200  plan=FREE status=None premium=False hasta=None
+  GET    /api/v1/analytics/insights/                    -> 403  premium_required
+  GET    /api/v1/analytics/spending-patterns/           -> 403  premium_required
+  GET    /api/v1/analytics/dashboard/                   -> 200  periodo=2026-10
+  GET    /api/v1/analytics/dashboard/?period=2026-07    -> 403  premium_required
+  GET    /api/v1/investment-plans/                      -> 403  premium_required
+  GET    /api/v1/recommendations/                       -> 200  locked=[{'kind': 'investment', 'code': 'premium_required'}] kinds=[]
+
+## 2. Checkout con el mock (INV-05)
+  POST   /api/v1/subscriptions/checkout/                -> 201  subscription=ACTIVE premium=True hasta=2026-11-21T14:02:42.442338-05:00 payment=APPROVED 2990000 COP
+
+## 3. Ya PREMIUM
+  GET    /api/v1/analytics/insights/                    -> 200  0 insight(s)
+  GET    /api/v1/analytics/dashboard/?period=2026-07    -> 200  periodo=2026-07
+  GET    /api/v1/investment-plans/                      -> 200  0 resultado(s)
+  GET    /api/v1/recommendations/                       -> 200  locked=[] kinds=[]
+
+## 4. Segundo checkout con la suscripcion activa
+  POST   /api/v1/subscriptions/checkout/                -> 409  subscription_already_active
+  suscripciones vigentes del usuario en finty_subscription: 1 (una), pagos: 1
+
+## 5. Cancelar: el acceso sigue hasta el fin del periodo
+  POST   /api/v1/subscriptions/me/cancel/               -> 200  plan=PREMIUM status=CANCELED premium=True hasta=2026-11-21T14:02:42.442338-05:00
+  GET    /api/v1/analytics/insights/                    -> 200  0 insight(s)
+  GET    /api/v1/subscriptions/me/                      -> 200  plan=PREMIUM status=CANCELED premium=True hasta=2026-11-21T14:02:42.442338-05:00
+
+## 6. docker compose stop subscription-service
+  subscription-service: exited
+  (usuario nuevo, sin derecho cacheado)
+  GET    /api/v1/analytics/insights/                    -> 503  entitlements_unavailable
+  GET    /api/v1/analytics/dashboard/?period=2026-07    -> 503  entitlements_unavailable
+  GET    /api/v1/investment-plans/                      -> 503  entitlements_unavailable
+  GET    /api/v1/analytics/dashboard/                   -> 200  periodo=2026-10
+  GET    /api/v1/recommendations/                       -> 200  locked=[{'kind': 'investment', 'code': 'entitlements_unavailable'}] kinds=[]
+  GET    /api/v1/accounts/                              -> 200  0 resultado(s)
+  log de analytics:
+    derechos premium no verificables (URLError: <urlopen error [Errno -2] Name or service not known>); se niega lo premium
+  suite de contrato con CONTRACT_SUBSCRIPTION_DOWN=1:
+    2 passed, 7 deselected in 8.36s
+  docker compose start subscription-service
+  GET    /api/v1/analytics/insights/                    -> 403  premium_required

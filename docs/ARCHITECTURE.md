@@ -192,7 +192,8 @@ finty/
 │                                  # gunicorn, usuario sin root) y `gateway` (nginx con los
 │                                  # estáticos copiados desde la etapa `django`)
 ├── docker-compose.yml             # db, db-init y migrate (un solo uso), redis, django,
-│                                  # finance-migrate (un solo uso), finance-service, nginx
+│                                  # finance-migrate (un solo uso), finance-service,
+│                                  # finance-outbox-relay, categorization-service, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
@@ -220,13 +221,15 @@ finty/
         ├── app.py                 # create_app(): configuración, blueprints, sonda /health/
         ├── domain/                # Python puro: ni Flask ni SQLAlchemy (A-16)
         │   └── shared/            # copia propia de Money y DomainError (D-13)
-        ├── infra/                 # categorizadores, factory, engine y sesión, Listing
+        ├── infra/                 # cliente de categorización, respaldo, sesión, Listing,
+        │                          # outbox, serialización de eventos y stream de Redis
         ├── models.py              # SQLAlchemy: solo persistencia
         ├── services.py            # casos de uso, sobre una sesión inyectada
+        ├── commands.py            # flask verify-invariants, relay-outbox y outbox-backfill
         ├── messages.py            # catálogo único de mensajes al usuario (→ Flask-Babel en E2-M8)
         ├── api/                   # blueprints, esquemas pydantic, salida, errores, paginación
         ├── alembic.ini
-        ├── migrations/            # Alembic: 0001 esquema, 0002 siembra del catálogo
+        ├── migrations/            # Alembic: 0001 esquema, 0002 siembra del catálogo, 0003 outbox
         └── tests/                 # dominio, categorización, persistencia, servicios, contrato
 ```
 
@@ -339,8 +342,19 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 ### ADR-15 — Eventos de dominio y tareas asíncronas
 
 **Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. Candidatas: reporte mensual (CSV o PDF), notificaciones (backend de email en consola o en archivo), consulta del estado de pagos (ADR-14) y recategorización por lotes.
-**Consecuencia:** resuelve D-03 (`recommendation` deja de llamar a `finance`: consume sus eventos) y D-05. Los nombres definitivos de los eventos se fijan en el módulo que los publica.
-**Estado:** aceptada.
+**Consecuencia:** resuelve D-03 (`recommendation` deja de llamar a `finance`: consume sus eventos) y D-05.
+
+**Publicación desde `finance-service` (E2-M4a):**
+- **Eventos:** `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` (§12). Son value objects inmutables de `domain/events.py`, y cada uno lleva la foto completa de la transacción, así el consumidor no consulta a `finance-service`. La serialización vive en `infra/event_serialization.py`, y el contrato está en §10.5.
+- **Outbox transaccional:** `TransactionService` escribe el evento en la tabla `outbox_event` dentro del mismo bloque `atomic()` que el cambio de negocio. Si el registro falla no queda evento, y si el evento no se puede escribir no queda registro (`tests/test_outbox.py::TestAtomicidad`). Publicar directo a Redis desde la petición habría dejado una ventana en la que la base confirma pero Redis no recibe, o al revés.
+- **Relay:** `flask relay-outbox`, en el contenedor `finance-outbox-relay` con la misma imagen y sin puertos. Lee los pendientes en orden de `id` con `FOR UPDATE SKIP LOCKED`, los publica con `XADD` y marca cada uno en su propia transacción. Si Redis no responde, espera de 1 a 30 s y reintenta, sin terminar con error: los eventos siguen en el outbox.
+- **Stream:** Redis **Streams** (`finty.finance.events`) y no Pub/Sub, porque Pub/Sub descarta el mensaje si no hay un consumidor conectado. El stream lo conserva, así se puede publicar hoy y consumir desde E2-M4b. No se recorta: `analytics` leerá la historia completa la primera vez.
+- **Entrega al menos una vez:** si el relay muere entre el `XADD` y la marca, ese evento se publica otra vez. **Los consumidores deben ser idempotentes por `event_id`.** El orden está garantizado por cuenta, porque los eventos de una misma cuenta se escriben bajo el bloqueo de su fila. Entre cuentas distintas el orden es el de confirmación.
+- **Backfill:** `flask outbox-backfill` genera `TransactionManuallyAdded` para las transacciones anteriores al outbox, con `occurred_at` = `created_at`. Es idempotente, y lo garantiza también el índice único parcial `uq_outbox_manually_added_once`. Corre en `finance-migrate` después de Alembic, así que la EC2 rellena sus datos existentes en el primer `up`.
+
+Diagrama en §9.9. Consumidores: E2-M4b.
+
+**Estado:** aceptada; la publicación desde `finance-service` está implementada (E2-M4a).
 
 ### ADR-16 — Despliegue en Docker Compose sobre EC2
 
@@ -1325,6 +1339,41 @@ classDiagram
 
 Las relaciones internas de `analytics`, `recommendation` y `subscription` se fijan en el módulo de cada servicio (E2-M4 a E2-M6); aquí solo se muestran las que cruzan fronteras de servicio. La línea punteada `User .. Account` marca la referencia por identificador sin FK (ADR-10).
 
+### 9.9 Diagrama de secuencia — Outbox transaccional y relay (ADR-15)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant TS as TransactionService
+    participant DB as finty_finance
+    participant RL as finance-outbox-relay
+    participant RD as Redis Stream finty.finance.events
+
+    rect rgb(240, 245, 250)
+        Note over TS,DB: una transacción de sesión
+        TS->>DB: INSERT Transaction + UPDATE Account.balance
+        TS->>DB: INSERT outbox_event (TransactionManuallyAdded)
+        DB-->>TS: COMMIT de los dos, o de ninguno
+    end
+
+    loop cada segundo, o con espera creciente si Redis falla
+        RL->>DB: SELECT el pendiente más antiguo FOR UPDATE SKIP LOCKED
+        alt hay un pendiente
+            RL->>RD: XADD finty.finance.events {event_id, event_type, version, occurred_at, payload}
+            alt Redis responde
+                RD-->>RL: id de la entrada
+                RL->>DB: UPDATE published_at, stream_id + COMMIT
+            else Redis no responde
+                Note over RL: ROLLBACK: el evento sigue pendiente<br/>espera 1, 2, 4… hasta 30 s y reintenta
+            end
+        else no hay pendientes
+            Note over RL: espera el intervalo de sondeo
+        end
+    end
+
+    Note over RL,RD: Si el relay muere entre XADD y COMMIT, el evento se publica otra vez:<br/>entrega al menos una vez, consumidores idempotentes por event_id
+```
+
 ---
 
 ## 10. Estrategia de API Gateway
@@ -1394,6 +1443,37 @@ No pasan por Nginx ni se publican al host: solo los alcanza la red interna de Co
 
 El monto no viaja: ninguna implementación lo usa para decidir, y el puerto `Categorizer` de este servicio lo recibe como `None`. Si un cliente concreto de IA llegara a necesitarlo (D-07), habría que extender el contrato.
 
+### 10.5 Contrato de eventos — `finty.finance.events`
+
+Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15). Lo escribe solo `finance-outbox-relay`. Los consumidores llegan en E2-M4b, cada uno con su grupo de consumidores (`XREADGROUP`).
+
+**Campos de cada entrada** (cadenas, como exige Redis Streams):
+
+| Campo | Contenido |
+|---|---|
+| `event_id` | UUID del evento. **Clave de idempotencia:** la entrega es al menos una vez |
+| `event_type` | `TransactionManuallyAdded` \| `TransactionCategorized` \| `TransactionDeleted` |
+| `version` | Versión del esquema del payload, hoy `"1"`. Sube solo ante un cambio incompatible |
+| `occurred_at` | Instante del hecho, ISO 8601 en UTC con `Z` |
+| `payload` | JSON con la foto de la transacción (abajo) |
+
+**`payload`** (igual en los tres tipos):
+
+```json
+{
+  "user_id": "333c736c-…", "transaction_id": "983e19f9-…", "account_id": "558a76ab-…",
+  "amount": "120000.00", "currency": "COP", "transaction_type": "expense",
+  "category_name": "Alimentación", "categorization_source": "rule",
+  "occurred_on": "2026-10-19"
+}
+```
+
+- `amount` es texto decimal con dos cifras, nunca un número de punto flotante. `transaction_type` es `income` o `expense`.
+- `category_name` y `categorization_source` pueden ser `null`. La procedencia es `rule`, `mock`, `ai` o `manual` (A-14).
+- `TransactionManuallyAdded` trae la transacción tal como se registró. `TransactionCategorized`, con su categoría nueva (`manual`). `TransactionDeleted`, como estaba antes de borrarse.
+
+**Cómo consumirlo:** aplicar cada evento como el último estado conocido de `transaction_id`: un alta o una reclasificación reemplazan lo que hubiera, y un borrado lo elimina. Hay que descartar un `event_id` ya aplicado. Un `TransactionManuallyAdded` del backfill puede llegar después de un `TransactionCategorized` de la misma transacción si esta se registró antes del outbox. Como ambos traen la foto vigente, aplicarlos como reemplazo da el estado correcto.
+
 ---
 
 ## 11. Trazabilidad
@@ -1460,6 +1540,11 @@ El monto no viaja: ninguna implementación lo usa para decidir, y el puerto `Cat
 | Pasarela de pago | subscription | `PaymentGateway` | Puerto (ABC) | — |
 | Proveedor del servicio aliado | por definir | `AllyServiceProvider` | Puerto (ABC) | — |
 | Identificador de usuario propagado | todos los servicios Flask | `user_id` (cabecera `X-User-Id`) | Dato de frontera | customer_id, client_id (derivan de los sinónimos prohibidos de `User`) |
+| Transacción registrada | finance | `TransactionManuallyAdded` | Evento de dominio (DDD Stage 1) | TransactionCreated, TransactionAdded |
+| Transacción reclasificada | finance | `TransactionCategorized` | Evento de dominio (DDD Stage 1) | TransactionRecategorized, CategoryChanged |
+| Transacción eliminada | finance | `TransactionDeleted` | Evento de dominio (E2-M4a, no está en DDD Stage 1: lo necesita `analytics`) | TransactionRemoved |
+| Foto de una transacción | finance | `TransactionFacts` | Value Object: payload de los eventos | TransactionData, TransactionDTO |
+| Outbox | finance | `EventOutbox` / `outbox_event` | Puerto y tabla del outbox transaccional (ADR-15) | EventQueue |
 
 Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `SpendingPattern`, `Dashboard`, `Recommendation`, `RiskProfile`, `InvestmentPlan`, `Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
 
@@ -1481,7 +1566,7 @@ Los términos de `analytics`, `recommendation` y `subscription` (`Insight`, `Spe
 | D-02 | Balance persistido vs. calculado | Persistido, con recálculo transaccional. `analytics` consume eventos y no relee balances | E2-M4 |
 | D-03 | Dependencia circular `Recommendation → FinancialData` | **Resuelta por diseño:** `recommendation` consume eventos de `finance` (ADR-15) | Implementación en E2-M5 |
 | D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación** hacia `preferred_currency` (ADR-12); la multi-moneda contable sigue fuera | Post-MVP |
-| D-05 | Eventos de dominio | **Resuelta por diseño:** eventos en Redis (ADR-15); nombres definitivos en el módulo que los publique | E2-M4, E2-M5 |
+| D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). Pendiente: los consumidores | Consumo: E2-M4b |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
 | D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Trasladado sin cambios a `categorization-service` en E2-M3b | Abierta, sin módulo asignado |
 | D-08 | Enumeración de cuentas ajenas | `get_owned_account` devuelve 404 y no 403 para no revelar existencia. Se conserva en `finance-service` filtrando por `X-User-Id` | Cerrada |

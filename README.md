@@ -84,7 +84,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, `finance-service`, `categorization-service` y `analytics-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service`, `categorization-service`, `analytics-service` y `recommendation-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. `/api/v1/recommendations/`, `/api/v1/investment-plans/` y `/api/v1/exchange-rates/` van a `recommendation-service`, con token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -96,9 +96,11 @@ cp services/finance-service/.env.docker.example services/finance-service/.env.do
 #    Edita DATABASE_URL con esa misma contraseña (escapada en formato URL si tiene símbolos).
 cp services/analytics-service/.env.docker.example services/analytics-service/.env.docker
 #    Igual: DATABASE_URL con la misma contraseña, hacia finty_analytics.
+cp services/recommendation-service/.env.docker.example services/recommendation-service/.env.docker
+#    Igual, hacia finty_recommendation.
 
 # 2. Construir y arrancar. Las bases y las migraciones se crean solas antes de que
-#    arranquen Django, finance-service y analytics-service.
+#    arranquen Django y los servicios Flask.
 docker compose up -d --build
 
 # 3. Comprobar
@@ -125,9 +127,9 @@ docker compose down -v                                        # detener y BORRAR
 
 **Migraciones.** Las aplica el servicio de un solo uso `migrate`: corre `manage.py migrate`, termina, y `django` no arranca hasta que haya terminado con éxito. Así cada `up` deja el esquema al día, una migración fallida impide arrancar contra un esquema incompleto, y los workers de gunicorn nunca compiten por migrar.
 
-`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías, y `analytics-migrate` para `analytics-service`.
+`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías; `analytics-migrate` y `recommendation-migrate` hacen lo mismo para sus servicios.
 
-**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`, `finty_analytics`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
+**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`, `finty_analytics`, `finty_recommendation`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
 
 > En Git Bash para Windows, antepón `MSYS_NO_PATHCONV=1` a los comandos de `docker compose exec` que reciben rutas absolutas del contenedor; si no, Git Bash las reescribe como rutas de Windows.
 
@@ -172,6 +174,27 @@ docker compose start analytics-worker
 ```
 
 Los umbrales se cambian con variables `ANALYTICS_*` en `services/analytics-service/.env.docker`, por ejemplo `ANALYTICS_PUBLIC_MIN_USERS=5`.
+
+## Recomendaciones y tasas de cambio
+
+`recommendation-service` guarda el perfil de riesgo y los planes de inversión de cada usuario y calcula las recomendaciones al leer. Las de optimización salen de los insights y patrones de `analytics-service`, que lee por HTTP en la red interna; las de inversión, del excedente mensual y del perfil. Las tasas USD↔COP salen de la TRM oficial de datos.gov.co, detrás de un Adapter. Reglas, preguntas y umbrales: §6.6 y ADR-12 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+```bash
+curl -X PUT -H "Authorization: Token $TOKEN" -H "Content-Type: application/json" \
+  -d '{"investment_horizon":2,"loss_reaction":2,"experience":2,"income_stability":2,"goal":2}' \
+  http://localhost/api/v1/recommendations/risk-profile/
+curl -H "Authorization: Token $TOKEN" "http://localhost/api/v1/recommendations/?display_currency=USD"
+curl -H "Authorization: Token $TOKEN" "http://localhost/api/v1/exchange-rates/?base=USD&target=COP"
+```
+
+Cada tasa dice de dónde salió: `live` (la API respondió en esa consulta), `cached` (salió de Redis: la del día o la última conocida) o `fallback` (la tasa fija `EXCHANGE_RATE_FALLBACK_USD_COP`, 3200: la TRM del 2026-10-21 redondeada). Si `analytics-service` no responde, `/recommendations/` contesta 200 con `degraded: true`.
+
+```bash
+# Simular la API de la TRM caída, sin editar archivos
+EXCHANGE_RATE_API_URL=http://127.0.0.1:9 docker compose up -d recommendation-service
+docker compose exec redis redis-cli KEYS 'finty:fx:*'      # caché del día y última conocida
+docker compose up -d recommendation-service                 # volver a la API oficial
+```
 
 ## Conmutar el categorizador
 
@@ -225,7 +248,7 @@ CONTRACT_BASE_URL=http://localhost ../../venv/Scripts/python -m pytest -v
 CONTRACT_BASE_URL=http://localhost CONTRACT_THROTTLE=1 ../../venv/Scripts/python -m pytest -m throttle
 ```
 
-Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra tres usuarios (el tercero lo exige el k-anonimato), que cuentan contra la cuota anónima de DRF (60 por hora y por IP).
+Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra cuatro usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP) y contra la ráfaga de 10 de la zona `finty_auth` de Nginx. Si una corrida repetida recibe 429 en el registro, espera un minuto; la cuota de DRF vive en la memoria de `django` y se reinicia con `docker compose restart django`.
 
 ### Contratos estáticos entre servicios
 
@@ -256,6 +279,18 @@ py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.tx
 export ANALYTICS_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_analytics_test"
 .venv/Scripts/python -m pytest
 ```
+
+### Tests de recommendation-service
+
+```bash
+cd services/recommendation-service
+py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest tests/domain tests/test_adapters.py tests/test_exchange_rate_service.py tests/test_architecture.py   # sin base
+export RECOMMENDATION_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_recommendation_test"
+.venv/Scripts/python -m pytest
+```
+
+Los adaptadores de la TRM y de analytics se prueban contra un servidor HTTP local con la forma real de cada respuesta: la suite no sale a internet.
 
 ### Tests de finance-service
 
@@ -300,8 +335,10 @@ finty/
 │       └── api/                ANILLO EXTERNO · Blueprints, esquemas y traducción de errores.
 │   ├── categorization-service/ Categorización, en Flask y sin base de datos (E2-M3b).
 │   │                           Categorizer, los tres categorizadores y CategorizerFactory.
-│   └── analytics-service/      AnalyticsInsightsContext, en Flask (E2-M4b). Dashboard, Insight,
-│                               SpendingPattern, el worker de eventos y el resumen público.
+│   ├── analytics-service/      AnalyticsInsightsContext, en Flask (E2-M4b). Dashboard, Insight,
+│   │                           SpendingPattern, el worker de eventos y el resumen público.
+│   └── recommendation-service/ RecommendationContext, en Flask (E2-M5). RiskProfile,
+│                               Recommendation, InvestmentPlan y el Adapter de tasas (TRM).
 ├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
 ├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.

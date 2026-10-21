@@ -11,11 +11,12 @@ Estado a la fecha de este documento (2026-10-20):
 | Monolito (`core`, `identity`) | **175**, todos en verde | `pytest` en la raíz |
 | `finance-service` | **731**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **136**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **125**, más 5 opcionales (2 de throttling, A-13 y dos de A-22) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| `analytics-service` | **137**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `recommendation-service` | **170**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
+| Contrato de caja negra (A-20) | **143**, más 6 opcionales (2 de throttling, A-13, dos de A-22 y la degradación de A-28) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
 
-En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/` y `as/` abrevia `services/analytics-service/tests/`.
+En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/` y `rs/` abrevia `services/recommendation-service/tests/`.
 
 ---
 
@@ -43,17 +44,19 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 
 | Criterio | Test | Estado |
 |---|---|---|
-| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio`, `as/test_architecture.py::TestPurezaDelDominio` | ✅ |
+| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio`, `as/test_architecture.py::TestPurezaDelDominio`, `rs/test_architecture.py::TestPurezaDelDominio` | ✅ |
 | **A-17** | `docker compose config`: solo `nginx` declara `ports` (verificado en E2-M1a y E2-M2a) | ✅ |
 | **A-18** | `tests/contract/test_auth.py::TestA18XUserIdDelCliente` | ✅ |
 | **A-19** | `tests/contract/test_isolation.py` | ✅ |
 | **A-20** | `tests/contract/` — mismo resultado antes y después de conmutar, y tras retirar `finance` del monolito (`tests/contract/runs/`) | ✅ |
-| **A-21** | `services/finance-service/.env.docker` y `services/analytics-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
-| **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido) | ✅ (categorización) |
+| **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker` y `services/recommendation-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
+| **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido). Tasas: `rs/test_exchange_rate_service.py::TestCadenaDeDegradacion` y `rs/test_adapters.py::TestTrmExchangeRateProvider`; por el Gateway, `live` → `cached` → `fallback` en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt` | ✅ (categorización y tasas) |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
 | **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
 | **A-26** | `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato`, `as/api/test_api.py::TestResumenPublico` | ✅ |
 | **A-27** | `tests/contract/test_analytics.py::TestDePuntaAPunta` (sondeo con límite de 15 s) | ✅ |
+| **A-28** | `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1` y `analytics-service` detenido; `rs/api/test_api.py::TestRecomendaciones::test_analytics_caido_degrada_sin_500`; evidencia en `runs/` | ✅ |
+| **A-29** | `tests/contract/test_recommendations.py::TestInversionPorPerfil`; `rs/domain/test_recommendation_domain.py::TestInversion` | ✅ |
 
 ## Eventos de dominio (ADR-15, E2-M4a)
 
@@ -126,4 +129,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M4b)*
+*Finty · Guía de verificación · Entrega 2 (E2-M5)*

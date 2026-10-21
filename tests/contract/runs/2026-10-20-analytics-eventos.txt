@@ -1,0 +1,60 @@
+# Evidencia E2-M4b - analytics-service consume finty.finance.events
+# Fecha: 2026-10-20T21:39:38-05:00
+
+## 1. De punta a punta por el Gateway (periodo 2026-10, usuario nuevo)
+  dashboard antes:                 (vacio)
+  POST /api/v1/transactions/ -> 3fe1deee-455c-4eba-8e80-a0c305c23d89
+  dashboard tras registrar:        Compras=45000.00  (visible tras 687 ms de sondeo)
+  POST .../3fe1deee-455c-4eba-8e80-a0c305c23d89/categorize/ -> 200
+  dashboard tras reclasificar:     Entretenimiento=45000.00  (visible tras 1088 ms de sondeo)
+  DELETE .../3fe1deee-455c-4eba-8e80-a0c305c23d89/ -> 204
+  dashboard tras eliminar:         (vacio)  (visible tras 632 ms de sondeo)
+  fila en finty_analytics:         Entretenimiento, deleted_at=2026-10-21 02:39:41.521825+00
+  ultimos 3 processed_event:       TransactionManuallyAdded:applied, TransactionCategorized:applied, TransactionDeleted:applied
+
+## 2. Idempotencia: reprocesar el stream completo
+  antes:
+    processed_event:            636
+    transaction_fact vigentes:  624 filas, suma 25231240.40
+    transaction_fact borradas:  4
+    resumen publico 2026-10:    Otros gastos:10u/7200096.00 Alimentación:12u/1710004.40 Transporte:10u/1000000.00 Compras:8u/960000.00
+  docker compose stop analytics-worker
+  XGROUP SETID finty.finance.events analytics 0 -> OK
+  grupo analytics: last-delivered-id=0-0 pending=0 lag=636
+  XLEN finty.finance.events = 636
+  docker compose start analytics-worker
+  grupo analytics: last-delivered-id=1792550381919-0 pending=0 lag=0
+  log del worker:
+    consume-events: 0 pendiente(s) recuperados
+    consume-events: 100 evento(s) procesados
+    consume-events: 100 evento(s) procesados
+    consume-events: 100 evento(s) procesados
+    consume-events: 100 evento(s) procesados
+    consume-events: 100 evento(s) procesados
+    consume-events: 100 evento(s) procesados
+    consume-events: 36 evento(s) procesados
+  despues:
+    processed_event:            636
+    transaction_fact vigentes:  624 filas, suma 25231240.40
+    transaction_fact borradas:  4
+    resumen publico 2026-10:    Otros gastos:10u/7200096.00 Alimentación:12u/1710004.40 Transporte:10u/1000000.00 Compras:8u/960000.00
+
+## 3. Resiliencia: analytics-worker detenido
+  analytics-worker: exited
+  POST /api/v1/transactions/ con el worker detenido -> a44febd7-aa10-4f58-a78f-ef8822a9af16
+  GET /api/v1/accounts/1bb31f89-2bd3-462e-96d0-36e1b46f9293/ -> balance 970000.00
+  dashboard 3 s despues (desactualizado): (vacio)
+  grupo analytics: last-delivered-id=1792550381919-0 pending=0 lag=1
+  docker compose start analytics-worker
+  dashboard al reanudar:            Transporte=30000.00  (visible tras 1035 ms de sondeo)
+  log del worker:
+    consume-events: 36 evento(s) procesados
+    consume-events: 0 pendiente(s) recuperados
+    consume-events: 1 evento(s) procesados
+
+## 4. Privacidad: k-anonimato del resumen publico (k = 3)
+  periodo pasado aleatorio 2019-04, categoria Salud
+  antes:            (Salud no aparece; categorias publicadas: 0)
+  con 1 usuario(s): (Salud no aparece; categorias publicadas: 0)
+  con 2 usuario(s): (Salud no aparece; categorias publicadas: 0)
+  con 3 usuario(s): {"category_name": "Salud", "currency": "COP", "users": 3, "total": "60000.00", "average_per_user": "20000.00"}

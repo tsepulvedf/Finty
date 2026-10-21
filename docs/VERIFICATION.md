@@ -13,8 +13,8 @@ Estado a la fecha de este documento (2026-10-20):
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
 | `analytics-service` | **172**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
-| `subscription-service` | **83**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **150**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| `subscription-service` | **94**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
+| Contrato de caja negra (A-20) | **153**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
 
 En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
@@ -59,6 +59,7 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | **A-28** | `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1` y `analytics-service` detenido; `rs/api/test_api.py::TestRecomendaciones::test_analytics_caido_degrada_sin_500`; evidencia en `runs/` | ✅ |
 | **A-29** | `tests/contract/test_recommendations.py::TestInversionPorPerfil`; `rs/domain/test_recommendation_domain.py::TestInversion` | ✅ |
 | **A-30** | `ss/domain/test_subscription_domain.py::TestInv05`; `ss/api/test_api.py::TestCheckout` y `TestIdempotencia` (confirmar dos veces no extiende; el índice único impide dos vigentes) | ✅ |
+| Sin datos de tarjeta (ADR-14) | `ss/api/test_card_data.py`: `card_number`, `cvc`, `expiry` y cualquier otro campo además de `plan` → 400, sin crear filas ni llamar a la pasarela, y ningún valor aparece en la respuesta ni en el log; `tests/contract/test_subscriptions.py::TestSuscripciones::test_el_checkout_rechaza_datos_de_tarjeta` | ✅ |
 | **A-31** | `tests/contract/test_subscriptions.py::TestSuscripciones::test_de_free_a_premium_y_cancelacion`; `as/api/test_gating.py`, `rs/api/test_gating.py`; evidencia en `tests/contract/runs/2026-10-21-suscripciones-y-gating.txt` | ✅ |
 | **A-32** | `tests/contract/test_subscriptions.py::TestSubscriptionCaido` con `CONTRACT_SUBSCRIPTION_DOWN=1` y `subscription-service` detenido; `TestSubscriptionCaido` de `as/` y `rs/`; evidencia en `runs/` | ✅ |
 
@@ -133,4 +134,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M6a)*
+*Finty · Guía de verificación · Entrega 2 (E2-M6b)*

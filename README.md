@@ -221,7 +221,7 @@ El mismo `POST /api/v1/transactions/` devolverá un `categorization_source` dist
 
 ## Suscripciones y funciones premium
 
-`subscription-service` vende el plan PREMIUM (29 900 COP al mes) con una pasarela simulada: `PAYMENT_GATEWAY=MOCK` aprueba siempre. El período es de un mes, sin renovación automática. La suscripción solo se activa con el pago aprobado (INV-05).
+`subscription-service` vende el plan PREMIUM (29 900 COP al mes) con un **pago simulado**: no hay pasarela real, y `MockPaymentGateway` (`PAYMENT_GATEWAY=MOCK`, el único valor válido) aprueba siempre. El checkout acepta solo `{"plan": ...}`; cualquier otro campo, como un número de tarjeta, responde 400 (ADR-14). El período es de un mes, sin renovación automática. La suscripción solo se activa con el pago aprobado (INV-05).
 
 ```bash
 curl -H "Authorization: Token $TOKEN" http://localhost/api/v1/subscriptions/plans/

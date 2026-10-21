@@ -195,18 +195,19 @@ finty/
 │                                  # finance-migrate (un solo uso), finance-service,
 │                                  # finance-outbox-relay, categorization-service,
 │                                  # analytics-migrate (un solo uso), analytics-service,
-│                                  # analytics-worker, nginx
+│                                  # analytics-worker, recommendation-migrate (un solo
+│                                  # uso), recommendation-service, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
 ├── deploy/
 │   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
 │   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`,
-│   │   │                          # `analytics_backend`) y rutas
+│   │   │                          # `analytics_backend`, `recommendation_backend`) y rutas
 │   │   └── snippets/
 │   │       ├── proxy.conf         # cabeceras de proxy; X-User-Id solo si lo verificó el Gateway
 │   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en los bloques
-│   │                              # finance y analytics
+│   │                              # finance, analytics y recommendation
 │   └── postgres/
 │       └── init/                  # 01-create-databases.sh: una base lógica por servicio
 │                                  # (lo corren initdb y el servicio db-init)
@@ -222,6 +223,9 @@ finty/
     │                              # forma que finance-service; `flask consume-events` es el
     │                              # worker y no hay pydantic (solo lee `?period=`)
     ├── categorization-service/    # Sin base de datos: domain/, infra/, services.py, api/ (E2-M3b)
+    ├── recommendation-service/    # Perfil de riesgo, recomendaciones, planes y tasas (E2-M5).
+    │                              # infra/: cliente HTTP de analytics, TRM oficial, tasa
+    │                              # fija y cache de Redis
     └── finance-service/           # Plantilla de los demás servicios Flask
         ├── Dockerfile             # python:3.11-slim, gunicorn, usuario sin root
         ├── requirements.txt       # dependencias propias del servicio
@@ -328,8 +332,23 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 **Decisión:** la API de terceros obligatoria es una API pública de tasas de cambio, detrás del puerto `ExchangeRateProvider` (ABC). Hay un adaptador concreto contra la API externa y un **adaptador de respaldo con tasa fija**, que es el que responde si la externa falla. Las tasas se **cachean**.
 **Alcance de la conversión:** **solo de presentación**, hacia el `preferred_currency` del `UserProfile`. Nunca modifica montos persistidos ni la moneda de una cuenta. **INV-11 queda intacta**: una transacción sigue teniendo la moneda de su cuenta.
-**Ubicación:** `recommendation-service` (E2-M5). Cómo obtiene ese servicio el `preferred_currency` sin consultar la base de `identity` (ADR-10) se decide en ese módulo.
-**Estado:** aceptada. Resuelve D-04 solo en su vertiente de presentación.
+**Ubicación:** `recommendation-service` (E2-M5).
+
+**Cómo llega `preferred_currency` (cerrado en E2-M5):** `recommendation-service` **no lo conoce y no lo pide**. Vive en `UserProfile`, en `finty_identity`, y ningún servicio consulta esa base (ADR-10). Una llamada de servicio a servicio hacia Django solo para leerlo agregaría una dependencia síncrona nueva hacia el monolito. El cliente ya lo tiene: el frontend lee `GET /api/v1/profile/` y lo envía como `?display_currency=` en `GET /api/v1/recommendations/`, o convierte por su cuenta con `GET /api/v1/exchange-rates/`. Sin el parámetro no hay conversión, y cada monto sale en su moneda original.
+
+**Implementación (E2-M5):**
+- **Adaptador concreto:** `TrmExchangeRateProvider` (`infra/exchange_rates.py`), contra la TRM oficial del Banco de la República publicada en datos.gov.co: `https://www.datos.gov.co/resource/32sa-8pi3.json` (API Socrata, sin llave). Se verificó el 2026-10-21, desde el host y desde un contenedor. La respuesta real es una lista de filas `{"valor": "3163.76", "unidad": "COP", "vigenciadesde": "2026-10-21T00:00:00.000", "vigenciahasta": "2026-10-21T00:00:00.000"}`. `valor` son pesos por dólar y viaja como **texto**. Una TRM cubre varios días en fines de semana y festivos (la del 17 de octubre vale hasta el 19), así que se pide la más reciente con `vigenciadesde <= hoy` (`$where`, `$order=vigenciadesde DESC`, `$limit=1`). Timeout de 3 s. Se rechaza una fila con `unidad` distinta de `COP` o un `valor` no positivo. El adaptador traduce la fila a un `ExchangeRate` del dominio, y ningún campo de la API cruza el puerto.
+- **Par soportado:** solo USD↔COP. COP→USD es la inversa de la misma tasa, con su misma procedencia. Cualquier otro par responde 422 `unsupported_currency_pair`.
+- **Cadena de degradación** (`ExchangeRateService`, A-22):
+  1. Si la tasa ya está en el caché del día, se usa (`cached`).
+  2. Si no, se consulta la API oficial (`live`). La tasa se guarda en el caché del día, con TTL hasta la medianoche local, y como última conocida, sin TTL.
+  3. Si la API falla, se usa la última tasa conocida de cualquier día (`cached`, con su `fetched_on`).
+  4. Sin nada de lo anterior, se usa la tasa fija `EXCHANGE_RATE_FALLBACK_USD_COP`, 3200 por defecto (`fallback`).
+- **Procedencia veraz (criterio de A-14):** `live` solo cuando la API respondió **en esa consulta**. Lo que sale de Redis es `cached`, aunque haya entrado como `live` ese mismo día. Se eligió esa regla estricta y no llamar `live` a la tasa del día memorizada: así la procedencia nombra siempre el mecanismo que produjo el valor. Cuándo se obtuvo lo dicen `fetched_on` y la vigencia oficial (`valid_from`, `valid_until`). Con la tasa fija, esas tres fechas son `null`.
+- **Redis caído:** el caché se comporta como vacío y nunca rompe la consulta.
+- **Valor de respaldo:** 3200 COP por dólar: la TRM oficial del 2026-10-21 (3163,76) redondeada, un 1,1% por encima. Es solo el último recurso y se reporta siempre como `fallback`, pero una tasa fija desactualizada distorsiona las cifras de presentación. Por eso su fecha de referencia está escrita junto al valor, en `app.py` y en `.env.docker.example`, y conviene actualizar los dos si la TRM se aleja mucho.
+
+**Estado:** aceptada e implementada (E2-M5). Resuelve D-04 solo en su vertiente de presentación.
 
 ### ADR-13 — Servicio expuesto y servicio del equipo aliado
 
@@ -351,7 +370,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 ### ADR-15 — Eventos de dominio y tareas asíncronas
 
 **Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. Candidatas: reporte mensual (CSV o PDF), notificaciones (backend de email en consola o en archivo), consulta del estado de pagos (ADR-14) y recategorización por lotes.
-**Consecuencia:** resuelve D-03 (`recommendation` deja de llamar a `finance`: consume sus eventos) y D-05.
+**Consecuencia:** resuelve D-03 y D-05. **Corrección de E2-M5:** `recommendation` no consume los eventos de `finance`, sino que lee a `analytics` por HTTP (ver abajo).
 
 **Publicación desde `finance-service` (E2-M4a):**
 - **Eventos:** `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` (§12). Son value objects inmutables de `domain/events.py`, y cada uno lleva la foto completa de la transacción, así el consumidor no consulta a `finance-service`. La serialización vive en `infra/event_serialization.py`, y el contrato está en §10.5.
@@ -371,6 +390,15 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 - **Resiliencia:** si Redis o la base no responden, el worker hace `ROLLBACK`, espera de 1 a 30 s y reintenta, sin terminar con error, igual que el relay. `finance-service` no depende del worker: con el worker detenido, los registros siguen respondiendo 201 y el worker se pone al día al volver.
 - **Consistencia eventual:** el dashboard refleja una transacción **unos instantes después** de registrarla. En local, entre 0,6 y 1,1 s: el intervalo de sondeo del relay más la lectura del worker. Ningún cliente debe asumir que una lectura inmediatamente posterior a un `POST` ya la incluye. Por eso los tests de punta a punta sondean con un límite de tiempo y no duermen un tiempo fijo.
 - **analytics no publica eventos** en este módulo (D-22).
+
+**`recommendation-service` lee a `analytics` por HTTP, no los eventos de `finance` (E2-M5).** El plan original era que `recommendation` consumiera `finty.finance.events`. Se cambió por estas razones:
+- Las recomendaciones de optimización salen de **insights y patrones**, no de transacciones crudas. Consumir los eventos obligaría a `recommendation` a construir otra proyección de los mismos hechos y a **duplicar** las reglas de `Insight` y `SpendingPattern` (§6.5). Dos copias de una regla terminan divergiendo, y el usuario vería un insight en su dashboard y una recomendación que lo contradice.
+- El excedente mensual que usan las de inversión es el neto del **dashboard**. Leerlo de `analytics` garantiza la misma cifra que el usuario ve.
+- D-03 sigue resuelto: la dependencia es `recommendation → analytics`, en un solo sentido. `analytics` no conoce a `recommendation`, y `finance` no conoce a ninguno de los dos. No hay ciclo.
+- **El costo es una dependencia síncrona**, y se contiene así: el puerto `AnalyticsReader` y el adaptador `HttpAnalyticsReader` con timeout de 1 s. Si `analytics` no responde, las recomendaciones de optimización se omiten, las de inversión salen solo con el perfil y la respuesta lleva `degraded: true`, nunca un 500 (A-28). `recommendation-service` no espera a `analytics` en Compose (`depends_on`).
+- La llamada va por la red interna directo a `analytics-service:8000`, reenviando el `X-User-Id` que puso el Gateway. Es el mismo modelo de confianza de ADR-09: solo la red interna alcanza a `analytics`.
+
+`recommendation-service` **no publica** `OptimizationRecommendationGenerated` (D-24).
 
 Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al dashboard).
 
@@ -411,7 +439,7 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 | FinancialDataContext | `finance-service` | Flask | `finty_finance` | E2-M2 |
 | FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
 | AnalyticsInsightsContext | `analytics-service` + `analytics-worker` | Flask | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance` | E2-M4b (implementado) |
-| RecommendationContext | `recommendation-service` | Flask | `finty_recommendation` | E2-M5 |
+| RecommendationContext | `recommendation-service` | Flask | `finty_recommendation`: perfiles de riesgo y planes de inversión; las recomendaciones se calculan al leer | E2-M5 (implementado) |
 | SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription` | E2-M6 |
 
 La app `finance` de Django sirvió de respaldo durante la verificación del Strangler y se retiró en E2-M3a (ADR-08). Sus tablas antiguas siguen en `finty_identity` sin uso (D-20).
@@ -420,7 +448,8 @@ La app `finance` de Django sirvió de respaldo durante la verificación del Stra
 
 - `identity` → todos los servicios: **Customer-Supplier a través del Gateway**. Ningún servicio llama a `identity`; reciben la identidad ya resuelta en `X-User-Id`.
 - `finance-service` → `categorization-service`: **HTTP síncrono** por la red interna, porque la categoría hace falta antes de persistir (INV-08). Contrato en §10.4. `finance-service` lo consume con `RemoteCategorizer`, que implementa el puerto `Categorizer` con un timeout corto (1 s por defecto). Ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o una categoría que no está en su catálogo, clasifica con su `RuleBasedCategorizer` local (A-12, A-22). La procedencia grabada es veraz: la que declara el remoto, o `rule` si actuó el respaldo (A-14). `categorization-service` no recibe `X-User-Id`: la clasificación no depende del usuario.
-- `finance-service` → `analytics-service` y `recommendation-service`: **eventos de dominio en Redis**. `recommendation` deja de depender de `finance` por llamada directa, lo que resuelve D-03. **Implementado para `analytics` (E2-M4b):** `analytics-worker` consume `finty.finance.events` con su grupo y proyecta cada transacción en `finty_analytics` (ADR-15). Es una relación **Conformist**: `analytics` adopta el contrato de §10.5 tal cual, sin capa anticorrupción propia más allá de su deserializador.
+- `finance-service` → `analytics-service`: **eventos de dominio en Redis**. **Implementado (E2-M4b):** `analytics-worker` consume `finty.finance.events` con su grupo y proyecta cada transacción en `finty_analytics` (ADR-15). Es una relación **Conformist**: `analytics` adopta el contrato de §10.5 tal cual, sin capa anticorrupción propia más allá de su deserializador.
+- `recommendation-service` → `analytics-service`: **HTTP síncrono por la red interna**, con degradación (E2-M5). `recommendation` es **Customer** de `analytics`: consume sus insights, patrones y dashboard tal como §10.6 los publica, y los traduce a sus propios value objects (`domain/analytics.py`). Ya no depende de `finance` ni por llamada ni por eventos, así que D-03 queda resuelto sin ciclo (ADR-15).
 - `analytics-service` → equipo aliado: **Open Host Service**. Publica el resumen agregado de §10.7 sin autenticación y con k-anonimato (ADR-13).
 - `subscription-service` → `WompiSandboxGateway`, `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
 
@@ -702,7 +731,8 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 | Puerto (ABC) | Servicio | Adaptador concreto | Adaptador de respaldo | Selección | Referencia |
 |--------------|----------|--------------------|-----------------------|-----------|------------|
 | `Categorizer` | `finance-service` | `RemoteCategorizer`: cliente HTTP de `categorization-service` (§10.4), timeout de 1 s | `RuleBasedCategorizer` local | Siempre el remoto; respaldo ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o categoría fuera del catálogo | §6.1, A-12, A-22 |
-| `ExchangeRateProvider` | `recommendation-service` | API pública de tasas de cambio, con caché | Tasa fija | Respaldo ante fallo | ADR-12, E2-M5 |
+| `ExchangeRateProvider` | `recommendation-service` | `TrmExchangeRateProvider`: TRM oficial de datos.gov.co, timeout de 3 s, con caché en Redis (`RedisExchangeRateCache`, puerto `ExchangeRateCache`) | `FixedExchangeRateProvider`: tasa fija configurable | `ExchangeRateService`: caché del día → API → última conocida → tasa fija; procedencia `live` / `cached` / `fallback` | ADR-12, A-22 |
+| `AnalyticsReader` | `recommendation-service` | `HttpAnalyticsReader`: los endpoints de §10.6 por la red interna, reenviando `X-User-Id`, timeout de 1 s | Sin adaptador: la respuesta se degrada (`degraded: true`) | Ante timeout, error de red, no-200 o cuerpo fuera de contrato | ADR-15, A-28 |
 | `AllyServiceProvider` | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` | Respaldo ante fallo; solo mock hasta que exista el aliado | ADR-13, E2-M9 |
 | `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` | `MockPaymentGateway` | Variable de entorno | ADR-14, E2-M6 |
 
@@ -746,6 +776,61 @@ Las transacciones sin categoría cuentan en los totales, pero no generan insight
 
 El monto mínimo es uno solo para todas las monedas; con USD, 50000 es demasiado alto. Mientras no exista la conversión de E2-M5, en la práctica `category_spike` solo se dispara en COP.
 
+### 6.6 `RiskProfile`, `Recommendation` e `InvestmentPlan` (`recommendation-service`, E2-M5)
+
+Las tres clases de §4.4 que son dueñas de `recommendation-service`, en `services/recommendation-service/domain/`, Python puro (A-16).
+
+**`RiskProfile`** (se persiste por usuario, en `risk_profile`). Cuestionario de 5 preguntas; cada respuesta vale de 1 (la opción más prudente) a 3 (la más tolerante al riesgo):
+
+| Pregunta (`code`) | 1 | 2 | 3 |
+|---|---|---|---|
+| `investment_horizon`: ¿en cuánto tiempo necesitarías el dinero? | Menos de 1 año | De 1 a 3 años | Más de 3 años |
+| `loss_reaction`: si tu inversión cae un 10% en un mes… | Retiro todo | Espero | Aporto más |
+| `experience`: ¿con qué has invertido antes? | Con nada | Ahorro o CDT | Fondos o acciones |
+| `income_stability`: tus ingresos son… | Inestables | Algo estables | Muy estables |
+| `goal`: tu objetivo principal es… | Proteger el capital | Crecer con moderación | Maximizar el crecimiento |
+
+| Suma (5 a 15) | `risk_profile_type` |
+|---|---|
+| 5 a 8 | `conservative` |
+| 9 a 11 | `moderate` |
+| 12 a 15 | `aggressive` |
+
+Se persisten las cinco respuestas; el puntaje y el tipo se derivan en el dominio. Una respuesta fuera de 1 a 3 responde 422 `invalid_risk_answer`. Que sea un entero lo valida la entrada (400). Los textos de las preguntas los traduce el frontend por `code` (E2-M8).
+
+**`Recommendation`** (value object, se calcula al leer). Lleva un `code` estable, `params` para que el frontend la traduzca, `evidence` numérica y su `source`: `insight`, `pattern` o `risk_profile`, que es veraz como A-14.
+
+| `code` | Tipo | `source` | Se emite cuando | `params` | `evidence` |
+|---|---|---|---|---|---|
+| `build_budget` | optimización | `insight` | Hay un insight `negative_savings` | `currency`, `deficit` | `income`, `expense` |
+| `reduce_category` | optimización | `insight` | Hay un insight `category_spike` | `category_name`, `currency`, `increase_pct` | `current`, `previous_average`, `potential_saving` (= actual − promedio) |
+| `review_recurring_expense` | optimización | `pattern` | Hay un `SpendingPattern` | `description`, `category_name`, `currency`, `average_amount` | `months_present`, `window_months`, `monthly_frequency`, `last_seen`, `annualized_cost` (= promedio × frecuencia × 12) |
+| `build_emergency_fund` | inversión | `risk_profile` | Hay perfil y el excedente de esa moneda es ≤ 0 | `currency`, `monthly_surplus` | `surplus_months` |
+| `invest_by_risk_profile` | inversión | `risk_profile` | Hay perfil y el excedente es > 0, o analytics no respondió | `risk_profile_type`, `instrument_types`, `currency`, `monthly_surplus` (`null` si degradó) | `surplus_months` (vacía si degradó) |
+
+- **Excedente mensual:** el promedio del neto (ingresos − gastos) del dashboard en los **3 meses completos anteriores** al actual, por moneda. El mes en curso no cuenta porque está incompleto, y un mes sin movimientos cuenta como cero. Sin ningún dato, el excedente es 0 en COP, la moneda por defecto de una cuenta.
+- **Instrumentos genéricos por perfil**, nunca productos ni entidades: `conservative` → `cdt`, `liquidity_fund`; `moderate` → `collective_investment_fund`; `aggressive` → `etf`, `stocks`.
+- **Sin perfil no hay recomendaciones de inversión.** Saldrían con `source: risk_profile` sin que exista un perfil.
+- **Aviso:** toda recomendación de inversión lleva `disclaimer: {"code": "investment_disclaimer", "message": "…no constituye asesoría financiera…"}`. Las de optimización llevan `null`.
+- **Orden:** primero las de optimización (presupuesto, categorías, gastos fijos) y luego las de inversión.
+
+**`InvestmentPlan`** (entidad persistida, en `investment_plan`). El usuario guarda como plan una recomendación de inversión: tipo de instrumento, aporte mensual (> 0) y horizonte en meses (de 1 a 600).
+- Exige un perfil de riesgo (409 `risk_profile_required`), y el instrumento debe ser uno de los de su perfil (422 `instrument_not_recommended`).
+- Guarda el tipo de perfil con que se creó, para que su proyección no cambie si el usuario responde de nuevo el cuestionario.
+- **Proyección:** aportes al final de cada mes, con capitalización mensual a la tasa anual ilustrativa del perfil dividida entre 12: `valor = aporte × ((1 + r)^n − 1) / r`. La respuesta la marca con `rate_is_illustrative: true` y una nota, y lleva el aviso.
+
+**Parámetros** (`domain/settings.py`, `RecommendationSettings`). Cada uno se cambia con una variable de entorno:
+
+| Parámetro | Por defecto | Variable de entorno |
+|---|---|---|
+| `surplus_months` | 3 | `RECOMMENDATION_SURPLUS_MONTHS` |
+| `rate_conservative` (ilustrativa) | 0.08 | `RECOMMENDATION_RATE_CONSERVATIVE` |
+| `rate_moderate` (ilustrativa) | 0.10 | `RECOMMENDATION_RATE_MODERATE` |
+| `rate_aggressive` (ilustrativa) | 0.12 | `RECOMMENDATION_RATE_AGGRESSIVE` |
+| `max_horizon_months` | 600 | `RECOMMENDATION_MAX_HORIZON_MONTHS` |
+
+Las tasas ilustrativas no son la rentabilidad de ningún producto: son números redondos crecientes con el riesgo, para que la proyección enseñe el efecto del interés compuesto.
+
 ---
 
 ## 7. Catálogo de invariantes mapeado a Django
@@ -787,7 +872,7 @@ Las invariantes no cambian; cambia dónde y cómo se hacen cumplir cuando su due
 | INV-08 | `finance-service` | `TransactionBuilder.build()`; la categoría la aporta el puerto `Categorizer` (HTTP o respaldo local) | E2-M2, E2-M3 |
 | INV-09 | `finance-service` | `StrEnum` en el dominio + `CheckConstraint` | E2-M2 |
 | INV-10 | `identity` | Sin cambios: `unique=True` en `User.email` | — |
-| INV-11 | `finance-service` | Sin cambios en el dominio. La conversión de ADR-12 es solo de presentación y nunca toca montos persistidos | E2-M2, E2-M5 |
+| INV-11 | `finance-service` | Sin cambios en el dominio. La conversión de ADR-12 es solo de presentación y nunca toca montos persistidos: `recommendation-service` agrega un bloque `display` con los equivalentes y deja intactos los montos originales | E2-M2, E2-M5 (implementada) |
 | INV-12 | `finance-service` | Sin cambios: validación en `.build()` | E2-M2 |
 | INV-13 | `finance-service` | `ondelete="RESTRICT"` en la FK `Transaction → Account` | E2-M2 |
 | INV-14 | `finance-service` | Sin cambios: verificado en el servicio bajo bloqueo y en `AccountBuilder` | E2-M2 |
@@ -1191,12 +1276,13 @@ flowchart LR
     NGX -->|"frontend, auth, profile"| DJ
     NGX -->|"accounts, transactions, categories<br/>+ X-User-Id"| FIN
     NGX -->|"analytics + X-User-Id<br/>public sin auth"| ANA
-    NGX -->|X-User-Id| REC
+    NGX -->|"recommendations, investment-plans,<br/>exchange-rates + X-User-Id"| REC
     NGX -->|X-User-Id| SUB
     FIN -->|HTTP interno| CAT
     FIN -.->|eventos| RDS
     RDS -.->|"eventos (grupo analytics)"| ANW
-    RDS -.->|eventos| REC
+    REC -->|"HTTP interno + X-User-Id"| ANA
+    REC ---|"caché de tasas"| RDS
     WRK ---|tareas| RDS
     DJ --> PG
     FIN --> PG
@@ -1205,7 +1291,7 @@ flowchart LR
     REC --> PG
     SUB --> PG
     SUB -->|PaymentGateway| WOMPI
-    REC -->|ExchangeRateProvider| TRM
+    REC -->|"ExchangeRateProvider<br/>TRM de datos.gov.co"| TRM
     DC -.->|"AllyServiceProvider<br/>servicio dueño por definir"| ALLY
     ALLY -->|"GET /api/v1/public/spending-summary/"| NGX
 ```
@@ -1476,6 +1562,51 @@ sequenceDiagram
     Note over U,AN: Consistencia eventual: entre el 201 y el dashboard actualizado pasan unos instantes.<br/>Si el worker está detenido, finance sigue respondiendo; el worker se pone al día al volver.
 ```
 
+### 9.11 Diagrama de secuencia — Una recomendación con la cadena de degradación (E2-M5)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Navegador
+    participant NGX as nginx
+    participant RS as recommendation-service
+    participant DB as finty_recommendation
+    participant AN as analytics-service
+    participant RD as Redis (caché de tasas)
+    participant TRM as TRM datos.gov.co
+
+    U->>NGX: GET /api/v1/recommendations/?display_currency=USD (Token)
+    NGX->>RS: auth_request ok → X-User-Id
+    RS->>DB: SELECT risk_profile del usuario
+    RS->>AN: GET insights, spending-patterns, dashboard (X-User-Id, timeout 1 s)
+    alt analytics responde
+        AN-->>RS: insights, patrones y tendencia
+        Note over RS: optimización + inversión según excedente y perfil
+    else timeout o error
+        Note over RS: degraded = true: sin optimización,<br/>inversión solo con el perfil
+    end
+
+    Note over RS,TRM: Montos en COP con display_currency=USD: hace falta la tasa
+    RS->>RD: GET finty:fx:USD-COP:day:<hoy>
+    alt está en el caché del día
+        RD-->>RS: tasa → source = cached
+    else no está
+        RS->>TRM: GET ?$where=vigenciadesde <= hoy (timeout 3 s)
+        alt la API responde
+            TRM-->>RS: [{"valor": "3163.76", ...}] → ExchangeRate, source = live
+            RS->>RD: SET día (TTL hasta medianoche) + SET última conocida
+        else la API falla
+            RS->>RD: GET finty:fx:USD-COP:last
+            alt hay última conocida
+                RD-->>RS: tasa de otro día → source = cached
+            else no hay
+                Note over RS: tasa fija → source = fallback
+            end
+        end
+    end
+    RS-->>U: 200 {degraded, exchange_rates: [{..., source}], recommendations: [{code, params, evidence, display, disclaimer}]}
+```
+
 ---
 
 ## 10. Estrategia de API Gateway
@@ -1520,7 +1651,8 @@ sequenceDiagram
 | `/api/v1/accounts`, `/api/v1/transactions`, `/api/v1/categories`, con o sin barra final y con sufijo `.json` | upstream `finance_backend` → **`finance-service`** (conmutado el 2026-10-20), las tres rutas juntas | **Sí** (`auth_request`, ADR-09) | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2; responde con `X-Finty-Route: finance` |
 | `/api/v1/analytics`, con o sin barra final y con sufijo | upstream `analytics_backend` → **`analytics-service`** | **Sí** (`auth_request`) | Lectura del modelo de analytics (§10.6); responde con `X-Finty-Route: analytics`. Nace en Flask: no hay versión en el monolito que conmutar |
 | `/api/v1/public/` | upstream `analytics_backend` → **`analytics-service`** | **No** | Endpoint expuesto al equipo aliado (ADR-13, §10.7); zona estricta `finty_public`; `X-User-Id` nunca se reenvía; responde con `X-Finty-Route: public` |
-| Rutas de `recommendation`, `subscription` | su servicio | Sí | Se definen en el módulo de cada servicio |
+| `/api/v1/recommendations`, `/api/v1/investment-plans`, `/api/v1/exchange-rates`, con o sin barra final y con sufijo | upstream `recommendation_backend` → **`recommendation-service`** | **Sí** (`auth_request`) | §10.8; responde con `X-Finty-Route: recommendation` |
+| Rutas de `subscription` | su servicio | Sí | Se definen en su módulo |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
 **Reglas del Gateway:**
@@ -1607,6 +1739,25 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | Privacidad | Una fila (categoría, moneda) solo aparece si la tienen al menos `min_users` usuarios distintos. No hay total general ni conteo de usuarios del período: con ellos se podrían deducir las categorías ocultas. Solo gastos, solo transacciones vigentes |
 | Consistencia | Eventual, igual que §10.6 |
 
+### 10.8 Contrato de `recommendation-service` (E2-M5)
+
+Todas autenticadas por el Gateway, con identidad por `X-User-Id`. Errores con la forma de `finance-service`: entrada inválida 400 `{"campo": ["mensaje de DRF"]}`, dominio `{"error": {"code", "message"}}` (404, 409 o 422), 401 del Gateway, 405 y 404 `{"detail": "No encontrado."}`. Dinero como texto decimal con dos cifras.
+
+| Ruta | Contrato |
+|---|---|
+| `GET /api/v1/recommendations/risk-profile/` | 200 `{"answers": {"investment_horizon": 2, …5}, "score": 10, "risk_profile_type": "moderate", "updated_at": "…"}`; 404 `risk_profile_not_found` si no lo ha respondido |
+| `PUT /api/v1/recommendations/risk-profile/` | Cuerpo: las cinco respuestas (enteros). 200 con la misma forma. 400 si falta una o no es entero; 422 `invalid_risk_answer` si está fuera de 1 a 3 |
+| `GET /api/v1/recommendations/?display_currency=` | 200 `{"period": "2026-10", "degraded": false, "risk_profile_type": "moderate" \| null, "display_currency": "USD" \| null, "exchange_rates": [ExchangeRate…], "recommendations": [{"code", "kind": "optimization" \| "investment", "source": "insight" \| "pattern" \| "risk_profile", "params": {}, "evidence": {}, "display": {"currency": "USD", "amounts": {"monthly_surplus": "31.61"}} \| null, "disclaimer": {"code": "investment_disclaimer", "message": "…"} \| null}]}`. `display_currency` solo admite USD o COP (422 `unsupported_currency_pair`). Sin el parámetro, `display` es `null`. Nunca 500 por analytics: `degraded: true` |
+| `GET /api/v1/investment-plans/` | 200 `{"count": n, "results": [Plan…]}`, del más reciente al más antiguo, sin paginar |
+| `POST /api/v1/investment-plans/` | Cuerpo: `instrument_type`, `monthly_contribution`, `horizon_months` y `currency` opcional (COP). 201 `Plan`; 409 `risk_profile_required`; 422 `instrument_not_recommended`, `invalid_monthly_contribution` o `invalid_horizon` |
+| `GET` / `DELETE /api/v1/investment-plans/{id}/` | 200 `Plan` / 204. Ajeno o inexistente: 404 `investment_plan_not_found` (D-08) |
+| `GET /api/v1/exchange-rates/?base=&target=` | 200 `ExchangeRate`. `base` y `target` obligatorios (400); solo USD↔COP (422) |
+
+- **`Plan`:** `{"id", "instrument_type", "risk_profile_type", "monthly_contribution", "currency", "horizon_months", "created_at", "projection": {"annual_rate": "0.10", "rate_is_illustrative": true, "rate_note": "…", "total_contributed", "projected_value", "projected_gain"}, "disclaimer": {…}}`.
+- **`ExchangeRate`:** `{"base": "USD", "target": "COP", "rate": "3163.76", "source": "live" | "cached" | "fallback", "valid_from": "2026-10-21", "valid_until": "2026-10-21", "fetched_on": "2026-10-21"}`. La inversa tiene 10 decimales (`"0.0003160796"`). Con `fallback`, las tres fechas son `null`.
+
+Las recomendaciones dependen de analytics, así que son eventualmente consistentes (ADR-15).
+
 ---
 
 ## 11. Trazabilidad
@@ -1619,7 +1770,7 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | JN-TB-01 | 2 | FT-002 Dashboard | `GET /accounts/` | `Account`, `AccountService` |
 | JN-TB-01 | 3 | FT-003 Categorización | `POST /transactions/` | `TransactionService`, `CategorizerFactory`, `Categorizer`, `TransactionBuilder` |
 | JN-TB-01 | 4 | FT-004 Insights | `GET /analytics/dashboard/`, `GET /analytics/insights/`, `GET /analytics/spending-patterns/` (E2-M4b) | `analytics-service`: `Dashboard`, `Insight`, `SpendingPattern`, `AnalyticsService`, `EventProjector` |
-| JN-TB-01 | 5 | FT-005 Recomendaciones | Por definir en E2-M5 | `recommendation-service`: `Recommendation`, `RiskProfile`, `InvestmentPlan` |
+| JN-TB-01 | 5 | FT-005 Recomendaciones | `PUT /recommendations/risk-profile/`, `GET /recommendations/`, `POST /investment-plans/`, `GET /exchange-rates/` (E2-M5) | `recommendation-service`: `RiskProfile`, `Recommendation`, `InvestmentPlan`, `ExchangeRate`, `RecommendationService`, `ExchangeRateService`, `AnalyticsReader`, `ExchangeRateProvider` |
 | JN-TB-02 | 2 | FT-003 Categorización | `POST /transactions/{id}/categorize/` | `TransactionService` |
 | JN-TB-04 | 1–2 | FT-002 Dashboard | `GET /accounts/` | `Account`, `BalanceCalculator` |
 
@@ -1636,6 +1787,8 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | Modelos sin lógica de negocio | ADR-03 | `*/models.py` |
 | Inversión de dependencias | `Categorizer` ABC inyectada | `services/finance-service/domain/interfaces.py` (implementada por `RemoteCategorizer`) y `services/categorization-service/domain/interfaces.py` |
 | Adapter | `RemoteCategorizer` | `services/finance-service/infra/categorization_client.py` |
+| Adapter (API de terceros) | `TrmExchangeRateProvider` y `FixedExchangeRateProvider` detrás de `ExchangeRateProvider` | `services/recommendation-service/infra/exchange_rates.py` |
+| Adapter (servicio interno) | `HttpAnalyticsReader` detrás de `AnalyticsReader` | `services/recommendation-service/infra/analytics_client.py` |
 
 ### 11.3 Requisito de la Entrega 2 → Decisión → Módulo
 
@@ -1645,7 +1798,7 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | Diagramas con AWS, Nginx, Flask y broker | 10% | §9.4 a §9.8 | E2-M0; finales en E2-M9 |
 | Exponer un endpoint JSON | 30% | ADR-13 (`analytics-service`, `GET /api/v1/public/spending-summary/`, §10.7) | E2-M4b (implementado; contrato provisional, D-10) |
 | Consumir el servicio del equipo aliado | (30%) | ADR-13, `AllyServiceProvider` + `MockAllyAdapter` | E2-M9 |
-| Consumir una API de terceros mediante Adapter | (30%) | ADR-12, `ExchangeRateProvider` | E2-M5 |
+| Consumir una API de terceros mediante Adapter | (30%) | ADR-12, `ExchangeRateProvider` → `TrmExchangeRateProvider` (TRM de datos.gov.co) | E2-M5 (implementado) |
 | Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 |
 | Despliegue en EC2 con Nginx como API Gateway | (30%) | ADR-06, ADR-09, ADR-16 | E2-M1, E2-M2 |
 | Tareas asíncronas con Redis/Celery | 20% | ADR-14, ADR-15 | E2-M7 |
@@ -1670,6 +1823,13 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | Usuario | identity | `User` | Modelo | Client, Customer |
 | Perfil de usuario | identity | `UserProfile` | Modelo | Profile (ambiguo con RiskProfile) |
 | Proveedor de tasas de cambio | recommendation | `ExchangeRateProvider` | Puerto (ABC) | — |
+| Tasa de cambio | recommendation | `ExchangeRate` | Value Object con procedencia (`live`, `cached`, `fallback`) | — |
+| Perfil de riesgo | recommendation | `RiskProfile` | Entidad persistida (§6.6) | RiskLevel (DDD Stage 1) |
+| Tipo de perfil de riesgo | recommendation | `RiskProfileType` | Value Object (`StrEnum`): `conservative`, `moderate`, `aggressive` | RiskLevel |
+| Recomendación | recommendation | `Recommendation` | Value Object calculado al leer (§6.6) | Advice, Suggestion (DDD Stage 1) |
+| Plan de inversión | recommendation | `InvestmentPlan` | Entidad persistida (§6.6) | Portfolio (DDD Stage 1) |
+| Tipo de instrumento | recommendation | `InstrumentType` | Value Object (`StrEnum`), siempre genérico | — |
+| Lector de analytics | recommendation | `AnalyticsReader` | Puerto (ABC) | — |
 | Pasarela de pago | subscription | `PaymentGateway` | Puerto (ABC) | — |
 | Proveedor del servicio aliado | por definir | `AllyServiceProvider` | Puerto (ABC) | — |
 | Identificador de usuario propagado | todos los servicios Flask | `user_id` (cabecera `X-User-Id`) | Dato de frontera | customer_id, client_id (derivan de los sinónimos prohibidos de `User`) |
@@ -1686,14 +1846,14 @@ Sin autenticación (ADR-13). Zona `finty_public` del Gateway: 30 peticiones por 
 | Evento procesado | analytics | `processed_event` | Tabla de idempotencia por `event_id` (ADR-15) | — |
 | Resumen público de gasto | analytics | `SpendingSummary` | Value Object del endpoint expuesto (§10.7) | — |
 
-Los términos de `recommendation` y `subscription` (`Recommendation`, `RiskProfile`, `InvestmentPlan`, `Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
+Los términos de `subscription` (`Subscription`, `SubscriptionPlan`, `Payment`) ya forman parte del inventario de §4.2. Sus sinónimos prohibidos se registran aquí en el módulo que los implementa.
 
 **Polisemias resueltas y vigentes:**
 
 | Término | Resolución |
 |---------|-----------|
 | `Plan` | `InvestmentPlan` vs `SubscriptionPlan` — ambos fuera de la Entrega 1 |
-| `Profile` | `UserProfile` (identity) vs `RiskProfile` (recommendation) |
+| `Profile` | `UserProfile` (identity) vs `RiskProfile` (recommendation). `tests/test_architecture.py::TestSinonimosProhibidos` de `recommendation-service` falla si un identificador usa RiskLevel, Advice, Suggestion o Portfolio |
 | `Transaction` | `Transaction` (movimiento financiero del usuario) vs `Payment` (pago de suscripción). **Nota crítica:** `django.db.transaction` también usa la palabra; en el código se importa como `from django.db import transaction as db_transaction` para evitar colisión de nombres. **En la Entrega 2:** lo que la API de Wompi llama *transaction* se traduce a `Payment` dentro de `WompiSandboxGateway`; la palabra `Transaction` no aparece en `subscription-service` (ADR-14). |
 
 ---
@@ -1704,8 +1864,8 @@ Los términos de `recommendation` y `subscription` (`Recommendation`, `RiskProfi
 |---|------|---------------------|--------------|
 | D-01 | Categorías globales vs. por usuario | Globales; se mantienen en la Entrega 2 (el catálogo migra tal cual a `finance-service`) | Post-Entrega 2 |
 | D-02 | Balance persistido vs. calculado | Persistido, con recálculo transaccional en `finance-service`, que es su única autoridad. **`analytics` no relee ni replica balances (E2-M4b):** calcula ingresos, gastos y neto **del período** a partir de los hechos de transacción que le llegan por eventos, y eso no es un balance (no incluye el saldo de apertura, que no viaja en los eventos). El dashboard de analytics nunca muestra un saldo: el saldo de cada cuenta lo sirve `GET /accounts/` | **Cerrada** (E2-M4b) |
-| D-03 | Dependencia circular `Recommendation → FinancialData` | **Resuelta por diseño:** `recommendation` consume eventos de `finance` (ADR-15) | Implementación en E2-M5 |
-| D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación** hacia `preferred_currency` (ADR-12); la multi-moneda contable sigue fuera | Post-MVP |
+| D-03 | Dependencia circular `Recommendation → FinancialData` | **Resuelta (E2-M5):** `recommendation` no depende de `finance`. Lee insights, patrones y dashboard de `analytics` por HTTP, con degradación, y `analytics` no conoce a `recommendation`. Cambia lo previsto en v3 ("consume eventos de `finance`") para no duplicar la proyección ni las reglas de §6.5 (ADR-15) | **Cerrada** (E2-M5) |
+| D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación (E2-M5):** USD↔COP con la TRM oficial, hacia la moneda que el cliente pide en `display_currency` (el frontend envía el `preferred_currency` de `/profile/`, ADR-12). Los montos originales no cambian (INV-11). Otras monedas no tienen tasa; la multi-moneda contable sigue fuera | Presentación: **cerrada** (E2-M5). Contable: post-MVP |
 | D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). **Consumo implementado (E2-M4b):** `analytics-worker`, idempotente por `event_id` | **Cerrada** para `analytics`; `recommendation` en E2-M5 |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
 | D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Trasladado sin cambios a `categorization-service` en E2-M3b | Abierta, sin módulo asignado |
@@ -1722,8 +1882,10 @@ Los términos de `recommendation` y `subscription` (`Recommendation`, `RiskProfi
 | D-18 | Dependencias de desarrollo en la imagen de producción | Hay un solo `requirements.txt`, así que `pytest` y similares quedan instalados en la imagen `django`. Separarlas en un archivo de desarrollo | Abierta, sin módulo asignado |
 | D-19 | Texto del 404 de un id válido inexistente | `GET /accounts/{uuid}/` y `GET /categories/{uuid}/` responden `{"detail": "No Account matches the given query."}` (o `Category`): el mensaje de `get_object_or_404` de Django, en inglés, que DRF conservaba y `finance-service` reproduce por contrato. Un id mal formado sí responde `No encontrado.` | Abierta, E2-M8: traducir por `code` junto con el resto del i18n |
 | D-20 | Tablas de `finance` en `finty_identity` | Al retirar la app (E2-M3a) quedaron `finance_account`, `finance_transaction` y `finance_category` sin uso, junto con sus filas en `django_migrations`, sus tipos de contenido y sus permisos. No se borran en esta entrega: son el único lugar donde están los datos que el monolito tenía antes de la conmutación (D-16) | Abierta — post-Entrega 2: migrarlos a `finty_finance` o descartarlos, y después borrar las tablas |
-| D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos** en E2-M4b: nada los consume todavía. Si `recommendation-service` necesita insights o patrones, se decide en E2-M5 entre consumirlos por evento (por ejemplo, `InsightDetected`) o calcularlos desde sus propios hechos | Abierta, E2-M5 |
+| D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos**. Decidido en E2-M5: `recommendation-service` lee los insights y patrones por HTTP cuando calcula, así que un evento `InsightDetected` no tiene consumidor | **Cerrada** (E2-M5) |
 | D-23 | Mensajes fuera de contrato en `finty.finance.events` | El worker los registra en el log como aviso y los confirma con `XACK` para no bloquear el stream. No hay stream de mensajes muertos: si apareciera uno, el evento se perdería para `analytics`. `tests/services/test_event_contract.py` (A-25) evita esa situación antes de desplegar | Abierta — un stream `finty.finance.events.dead` si llega un segundo productor |
+| D-24 | `OptimizationRecommendationGenerated` (DDD Stage 1) | **No se publica.** Las recomendaciones son value objects calculados al leer y no se persisten (§6.6): no hay un instante en que se "generen" que valga la pena anunciar, y ningún servicio consumiría el evento. Si E2-M7 necesitara notificar recomendaciones nuevas, tendría que persistirlas o compararlas entre lecturas | Abierta — E2-M7, solo si las notificaciones lo exigen |
+| D-25 | Dependencia síncrona `recommendation → analytics` | Aceptada con degradación (`degraded: true`) y timeout de 1 s. No hay caché de lo que responde analytics: una recomendación degradada se recupera sola en la siguiente lectura. Si la latencia de las tres llamadas (insights, patrones y dashboard) pesara, se podrían paralelizar o pedir a analytics un endpoint combinado | Abierta, sin módulo asignado |
 | D-21 | Traducción de las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext y sus respuestas llevan solo `{"detail": ...}`, la forma de DRF. **Decisión:** el frontend las traduce por **código de estado HTTP** (401 → sesión no válida, 429 → demasiadas peticiones), no por un `code` en el cuerpo. El Gateway y la suite de contrato (A-20) no cambian: el cuerpo de esas respuestas sigue siendo el de DRF. Se descartó agregar `code` al cuerpo porque cambiaría la forma del contrato | **Cerrada** (E2-M3b): la traducción por estado se implementa en E2-M8 |
 
 ---
@@ -1758,11 +1920,13 @@ Los términos de `recommendation` y `subscription` (`Recommendation`, `RiskProfi
 | A-19 | Ownership a través del Gateway | El usuario B recibe 404 (no 403) sobre la cuenta de A servida por `finance-service` | E2-M2 |
 | A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez. Implementada en `tests/contract/` (incluye A-18 en `test_auth.py` y A-19 en `test_isolation.py`); corridas guardadas en `tests/contract/runs/` | E2-M2b (cumplido) |
 | A-21 | Sin acceso a bases ajenas | Cada servicio recibe en su configuración solo la URL de su propia base lógica | E2-M1 en adelante |
-| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz. Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`) | E2-M3b (categorización), E2-M5, E2-M9 |
+| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz. Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`). **Tasas verificadas en E2-M5:** API disponible → `live`; inalcanzable (`EXCHANGE_RATE_API_URL=http://127.0.0.1:9`) con caché → `cached`; sin caché → `fallback` (`services/recommendation-service/tests/test_exchange_rate_service.py::TestCadenaDeDegradacion` y evidencia en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt`) | E2-M3b (categorización), E2-M5 (tasas), E2-M9 |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext | E2-M8 |
 | A-24 | Despliegue verificable | `curl http://<ip-elastica>/api/v1/health/` responde desde AWS | E2-M1 |
 | A-25 | Consumidor de eventos idempotente y alineado con el productor | `services/analytics-service/tests/test_projection.py` (duplicados, fuera de orden, lápida, XACK solo tras el commit); `tests/services/test_event_contract.py` (lo que analytics lee es lo que finance escribe); evidencia de reprocesar el stream completo con `XGROUP SETID … 0` en `tests/contract/runs/2026-10-20-analytics-eventos.txt` | E2-M4b |
 | A-26 | Resumen público con k-anonimato | Con menos de *k* usuarios en una categoría, la categoría no aparece: `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato` y `services/analytics-service/tests/api/test_api.py::TestResumenPublico` | E2-M4b |
+| A-28 | Recomendaciones degradadas, nunca un 500 | Con `docker compose stop analytics-service`, `GET /api/v1/recommendations/` responde 200 con `degraded: true` y solo la recomendación de inversión por perfil: `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1`, `services/recommendation-service/tests/api/test_api.py` y la evidencia de `runs/` | E2-M5 |
+| A-29 | Instrumento según el perfil | Un perfil de cada tipo produce su instrumento genérico, y un excedente ≤ 0 solo produce `build_emergency_fund`: `tests/contract/test_recommendations.py::TestInversionPorPerfil` y `services/recommendation-service/tests/domain/` | E2-M5 |
 | A-27 | Lecturas de analytics eventualmente consistentes | Registrar, reclasificar y eliminar por el Gateway se refleja en el dashboard dentro de 15 s, por sondeo: `tests/contract/test_analytics.py::TestDePuntaAPunta`. Con `analytics-worker` detenido, `finance` responde 201 y el worker se pone al día al volver (evidencia en `runs/`) | E2-M4b |
 
 ---

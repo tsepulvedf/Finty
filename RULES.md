@@ -71,6 +71,8 @@ Colisión conocida: `from django.db import transaction as db_transaction`, porqu
 
 **Python**: 3.11 en todo el sistema; imágenes `python:3.11-slim`.
 
+**Zona horaria de los servicios Flask**: cada `create_app()` fija la zona del proceso a `TIME_ZONE` (`America/Bogota` por defecto) con `os.environ["TZ"]` y `time.tzset()`, como hace Django con sus settings. Los contenedores corren en UTC, y cualquier "hoy" del dominio (por ejemplo, INV-12) usa la zona del proceso: sin esto, desde las 19:00 de Bogotá el servicio ya estaría en el día siguiente. Un test por servicio lo verifica.
+
 **Tests**: `pytest` + `pytest-django` en el monolito; `pytest` en cada servicio Flask. Los tests de dominio no tocan la base de datos.
 
 **Dependencias**: cada unidad tiene su propio `requirements.txt`. No instalar paquetes fuera de él sin decirlo explícitamente en la respuesta.

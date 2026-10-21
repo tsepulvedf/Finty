@@ -1,4 +1,4 @@
-"""Suite de contrato de `/api/v1/` para el bloque finance (A-20).
+"""Suite de contrato de `/api/v1/` para los bloques finance y analytics (A-20).
 
 Caja negra: solo habla HTTP con `CONTRACT_BASE_URL` (por ejemplo,
 `http://localhost` o la IP elastica de la EC2), a traves del Gateway. No sabe si
@@ -14,7 +14,7 @@ la biblioteca estandar y pytest.
 **Cuotas.** El cliente reintenta las respuestas 429 de `limit_req`: una rafaga
 de la propia suite no es un fallo del contrato. Los tests que si verifican el
 429 estan marcados `throttle` y solo corren con `CONTRACT_THROTTLE=1`. Cada
-corrida hace 4 peticiones anonimas (registro y login de dos usuarios), que
+corrida hace 6 peticiones anonimas (registro y login de tres usuarios), que
 cuentan contra la cuota anonima de DRF (60/h por IP).
 """
 import json
@@ -175,6 +175,12 @@ def ana(anonimo):
 @pytest.fixture(scope="session")
 def juan(anonimo):
     return _register_and_login(anonimo, "juan")
+
+
+@pytest.fixture(scope="session")
+def eva(anonimo):
+    """Tercer usuario: el k-anonimato del resumen publico necesita k = 3."""
+    return _register_and_login(anonimo, "eva")
 
 
 def pytest_collection_modifyitems(config, items):

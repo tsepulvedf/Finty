@@ -1,4 +1,4 @@
-"""Suite de contrato de `/api/v1/` para los bloques finance, analytics y recommendation (A-20).
+"""Suite de contrato de `/api/v1/` para los bloques finance, analytics, recommendation y subscription (A-20).
 
 Caja negra: solo habla HTTP con `CONTRACT_BASE_URL` (por ejemplo,
 `http://localhost` o la IP elastica de la EC2), a traves del Gateway. No sabe si
@@ -14,7 +14,7 @@ la biblioteca estandar y pytest.
 **Cuotas.** El cliente reintenta las respuestas 429 de `limit_req`: una rafaga
 de la propia suite no es un fallo del contrato. Los tests que si verifican el
 429 estan marcados `throttle` y solo corren con `CONTRACT_THROTTLE=1`. Cada
-corrida hace 8 peticiones anonimas (registro y login de cuatro usuarios), que
+corrida hace 10 peticiones anonimas (registro y login de cinco usuarios), que
 cuentan contra la cuota anonima de DRF (60/h por IP).
 """
 import json
@@ -32,7 +32,9 @@ BASE_URL_ENV = "CONTRACT_BASE_URL"
 THROTTLE_ENV = "CONTRACT_THROTTLE"
 PASSWORD = "Contrasena-Contrato-2026"
 
-THROTTLE_RETRIES = 20
+# 20 s de reintentos: la zona `finty_auth` repone una peticion cada 10 s, asi
+# que el registro del quinto usuario espera en lugar de fallar.
+THROTTLE_RETRIES = 80
 THROTTLE_BACKOFF_SECONDS = 0.25
 
 
@@ -154,6 +156,15 @@ def anonimo(base_url):
     return Client(base_url)
 
 
+def _premium(user):
+    """Activa PREMIUM con el checkout del mock (INV-05): las rutas premium de
+    analytics y recommendation responden 200 solo con suscripcion activa (INV-06)."""
+    response = user.client.post("/api/v1/subscriptions/checkout/", {"plan": "PREMIUM"})
+    assert response.status == 201, response.text
+    assert response.json["subscription"]["status"] == "ACTIVE", response.text
+    return user
+
+
 def _register_and_login(anonimo, name):
     email = f"contrato-{name}-{uuid.uuid4().hex[:10]}@finty.co"
     registro = anonimo.post(
@@ -169,25 +180,32 @@ def _register_and_login(anonimo, name):
 
 @pytest.fixture(scope="session")
 def ana(anonimo):
-    return _register_and_login(anonimo, "ana")
+    return _premium(_register_and_login(anonimo, "ana"))
 
 
 @pytest.fixture(scope="session")
 def juan(anonimo):
-    return _register_and_login(anonimo, "juan")
+    return _premium(_register_and_login(anonimo, "juan"))
 
 
 @pytest.fixture(scope="session")
 def eva(anonimo):
     """Tercer usuario: el k-anonimato del resumen publico necesita k = 3. Tambien
     es la usuaria con excedente positivo de las recomendaciones de inversion."""
-    return _register_and_login(anonimo, "eva")
+    return _premium(_register_and_login(anonimo, "eva"))
 
 
 @pytest.fixture(scope="session")
 def mateo(anonimo):
     """Usuario con excedente negativo: solo fondo de emergencia."""
-    return _register_and_login(anonimo, "mateo")
+    return _premium(_register_and_login(anonimo, "mateo"))
+
+
+@pytest.fixture(scope="session")
+def lucia(anonimo):
+    """Usuaria FREE: nunca hace checkout en `conftest.py`. Las pruebas de INV-06
+    la usan para los 403; `test_subscriptions.py` la lleva a premium en orden."""
+    return _register_and_login(anonimo, "lucia")
 
 
 def pytest_collection_modifyitems(config, items):

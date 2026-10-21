@@ -4,7 +4,7 @@
 **Fecha:** 2026-10-19
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
 **Cambios de v2.1:** correcciones derivadas de la implementación de los módulos de la Entrega 1 (ver §0, filas C-11 a C-19)
-**Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-32, y ADR-07 a ADR-16)
+**Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-33, y ADR-07 a ADR-16)
 **Alcance:** Documento único de referencia para la implementación del monolito Django + DRF y de los microservicios Flask de la Entrega 2
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -48,10 +48,11 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-26 | `Account.user` | `ForeignKey(User, PROTECT)` | **`user_id: UUID` sin FK** en `finance-service` | Una FK no puede cruzar bases de datos (ADR-10) |
 | C-27 | Frontend | HTML estático desacoplado (headless) | **Plantillas Django con gettext** que consumen `/api/v1/` desde el navegador | Corrección eliminatoria de la E1 e i18n completo (ADR-11) |
 | C-28 | Multi-moneda (D-04) | Sin conversión | **Conversión solo de presentación hacia `preferred_currency`** vía Adapter de tasas de cambio; INV-11 intacta | API de terceros por Adapter (ADR-12) |
-| C-29 | Pasarela de pagos | `subscription/infra/gateways.py` (app Django) | **`PaymentGateway` en `subscription-service`** con `MockPaymentGateway` y `WompiSandboxGateway`; confirmación por consulta periódica en Celery, sin webhooks | ADR-14 |
+| C-29 | Pasarela de pagos | `subscription/infra/gateways.py` (app Django) | **`PaymentGateway` en `subscription-service`** con `MockPaymentGateway` y `WompiSandboxGateway`; confirmación por consulta periódica en Celery, sin webhooks | ADR-14. **Sustituida por C-33** (E2-M6b): sin pasarela real |
 | C-30 | Comunicación entre contextos (D-03, D-05) | Llamada directa; sin eventos | **HTTP en la red interna o eventos de dominio en Redis**; tareas asíncronas con Celery | ADR-15 |
 | C-31 | Coherencia interna de v2.1 | `mock` ausente en §4.2.1, §5.2 y §9.1; cabecera "C-11 a C-18"; §5.3 decía que todo VO es `dataclass`; §9.2 usaba `AccountNotOwnedError` | **Corregido**: cuatro valores de `CategorizationSource`; cabecera C-11 a C-19; enums como `StrEnum`; §9.2 con `AccountNotFoundError` (404) | Alinear el documento con C-15, C-18 y C-19 |
 | C-32 | Comportamiento HTTP fuera del contrato JSON, al conmutar `finance` (E2-M2b) | Lo que hacían Django y DRF: aceptaban cuerpos de formulario, redirigían con 301 la ruta sin barra final, respondían `OPTIONS` con metadatos y servían la API navegable en HTML | **Diferencias aceptadas** de `finance-service`: (1) un cuerpo que no es JSON responde **415**; (2) la ruta sin barra final redirige con **308** en lugar de 301; (3) `OPTIONS` responde **sin metadatos**; (4) **no hay API navegable** (`.api`, `?format=api`). Además, una URL que no existe responde 404 en JSON en lugar de la página HTML de Django. El JSON de toda ruta del contrato es idéntico (A-20) | El contrato de Finty es JSON y el frontend solo envía JSON; replicar esas piezas de DRF no aporta a ningún cliente |
+| C-33 | Pasarela de pagos (E2-M6b) | `PaymentGateway` con `MockPaymentGateway` y `WompiSandboxGateway` (sandbox real), con confirmación por consulta periódica en Celery (C-29) | **Sin pasarela real.** `MockPaymentGateway` es la única implementación y el pago es una **simulación de interfaz**. Se conservan el puerto `PaymentGateway` y `PaymentGatewayFactory`, así que una pasarela real se agregaría como un adaptador más, sin tocar el dominio (OCP). Dos salvaguardas: el backend rechaza cualquier dato de tarjeta (400) y el formulario del frontend se identifica como simulación. La integración con Wompi se evaluó y se descartó (ADR-14) | Es un ejercicio académico: una pasarela real no aporta a los criterios evaluados, y la consulta de estado que exigía no está documentada por Wompi. El requisito de API de terceros ya lo cumple `ExchangeRateProvider` (§11.3) |
 
 ---
 
@@ -362,26 +363,36 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 **Implementación del expuesto (E2-M4b):** `GET /api/v1/public/spending-summary/?period=AAAA-MM`, sin autenticación, servido por `analytics-service`. Publica el gasto agregado por categoría y moneda de todos los usuarios, con número de usuarios, total y promedio por usuario. **Privacidad por k-anonimato:** una categoría solo aparece si la tienen al menos *k* usuarios distintos (*k* = 3 por defecto, `ANALYTICS_PUBLIC_MIN_USERS`). No se publica un total general del período: restándole las categorías visibles revelaría la suma de las ocultas. El bloque de Nginx no lleva `auth_request` y tiene su propia zona estricta, `finty_public` (D-17). Contrato **provisional** en §10.7, a confirmar con el aliado (D-10).
 **Estado:** aceptada. El expuesto está implementado (E2-M4b); el consumo del aliado sigue sin asignar (D-10).
 
-### ADR-14 — `PaymentGateway`: un puerto y dos adaptadores
+### ADR-14 — `PaymentGateway`: un puerto, la Factory y un pago simulado
 
-**Decisión:** `PaymentGateway` (ABC) en `subscription-service`, con dos implementaciones elegidas por variable de entorno, igual que `CategorizerFactory`:
-- `MockPaymentGateway`: el predeterminado en tests y en la demo; nunca falla por red.
-- `WompiSandboxGateway`: sandbox de Wompi (`https://sandbox.wompi.co/v1`), con llaves de prueba `pub_test_` / `prv_test_`.
+**Decisión (E2-M6b, C-33):** Finty **no integra una pasarela de pagos real**. Es un ejercicio académico, y el pago del plan PREMIUM es una **simulación de interfaz**. `MockPaymentGateway` es la única implementación del puerto `PaymentGateway`, y `PaymentGatewayFactory` solo acepta `MOCK`.
 
-**Confirmación sin webhooks:** una tarea de Celery consulta el estado de la transacción en Wompi hasta resolverla. Así no hace falta una URL pública con HTTPS para recibir eventos. La suscripción solo se activa con el pago confirmado (INV-05).
-**Lenguaje ubicuo:** lo que Wompi llama *transaction* se traduce a `Payment` dentro del adaptador. `Transaction` no aparece en `subscription-service` (§12).
+**Por qué se conservan el puerto y la Factory:** el caso de uso (`SubscriptionService`) depende solo de la ABC, y la Factory concentra la elección de implementación en un punto. Una pasarela real se agregaría como **un adaptador más**: una clase en `infra/gateways.py` y una fila en la tabla de la Factory, sin tocar el dominio ni el servicio. Es el mismo argumento de OCP y DIP que `CategorizerFactory` (§6.1, §8). El puerto ya admite un resultado `PENDING`, el de una pasarela asíncrona, y el servicio lo maneja: `payment_in_progress` y `confirm_payment()` idempotente.
 
-**Implementación (E2-M6a; Wompi y Celery en E2-M6b):**
-- **Puerto:** `PaymentGateway.submit(PaymentRequest) → PaymentOutcome` (`domain/interfaces.py`). La petición lleva la referencia, el monto en centavos, la moneda y el usuario. El resultado lleva el estado (`APPROVED`, `DECLINED`, `ERROR` o, con Wompi, `PENDING`). Ningún campo de la pasarela cruza el puerto. El método no se llama *charge*, porque Charge es sinónimo prohibido de `Payment` (§12).
-- **Factory Method:** `PaymentGatewayFactory` (`infra/factories.py`) lee `PAYMENT_GATEWAY`, sin distinguir mayúsculas y con `MOCK` por defecto, con la misma tabla de despacho que `CategorizerFactory` (§6.1). Hoy solo existe `MOCK`; agregar `WOMPI` será agregar una fila. **Diferencia deliberada con la categorización:** `CategorizerFactory` falla al clasificar, mientras que esta factory se llama en `create_app()`. Un valor desconocido impide **arrancar** el servicio con `ConfigurationError`, en lugar de fallar en el primer checkout de un usuario.
+**Implementación (E2-M6a):**
+- **Puerto:** `PaymentGateway.submit(PaymentRequest) → PaymentOutcome` (`domain/interfaces.py`). La petición lleva la referencia, el monto en centavos, la moneda y el usuario; el resultado, el estado del pago. El método no se llama *charge*, porque Charge es sinónimo prohibido de `Payment` (§12).
+- **Factory Method:** `PaymentGatewayFactory` (`infra/factories.py`) lee `PAYMENT_GATEWAY`, sin distinguir mayúsculas y con `MOCK` por defecto. **Diferencia deliberada con la categorización:** `CategorizerFactory` falla al clasificar, mientras que esta factory se llama en `create_app()`. Un valor desconocido impide **arrancar** el servicio con `ConfigurationError`.
 - **`MockPaymentGateway`:** aprueba de forma síncrona y determinista, y nunca sale a la red. Los pagos rechazados, con error o con una pasarela que lanza excepción se prueban con dobles. Una excepción de la pasarela deja el pago en `ERROR`, nunca un 500.
-- **Orden del checkout:** la suscripción (`PENDING_PAYMENT`) y el pago (`PENDING`) se confirman en la base **antes** de llamar a la pasarela. Si el proceso muere durante la llamada, queda el registro para conciliarlo. Después, `confirm_payment()` aplica el resultado; E2-M6b lo reutilizará desde la consulta periódica en Celery.
+- **Orden del checkout:** la suscripción (`PENDING_PAYMENT`) y el pago (`PENDING`) se confirman en la base **antes** de llamar a la pasarela, y `confirm_payment()` aplica el resultado después (INV-05).
 
-**Estado:** aceptada. Puerto, factory y mock implementados (E2-M6a); `WompiSandboxGateway` y la confirmación por Celery, en E2-M6b.
+**Salvaguardas de la simulación:**
+1. **El backend no recibe datos de tarjeta.** `POST /api/v1/subscriptions/checkout/` acepta solo `{plan}`. Su esquema (`CheckoutInput`, `extra="forbid"`) rechaza con 400 cualquier otro campo (`card_number`, `cvc`, `expiry`…), sin repetir el valor recibido. El error no encadena la excepción de pydantic, que guarda los valores, para que ninguno pueda terminar en el log. Lo verifican `services/subscription-service/tests/api/test_card_data.py` y `tests/contract/test_subscriptions.py`.
+2. **El formulario se identifica como simulación.** El frontend (E2-M8) muestra un formulario de tarjeta con validación de formato solo en el navegador, `autocomplete="off"` y el aviso visible "Modo demostración: no se realiza ningún cobro". Ningún dato del formulario se envía, se guarda ni se registra; "Continuar" llama al checkout solo con `{plan}` (HANDOFF, requisitos de E2-M8).
+
+**Alternativa evaluada y descartada: Wompi (sandbox).** Se analizó antes de construir:
+- **Web Checkout:** redirige a `https://checkout.wompi.co/p/` con `public-key`, `currency`, `amount-in-cents`, `reference`, `signature:integrity` (SHA-256 de `<referencia><monto><moneda><secreto>`, calculada en el servidor) y `redirect-url`. Así el backend nunca vería la tarjeta.
+- **Confirmación:** la documentación de pagos solo publica `GET /v1/transactions/{transaction_id}`, con llave privada. Con Web Checkout, Finty no conoce ese id: solo llega en la redirección o en un webhook. La **búsqueda por referencia no está documentada**. Una consulta sin llaves a `GET /v1/transactions?reference=…` respondió 401 y no 404, lo que sugiere que existe, pero no hay garantía de su contrato.
+- **Redirección:** la propia documentación de Wompi pide no usarla para validar transacciones, solo para informar al usuario.
+- **Webhooks** (`transaction.updated`): son lo que Wompi recomienda, pero exigen una URL pública con HTTPS, y la instancia se expone por IP sin dominio (D-12).
+- **Resultado:** cada camino exigía un endpoint no documentado, una validación que el proveedor desaconseja o infraestructura fuera de alcance. Para un ejercicio académico, la simulación con el puerto intacto demuestra lo mismo (Adapter, Factory, INV-05) sin esos riesgos.
+
+**Lenguaje ubicuo:** `Payment` es el pago de una suscripción; la palabra `Transaction` queda reservada para `finance` y no aparece en `subscription-service` (§12).
+
+**Estado:** aceptada (revisada en E2-M6b, C-33). Implementada desde E2-M6a.
 
 ### ADR-15 — Eventos de dominio y tareas asíncronas
 
-**Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. Candidatas: reporte mensual (CSV o PDF), notificaciones (backend de email en consola o en archivo), consulta del estado de pagos (ADR-14) y recategorización por lotes.
+**Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. Candidatas: reporte mensual (CSV o PDF), notificaciones (backend de email en consola o en archivo) y recategorización por lotes. **La primera tarea periódica de E2-M7 es `expire_subscriptions`**, que pasa a EXPIRED las suscripciones ACTIVE o CANCELED cuyo período terminó (§6.7). No hay consulta de estado de pagos: sin pasarela real no hay nada que consultar (ADR-14, C-33).
 **Consecuencia:** resuelve D-03 y D-05. **Corrección de E2-M5:** `recommendation` no consume los eventos de `finance`, sino que lee a `analytics` por HTTP (ver abajo).
 
 **Publicación desde `finance-service` (E2-M4a):**
@@ -452,7 +463,7 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 | FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
 | AnalyticsInsightsContext | `analytics-service` + `analytics-worker` | Flask | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance` | E2-M4b (implementado) |
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation`: perfiles de riesgo y planes de inversión; las recomendaciones se calculan al leer | E2-M5 (implementado) |
-| SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription`: suscripciones y pagos | E2-M6a (implementado; Wompi en E2-M6b) |
+| SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription`: suscripciones y pagos (simulados, ADR-14) | E2-M6a (implementado) |
 
 La app `finance` de Django sirvió de respaldo durante la verificación del Strangler y se retiró en E2-M3a (ADR-08). Sus tablas antiguas siguen en `finty_identity` sin uso (D-20).
 
@@ -464,7 +475,7 @@ La app `finance` de Django sirvió de respaldo durante la verificación del Stra
 - `recommendation-service` → `analytics-service`: **HTTP síncrono por la red interna**, con degradación (E2-M5). `recommendation` es **Customer** de `analytics`: consume sus insights, patrones y dashboard tal como §10.6 los publica, y los traduce a sus propios value objects (`domain/analytics.py`). Ya no depende de `finance` ni por llamada ni por eventos, así que D-03 queda resuelto sin ciclo (ADR-15).
 - `analytics-service` → equipo aliado: **Open Host Service**. Publica el resumen agregado de §10.7 sin autenticación y con k-anonimato (ADR-13).
 - `analytics-service` y `recommendation-service` → `subscription-service`: **HTTP síncrono por la red interna** a `GET /internal/entitlements/<user_id>`, con caché corta en Redis, para el gating de INV-06 (§7.1, D-14). Es una relación **Customer-Supplier**: `subscription` publica el derecho (`premium`, `until`), y cada consumidor decide qué funciones suyas protege. Si no responde, se niega lo premium y lo gratuito sigue.
-- `subscription-service` → `WompiSandboxGateway` (E2-M6b), `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
+- `subscription-service` → `PaymentGateway`: hoy solo `MockPaymentGateway`, sin tercero (ADR-14, C-33). `recommendation-service` → API de tasas de cambio y el consumo del servicio aliado (servicio dueño por definir, D-10): **siempre detrás de un Adapter con respaldo**.
 
 ---
 
@@ -747,7 +758,7 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 | `ExchangeRateProvider` | `recommendation-service` | `TrmExchangeRateProvider`: TRM oficial de datos.gov.co, timeout de 3 s, con caché en Redis (`RedisExchangeRateCache`, puerto `ExchangeRateCache`) | `FixedExchangeRateProvider`: tasa fija configurable | `ExchangeRateService`: caché del día → API → última conocida → tasa fija; procedencia `live` / `cached` / `fallback` | ADR-12, A-22 |
 | `AnalyticsReader` | `recommendation-service` | `HttpAnalyticsReader`: los endpoints de §10.6 por la red interna, reenviando `X-User-Id`, timeout de 1 s | Sin adaptador: la respuesta se degrada (`degraded: true`) | Ante timeout, error de red, no-200 o cuerpo fuera de contrato | ADR-15, A-28 |
 | `AllyServiceProvider` | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` | Respaldo ante fallo; solo mock hasta que exista el aliado | ADR-13, E2-M9 |
-| `PaymentGateway` | `subscription-service` | `WompiSandboxGateway` (E2-M6b) | `MockPaymentGateway` (E2-M6a: hoy el único) | `PaymentGatewayFactory` con `PAYMENT_GATEWAY`; un valor desconocido impide arrancar | ADR-14 |
+| `PaymentGateway` | `subscription-service` | Ninguno: sin pasarela real (C-33). Una real se agregaría como otro adaptador | `MockPaymentGateway`, la única implementación: aprueba de forma síncrona | `PaymentGatewayFactory` con `PAYMENT_GATEWAY`; solo `MOCK` es válido, y otro valor impide arrancar | ADR-14 |
 | `EntitlementsReader` | `analytics-service` y `recommendation-service` | `HttpEntitlementsReader`: `GET /internal/entitlements/<user_id>`, timeout de 1 s, envuelto en `CachedEntitlementsReader` (Redis, solo los "sí") | Sin respaldo que conceda: si falla, se **niega** lo premium (fail-closed) | Siempre; la caché solo guarda derechos premium, por `min(30 s, fin del período)` | §7.1, D-14 |
 
 El Adapter traduce el modelo del tercero al lenguaje ubicuo de Finty. Ninguna estructura de respuesta externa cruza la frontera del puerto.
@@ -866,7 +877,7 @@ PENDING_PAYMENT ──pago APPROVED──▶ ACTIVE ──cancelar──▶ CANC
 
 - **Período:** un mes calendario desde la activación (el 31 cae en el último día del mes siguiente), **sin renovación automática**: renovar es un checkout y un pago nuevos cuando el período termina (D-26).
 - **CANCELED** sigue dando acceso hasta `current_period_end`. Cancelar dos veces es idempotente; cancelar algo que no está activo responde 409 `no_active_subscription`.
-- **EXPIRED** se deriva al leer cuando termina el período, sin escribir en un GET. Se persiste justo antes de un checkout nuevo, para liberar el lugar único del usuario.
+- **EXPIRED** se deriva al leer cuando termina el período, sin escribir en un GET. Se persiste justo antes de un checkout nuevo, para liberar el lugar único del usuario. En E2-M7, la tarea periódica `expire_subscriptions` lo persistirá también para las que nadie vuelve a tocar (ADR-15).
 - **Una sola suscripción vigente por usuario** (invariante implícita de DDD Stage 1): índice único parcial `uq_subscription_one_current_per_user` sobre `user_id` para `PENDING_PAYMENT`, `ACTIVE` y `CANCELED`. "Vigente" incluye la pendiente y la cancelada en período, porque las dos ocupan el lugar de la suscripción del usuario. Dos checkouts simultáneos chocan con el índice, y el segundo responde 409.
 
 **`Payment`** (entidad). `PENDING → APPROVED | DECLINED | ERROR`. Guarda el monto en **centavos** (`BIGINT`), la moneda, una referencia única (`finty-<hex>`), la pasarela que lo procesó y cuándo se resolvió. Un pago ya resuelto no cambia de estado.
@@ -910,7 +921,7 @@ Las invariantes no cambian; cambia dónde y cómo se hacen cumplir cuando su due
 | INV-02 | `finance-service` | `ForeignKey` de SQLAlchemy dentro de `finty_finance`, `nullable=False`, `ondelete="RESTRICT"` | E2-M2 |
 | INV-03 | `finance-service` | Toda consulta filtrada por el `user_id` de `X-User-Id`; cuenta ajena o inexistente → `AccountNotFoundError` (404, D-08) | E2-M2 |
 | INV-04 | `finance-service` | `TransactionBuilder.build()` **y** `CheckConstraint` de SQLAlchemy | E2-M2 |
-| INV-05 | `subscription-service` | `Subscription.activate()` exige un `Payment` APPROVED y solo actúa desde `PENDING_PAYMENT`. `confirm_payment()` bloquea el pago y es idempotente: confirmar dos veces no extiende el período. Con el mock, la confirmación es síncrona en el checkout; con Wompi llegará por la consulta periódica en Celery (E2-M6b) | E2-M6a (implementada) |
+| INV-05 | `subscription-service` | `Subscription.activate()` exige un `Payment` APPROVED y solo actúa desde `PENDING_PAYMENT`. `confirm_payment()` bloquea el pago y es idempotente: confirmar dos veces no extiende el período. Con `MockPaymentGateway`, la única pasarela (ADR-14, C-33), la confirmación es síncrona en el checkout; una pasarela asíncrona dejaría el pago en PENDING y lo resolvería con el mismo `confirm_payment()` | E2-M6a (implementada) |
 | INV-06 | `analytics-service` y `recommendation-service`, con el derecho que publica `subscription-service` | **Middleware en la capa de entrada de cada servicio** (`api/gating.py`, `before_request`), que consulta `GET /internal/entitlements/<user_id>` con caché corta en Redis. Premium: insights, patrones, dashboard fuera de los últimos 3 meses, recomendaciones de inversión y todo `/investment-plans/`. Sin derecho: 403 `premium_required`. Sin respuesta de `subscription-service`: 503 `entitlements_unavailable` (fail-closed). Detalle abajo | E2-M6a (implementada) |
 
 **INV-06 en detalle (cierra D-14).**
@@ -1331,7 +1342,6 @@ flowchart LR
         end
     end
 
-    WOMPI["Wompi sandbox"]
     TRM["API de tasas de cambio"]
     ALLY["Servicio del equipo aliado"]
 
@@ -1356,7 +1366,6 @@ flowchart LR
     ANW --> PG
     REC --> PG
     SUB --> PG
-    SUB -->|PaymentGateway| WOMPI
     REC -->|"ExchangeRateProvider<br/>TRM de datos.gov.co"| TRM
     DC -.->|"AllyServiceProvider<br/>servicio dueño por definir"| ALLY
     ALLY -->|"GET /api/v1/public/spending-summary/"| NGX
@@ -1682,11 +1691,12 @@ sequenceDiagram
     participant NGX as nginx
     participant SS as subscription-service
     participant DB as finty_subscription
-    participant PG as PaymentGateway (MOCK)
+    participant PG as MockPaymentGateway
     participant AN as analytics-service
     participant RD as Redis (caché de derechos)
 
-    U->>NGX: POST /api/v1/subscriptions/checkout/ {"plan": "PREMIUM"}
+    Note over U: Formulario de tarjeta SIMULADO (E2-M8): validación de formato solo<br/>en el navegador, "Modo demostración: no se realiza ningún cobro".<br/>Ningún dato del formulario sale del navegador.
+    U->>NGX: POST /api/v1/subscriptions/checkout/ {"plan": "PREMIUM"} (solo el plan)
     NGX->>SS: auth_request ok → X-User-Id
     rect rgb(240, 245, 250)
         Note over SS,DB: una transacción
@@ -1886,11 +1896,11 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 |---|---|
 | `GET /api/v1/subscriptions/plans/` | 200 `{"results": [Plan FREE, Plan PREMIUM]}`. `Plan`: `{"code", "price": "29900.00", "price_in_cents": 2990000, "currency": "COP", "period_months": 1, "history_months": 3 \| null, "benefits": [code…]}` |
 | `GET /api/v1/subscriptions/me/` | 200 `{"plan": "FREE" \| "PREMIUM", "premium": bool, "status": null \| "PENDING_PAYMENT" \| "ACTIVE" \| "CANCELED" \| "EXPIRED", "current_period_start", "current_period_end", "canceled_at", "benefits": [code…], "last_payment": Payment \| null}`. Sin suscripción: `plan: "FREE"`, `status: null` y los beneficios FREE. `plan` es el que da acceso **ahora**: una vencida o pendiente muestra FREE |
-| `POST /api/v1/subscriptions/checkout/` | Cuerpo `{"plan": "PREMIUM"}`. 201 `{"subscription": Me, "payment": Payment}`, también cuando el pago se rechaza: el resultado está en `payment.status` y la suscripción queda `PENDING_PAYMENT`. 400 si `plan` no es FREE ni PREMIUM; 422 `plan_not_purchasable` con FREE; 409 `subscription_already_active` si hay una ACTIVE o CANCELED en período; 409 `payment_in_progress` si el último pago sigue PENDING (Wompi, E2-M6b). Tras un rechazo, otro checkout reintenta sobre la misma suscripción con un pago nuevo |
+| `POST /api/v1/subscriptions/checkout/` | Cuerpo `{"plan": "PREMIUM"}`. 201 `{"subscription": Me, "payment": Payment}`, también cuando el pago se rechaza: el resultado está en `payment.status` y la suscripción queda `PENDING_PAYMENT`. 400 si `plan` no es FREE ni PREMIUM, y 400 `{"campo": ["Este campo no está permitido."]}` por **cualquier campo además de `plan`**: el checkout no acepta datos de tarjeta (ADR-14). 422 `plan_not_purchasable` con FREE; 409 `subscription_already_active` si hay una ACTIVE o CANCELED en período; 409 `payment_in_progress` si el último pago sigue PENDING (no ocurre con el mock: es para una pasarela asíncrona). Tras un rechazo, otro checkout reintenta sobre la misma suscripción con un pago nuevo |
 | `POST /api/v1/subscriptions/me/cancel/` | 200 `Me` con `status: "CANCELED"` y `premium: true` hasta el fin del período. Idempotente; 409 `no_active_subscription` si no hay una activa |
 | `GET /internal/entitlements/<user_id>` | **Solo red interna.** 200 `{"premium": bool, "until": fecha \| null}`. Sin `X-User-Id`: lo consultan otros servicios con el usuario en la ruta |
 
-- **`Payment`:** `{"id", "reference": "finty-…", "status": "PENDING" | "APPROVED" | "DECLINED" | "ERROR", "amount_in_cents", "currency", "gateway": "mock", "created_at", "resolved_at"}`.
+- **`Payment`:** `{"id", "reference": "finty-…", "status": "PENDING" | "APPROVED" | "DECLINED" | "ERROR", "amount_in_cents", "currency", "gateway": "mock", "created_at", "resolved_at"}`. El pago es simulado (ADR-14): `gateway` siempre vale `mock`.
 
 ---
 
@@ -1934,10 +1944,10 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 | Diagramas con AWS, Nginx, Flask y broker | 10% | §9.4 a §9.8 | E2-M0; finales en E2-M9 |
 | Exponer un endpoint JSON | 30% | ADR-13 (`analytics-service`, `GET /api/v1/public/spending-summary/`, §10.7) | E2-M4b (implementado; contrato provisional, D-10) |
 | Consumir el servicio del equipo aliado | (30%) | ADR-13, `AllyServiceProvider` + `MockAllyAdapter` | E2-M9 |
-| Consumir una API de terceros mediante Adapter | (30%) | ADR-12, `ExchangeRateProvider` → `TrmExchangeRateProvider` (TRM de datos.gov.co) | E2-M5 (implementado) |
+| Consumir una API de terceros mediante Adapter | (30%) | **Lo cumple `ExchangeRateProvider`** (ADR-12): `TrmExchangeRateProvider` consume la TRM oficial de datos.gov.co, con caché y tasa fija de respaldo. `PaymentGateway` no consume ningún tercero: el pago es simulado (ADR-14, C-33) | E2-M5 (implementado) |
 | Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 |
 | Despliegue en EC2 con Nginx como API Gateway | (30%) | ADR-06, ADR-09, ADR-16 | E2-M1, E2-M2 |
-| Tareas asíncronas con Redis/Celery | 20% | ADR-14, ADR-15 | E2-M7 |
+| Tareas asíncronas con Redis/Celery | 20% | ADR-15 (primera tarea periódica: `expire_subscriptions`) | E2-M7 |
 | i18n bilingüe con gettext, sin textos quemados | (20%) | ADR-11 | E2-M8 |
 | Bono: más del 70% en microservicios Flask | — | ADR-07, §4.4 | E2-M2 a E2-M6 |
 
@@ -1996,7 +2006,7 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 |---------|-----------|
 | `Plan` | `InvestmentPlan` vs `SubscriptionPlan` — ambos fuera de la Entrega 1 |
 | `Profile` | `UserProfile` (identity) vs `RiskProfile` (recommendation). `tests/test_architecture.py::TestSinonimosProhibidos` de `recommendation-service` falla si un identificador usa RiskLevel, Advice, Suggestion o Portfolio |
-| `Transaction` | `Transaction` (movimiento financiero del usuario) vs `Payment` (pago de suscripción). **Nota crítica:** `django.db.transaction` también usa la palabra; en el código se importa como `from django.db import transaction as db_transaction` para evitar colisión de nombres. **En la Entrega 2:** lo que la API de Wompi llama *transaction* se traduce a `Payment` dentro de `WompiSandboxGateway`; la palabra `Transaction` no aparece en `subscription-service` (ADR-14). |
+| `Transaction` | `Transaction` (movimiento financiero del usuario) vs `Payment` (pago de suscripción). **Nota crítica:** `django.db.transaction` también usa la palabra; en el código se importa como `from django.db import transaction as db_transaction` para evitar colisión de nombres. **En la Entrega 2:** el pago de una suscripción es `Payment`, y la palabra `Transaction` no aparece en `subscription-service` (ADR-14). Si algún día se integra una pasarela real, lo que ella llame *transaction* se traducirá a `Payment` dentro de su adaptador. |
 
 ---
 
@@ -2027,7 +2037,7 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos**. Decidido en E2-M5: `recommendation-service` lee los insights y patrones por HTTP cuando calcula, así que un evento `InsightDetected` no tiene consumidor | **Cerrada** (E2-M5) |
 | D-23 | Mensajes fuera de contrato en `finty.finance.events` | El worker los registra en el log como aviso y los confirma con `XACK` para no bloquear el stream. No hay stream de mensajes muertos: si apareciera uno, el evento se perdería para `analytics`. `tests/services/test_event_contract.py` (A-25) evita esa situación antes de desplegar | Abierta — un stream `finty.finance.events.dead` si llega un segundo productor |
 | D-24 | `OptimizationRecommendationGenerated` (DDD Stage 1) | **No se publica.** Las recomendaciones son value objects calculados al leer y no se persisten (§6.6): no hay un instante en que se "generen" que valga la pena anunciar, y ningún servicio consumiría el evento. Si E2-M7 necesitara notificar recomendaciones nuevas, tendría que persistirlas o compararlas entre lecturas | Abierta — E2-M7, solo si las notificaciones lo exigen |
-| D-26 | Renovación de la suscripción | **Sin renovación automática**: el período es de un mes, y renovar es un checkout y un pago nuevos cuando termina (EXPIRED). Mientras haya una suscripción ACTIVE o CANCELED en período, un checkout responde 409, así que no se puede pagar por adelantado el mes siguiente. Un cobro recurrente exigiría guardar un medio de pago (tokenización de Wompi), fuera del alcance | Abierta — post-Entrega 2 |
+| D-26 | Renovación de la suscripción | **Sin renovación automática**: el período es de un mes, y renovar es un checkout y un pago nuevos cuando termina (EXPIRED). Mientras haya una suscripción ACTIVE o CANCELED en período, un checkout responde 409, así que no se puede pagar por adelantado el mes siguiente. Un cobro recurrente exigiría una pasarela real que guarde un medio de pago, fuera del alcance (ADR-14, C-33) | Abierta — post-Entrega 2 |
 | D-27 | `SubscriptionActivated` y `PremiumFeaturesUnlocked` (DDD Stage 1) | **No se publican en E2-M6a.** Los consumidores del derecho lo consultan cuando lo necesitan (`/internal/entitlements/`), y como la caché solo guarda los "sí", un pago se refleja en la siguiente petición sin necesidad de un evento que invalide nada. E2-M7 decidirá si `SubscriptionActivated` hace falta para notificaciones (correo de bienvenida); si se publica, irá por un outbox como el de finance (ADR-15) | Abierta — E2-M7 |
 | D-28 | Consecuencia de INV-06 en DDD Stage 1 | Incorporada en §7.1: la consecuencia de violar INV-06 es la **pérdida de ingresos**, y con ella se justifica negar lo premium cuando no se puede verificar la suscripción (fail-closed). También se reconcilia la expresión formal (`status = 'ACTIVE'`) con el estado CANCELED en período de E2-M6a | **Cerrada** (E2-M6a) |
 | D-25 | Dependencia síncrona `recommendation → analytics` | Aceptada con degradación (`degraded: true`) y timeout de 1 s. No hay caché de lo que responde analytics: una recomendación degradada se recupera sola en la siguiente lectura. Si la latencia de las tres llamadas (insights, patrones y dashboard) pesara, se podrían paralelizar o pedir a analytics un endpoint combinado | Abierta, sin módulo asignado |

@@ -4,6 +4,7 @@
 # E2-M2: finance-service (Flask) y su paso de migraciones; desde E2-M2b recibe
 # el bloque finance del Gateway.
 # E2-M3b: categorization-service (Flask, sin base), que finance-service consume.
+# E2-M4a: finance-outbox-relay publica los eventos de dominio en Redis Streams.
 # Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
 #   cp .env.docker.example .env.docker                       # y completa los valores
@@ -34,6 +35,7 @@ x-finance: &finance
   environment:
     # Sin secretos: va aqui y no en el env_file, para que un `git pull` baste.
     CATEGORIZATION_URL: http://categorization-service:8000
+    REDIS_URL: redis://redis:6379/0
 
 services:
   db:
@@ -103,10 +105,12 @@ services:
     restart: unless-stopped
 
   # Paso de un solo uso: migraciones de finty_finance con Alembic, incluida la
-  # siembra del catalogo de categorias (D-16).
+  # siembra del catalogo de categorias (D-16), y luego el backfill del outbox:
+  # genera TransactionManuallyAdded para las transacciones previas al outbox.
+  # Es idempotente, asi que correrlo en cada `up` no duplica nada.
   finance-migrate:
     <<: *finance
-    command: ["alembic", "upgrade", "head"]
+    command: ["sh", "-c", "alembic upgrade head && flask outbox-backfill"]
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -146,6 +150,17 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  # Publica el outbox de finty_finance en el stream finty.finance.events
+  # (ADR-15). Misma imagen que finance-service, sin puertos. Si Redis no esta,
+  # espera y reintenta: los eventos siguen pendientes en el outbox.
+  finance-outbox-relay:
+    <<: *finance
+    command: ["flask", "relay-outbox"]
+    depends_on:
+      finance-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   nginx:

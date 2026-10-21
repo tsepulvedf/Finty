@@ -1,0 +1,10 @@
+# Secretos: la configuracion entra por `env_file` en tiempo de ejecucion.
+.env
+.env.*
+
+# Entorno local y artefactos
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/

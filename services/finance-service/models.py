@@ -22,19 +22,23 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Identity,
     Index,
+    Integer,
     Numeric,
     String,
     UniqueConstraint,
     Uuid,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from domain.value_objects import AccountType, TransactionType
@@ -208,3 +212,44 @@ class Transaction(Base):
 
     def __repr__(self):
         return f"<Transaction {self.type} {self.amount} {self.occurred_on}>"
+
+
+class OutboxEvent(Base):
+    """Evento de dominio pendiente de publicar: el outbox transaccional (ADR-15).
+
+    Se inserta en la misma transaccion que el cambio de negocio. El relay
+    (`flask relay-outbox`) los lee en orden de `id`, los publica en el stream de
+    Redis y llena `published_at`. `message` guarda el mensaje ya serializado tal
+    como viaja (`infra/event_serialization.py`), asi el relay no reinterpreta nada.
+    """
+
+    __tablename__ = "outbox_event"
+    __table_args__ = (
+        # El relay solo mira los pendientes.
+        Index("ix_outbox_pending", "id", postgresql_where=text("published_at IS NULL")),
+        Index("ix_outbox_aggregate", "aggregate_id"),
+        # Un solo `TransactionManuallyAdded` por transaccion: es lo que hace
+        # idempotente a `flask outbox-backfill` incluso si corre dos veces a la vez.
+        Index(
+            "uq_outbox_manually_added_once",
+            "aggregate_id",
+            unique=True,
+            postgresql_where=text("event_type = 'TransactionManuallyAdded'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(Uuid, unique=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    # Id de la entidad a la que se refiere el evento: hoy, la transaccion.
+    aggregate_id: Mapped[UUID] = mapped_column(Uuid)
+    version: Mapped[int] = mapped_column(Integer)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    message: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Id que asigno Redis al publicarlo (por ejemplo `1729470000000-0`).
+    stream_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    def __repr__(self):
+        return f"<OutboxEvent {self.id} {self.event_type}>"

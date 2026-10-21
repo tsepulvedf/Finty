@@ -46,6 +46,7 @@ Los services orquestan casos de uso. El dominio contiene las reglas.
 - Ningún servicio consulta la base de datos de otro. Cada uno tiene su base lógica y solo conoce su URL (ADR-10).
 - Los servicios se comunican **solo** por HTTP en la red interna de Docker o por eventos en Redis.
 - Los servicios Flask **confían en `X-User-Id`** y no validan tokens. Esa cabecera la pone Nginx tras `auth_request` (ADR-09).
+- `X-Finty-Caller` sigue el **mismo modelo de confianza** que `X-User-Id`: lo pone solo un servicio interno al llamar a otro por la red de Docker (hoy, `recommendation-service` → `analytics-service`), y Nginx lo borra de toda petición externa. Un servicio que lo recibe puede tratar la llamada como interna (por ejemplo, sin el gating premium de INV-06); nunca debe aceptarlo de otra fuente (ADR-09, §7.1).
 - Los servicios Flask **no exponen puertos al host**: solo se llega a ellos a través de Nginx.
 
 ### 8. No inventes alcance

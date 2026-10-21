@@ -16,7 +16,7 @@
 #   3. Pasa al servicio solo la URL de su propia base (A-21).
 set -e
 
-FINTY_DATABASES="finty_identity finty_finance"
+FINTY_DATABASES="finty_identity finty_finance finty_analytics"
 
 # Por TCP (camino 2) psql necesita la contrasena; por el socket local no.
 PGPASSWORD="${PGPASSWORD:-${POSTGRES_PASSWORD:-}}"

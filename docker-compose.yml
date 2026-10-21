@@ -5,10 +5,12 @@
 # el bloque finance del Gateway.
 # E2-M3b: categorization-service (Flask, sin base), que finance-service consume.
 # E2-M4a: finance-outbox-relay publica los eventos de dominio en Redis Streams.
+# E2-M4b: analytics-service y analytics-worker, que consume esos eventos.
 # Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
 #   cp .env.docker.example .env.docker                       # y completa los valores
 #   cp services/finance-service/.env.docker.example services/finance-service/.env.docker
+#   cp services/analytics-service/.env.docker.example services/analytics-service/.env.docker
 #   docker compose up -d --build
 #
 # Solo `nginx` publica un puerto en el host (A-17). El resto se comunica por la
@@ -35,6 +37,17 @@ x-finance: &finance
   environment:
     # Sin secretos: va aqui y no en el env_file, para que un `git pull` baste.
     CATEGORIZATION_URL: http://categorization-service:8000
+    REDIS_URL: redis://redis:6379/0
+
+# analytics-service: el proceso web, su worker de eventos y su paso de
+# migraciones comparten imagen y entorno. Solo conoce la URL de finty_analytics
+# (A-21) y nunca consulta finty_finance (ADR-10): se alimenta de eventos.
+x-analytics: &analytics
+  build:
+    context: ./services/analytics-service
+  image: finty/analytics-service:local
+  env_file: services/analytics-service/.env.docker
+  environment:
     REDIS_URL: redis://redis:6379/0
 
 services:
@@ -163,6 +176,41 @@ services:
     command: ["flask", "relay-outbox"]
     depends_on:
       finance-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Paso de un solo uso: migraciones de finty_analytics con Alembic.
+  analytics-migrate:
+    <<: *analytics
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # API de lectura (§10.6) y endpoint publico para el equipo aliado (ADR-13).
+  # Sin `ports` (A-17): el Gateway es la unica entrada.
+  analytics-service:
+    <<: *analytics
+    depends_on:
+      analytics-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Consume finty.finance.events con el grupo `analytics` y alimenta el modelo
+  # de lectura (ADR-15). Si Redis o la base fallan, espera y reintenta; lo no
+  # confirmado sigue pendiente en el grupo y se recupera al volver.
+  analytics-worker:
+    <<: *analytics
+    command: ["flask", "consume-events"]
+    depends_on:
+      analytics-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 

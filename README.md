@@ -79,7 +79,6 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 | `DB_PASSWORD` | **Sí** | Contraseña del rol. |
 | `DB_HOST` | **Sí** | Host de PostgreSQL. |
 | `DB_PORT` | **Sí** | Puerto de PostgreSQL. |
-| `CATEGORIZER_PROVIDER` | No | Estrategia de clasificación. Por defecto `RULE`. Ver abajo. |
 
 `.env` está en `.gitignore` y nunca debe versionarse.
 
@@ -134,19 +133,20 @@ docker compose down -v                                        # detener y BORRAR
 
 ## Conmutar el categorizador
 
-`CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` inyecta la Factory. Es el Factory Method del proyecto y su efecto es observable desde fuera.
+`CATEGORIZER_PROVIDER` selecciona qué implementación de `Categorizer` inyecta la Factory de `finance-service`. Es el Factory Method del proyecto y su efecto es observable desde fuera. Se configura en `services/finance-service/.env.docker`; el monolito ya no lo lee.
 
 | Valor | Implementación | Qué hace |
 |---|---|---|
 | `RULE` | `RuleBasedCategorizer` | Determinista. Mapa de palabras clave separado por tipo de movimiento, insensible a tildes y mayúsculas. Sin red ni base de datos. Es el valor por defecto. |
 | `MOCK` | `MockCategorizer` | Devuelve una categoría fija. Para desarrollo y pruebas, sin consumir cuota de inferencia. |
 | `AI` | `AICategorizer` | Envuelve un proveedor externo inyectado. **En esta entrega no hay cliente concreto configurado**, así que opera en modo degradado y delega en el respaldo determinista. Nunca propaga excepciones. |
-| cualquier otro | — | `ImproperlyConfigured` al arrancar. Falla ruidosamente: en una aplicación financiera, degradar en silencio a un clasificador distinto del configurado es peor que no arrancar. |
+| cualquier otro | — | `ConfigurationError` al clasificar. Falla ruidosamente: en una aplicación financiera, degradar en silencio a un clasificador distinto del configurado es peor que no arrancar. |
 
 Una línea cambia el comportamiento del sistema sin tocar código:
 
 ```bash
-CATEGORIZER_PROVIDER=MOCK python manage.py runserver
+# En services/finance-service/.env.docker: CATEGORIZER_PROVIDER=MOCK
+docker compose up -d finance-service
 ```
 
 El mismo `POST /api/v1/transactions/` devolverá un `categorization_source` distinto —`rule` o `mock`— según el proveedor activo. El campo registra **el mecanismo que realmente clasificó**: cuando `AICategorizer` degrada a su respaldo, la procedencia grabada es `rule`, no `ai`.
@@ -158,11 +158,7 @@ El mismo `POST /api/v1/transactions/` devolverá un `categorization_source` dist
 pytest
 
 # Solo el dominio: Python puro, sin base de datos
-pytest core/tests/test_money.py \
-       finance/tests/test_domain_value_objects.py \
-       finance/tests/test_balance_calculator.py \
-       finance/tests/test_transaction_rules.py \
-       finance/tests/test_builders.py
+pytest core/tests/test_money.py
 
 # Reglas de arquitectura por análisis de AST
 pytest core/tests/test_architecture.py -v
@@ -171,7 +167,7 @@ pytest core/tests/test_architecture.py -v
 pytest --cov=. --cov-report=term-missing
 ```
 
-Los tests de dominio no llevan la marca `django_db`, que es como `pytest-django` bloquea cualquier acceso a la base. Si un día el dominio empezara a consultarla, fallarían solos.
+Los tests de dominio no llevan la marca `django_db`, que es como `pytest-django` bloquea cualquier acceso a la base. Si un día el dominio empezara a consultarla, fallarían solos. Los tests de cuentas, transacciones y categorización viven desde E2-M3a en la suite de `finance-service` (abajo).
 
 ### Suite de contrato (caja negra)
 
@@ -220,15 +216,17 @@ finty/
 │   ├── exceptions.py           Módulo plano: no necesita un anillo de dominio completo.
 │   ├── services.py             ProfileService. Registro, autenticación y perfil.
 │   └── api/                    Serializers, views y rutas.
-├── finance/                    FinancialDataContext · contexto Core.
-│   ├── domain/                 ANILLO INTERIOR · Python puro. Value objects, reglas, builders
-│   │                           y la ABC Categorizer. Importa solo la stdlib y core.domain.
-│   ├── infra/                  ANILLO EXTERNO · Categorizadores concretos y CategorizerFactory.
-│   │                           Puede importar Django. El dominio nunca lo importa a él.
-│   ├── models.py               Account, Transaction, Category. Campos, Meta y __str__.
-│   ├── services.py             ANILLO MEDIO · AccountService y TransactionService.
-│   │                           Depende de la ABC, jamás de una implementación concreta.
-│   └── api/                    ANILLO EXTERNO · Serializers, views y rutas.
+├── services/
+│   └── finance-service/        FinancialDataContext · contexto Core, en Flask (E2-M2a).
+│       ├── domain/             ANILLO INTERIOR · Python puro. Value objects, reglas, builders,
+│       │                       la ABC Categorizer y su copia de Money (domain/shared/).
+│       ├── infra/              ANILLO EXTERNO · Categorizadores, CategorizerFactory, sesión.
+│       ├── models.py           Account, Transaction, Category en SQLAlchemy. Solo persistencia.
+│       ├── services.py         ANILLO MEDIO · AccountService y TransactionService.
+│       ├── commands.py         flask verify-invariants (auditoría de INV-07 e INV-08).
+│       └── api/                ANILLO EXTERNO · Blueprints, esquemas y traducción de errores.
+├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
+├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.
 ```
 
@@ -236,7 +234,7 @@ finty/
 
 ## Alcance de la Entrega 1
 
-**Implementado:** `identity` (parcial: identidad y perfil) y `finance` (completo: cuentas, transacciones, categorías, balance y clasificación). Once de las veinte clases del diagrama, el 55%.
+**Implementado:** `identity` (parcial: identidad y perfil) y `finance` (completo: cuentas, transacciones, categorías, balance y clasificación). Once de las veinte clases del diagrama, el 55%. En la Entrega 2, `finance` se migró a `finance-service` y se retiró del monolito (ADR-08).
 
 **Deliberadamente fuera:** analítica e insights, motor de recomendaciones y perfil de riesgo, suscripciones y pagos, e integraciones bancarias automáticas. Los contextos `analytics`, `recommendation` y `subscription` están documentados en la arquitectura pero no existen como código, y no deben crearse en esta entrega.
 

@@ -13,8 +13,8 @@ Ese documento es la fuente única de verdad. Si algo aquí y allá se contradice
 Las reglas 1 a 6 aplican igual al monolito y a cada microservicio Flask. En Flask, los blueprints ocupan el lugar de las views, los modelos SQLAlchemy el de `models.py` y la validación de entrada el de los serializers.
 
 ### 1. `domain/` es Python puro
-`core/domain/` y `finance/domain/` **no importan Django**. Ni `models`, ni `settings`, ni `timezone`, ni nada.
-Verificación: `grep -rn "django" core/domain/ finance/domain/` debe devolver vacío.
+`core/domain/` **no importa Django**. Ni `models`, ni `settings`, ni `timezone`, ni nada.
+Verificación: `grep -rn "django" core/domain/` debe devolver vacío.
 En cada servicio Flask, `domain/` **no importa Flask, SQLAlchemy ni su propio `infra/`**. Se verifica por AST en la suite del servicio (A-16).
 
 ### 2. `models.py` solo persiste
@@ -40,7 +40,7 @@ Los services orquestan casos de uso. El dominio contiene las reglas.
 `domain/interfaces.py` define ABCs; `infra/` las implementa. Los services dependen de la ABC, jamás de la implementación concreta.
 
 ### 7. Apps, servicios y fronteras
-**Apps Django:** solo `core`, `identity` y `finance`. `finance` es **temporal**: sigue en el monolito como respaldo hasta que `finance-service` quede verificado detrás de Nginx, y se elimina en un módulo posterior (ADR-08).
+**Apps Django:** solo `core` e `identity`. `finance` dejó de ser una app de Django en E2-M3a: el contexto vive en `finance-service` (ADR-08). No se vuelve a crear en el monolito.
 **Microservicios Flask:** `finance-service`, `categorization-service`, `analytics-service`, `recommendation-service` y `subscription-service`. `analytics`, `recommendation` y `subscription` existen **solo** como servicios Flask: **no crear** apps Django, modelos ni scaffolding de esos contextos en el monolito. Cada servicio se construye en su módulo y no antes.
 **Fronteras entre servicios:**
 - Ningún servicio consulta la base de datos de otro. Cada uno tiene su base lógica y solo conoce su URL (ADR-10).

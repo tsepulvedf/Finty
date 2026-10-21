@@ -9,12 +9,13 @@ Estado a la fecha de este documento (2026-10-20):
 | Suite | Tests | Cómo se corre |
 |---|---|---|
 | Monolito (`core`, `identity`) | **175**, todos en verde | `pytest` en la raíz |
-| `finance-service` | **730**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
+| `finance-service` | **731**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| Contrato de caja negra (A-20) | **111**, más 5 opcionales (2 de throttling, A-13 y dos de A-22) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
-| Contratos estáticos entre servicios | **4** | `pytest` en `tests/services/` |
+| `analytics-service` | **136**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| Contrato de caja negra (A-20) | **125**, más 5 opcionales (2 de throttling, A-13 y dos de A-22) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
 
-En las tablas, `fs/` abrevia `services/finance-service/tests/` y `cs/` abrevia `services/categorization-service/tests/`.
+En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/` y `as/` abrevia `services/analytics-service/tests/`.
 
 ---
 
@@ -42,14 +43,17 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/` y `cs/` abrevia `
 
 | Criterio | Test | Estado |
 |---|---|---|
-| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio` | ✅ |
+| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio`, `as/test_architecture.py::TestPurezaDelDominio` | ✅ |
 | **A-17** | `docker compose config`: solo `nginx` declara `ports` (verificado en E2-M1a y E2-M2a) | ✅ |
 | **A-18** | `tests/contract/test_auth.py::TestA18XUserIdDelCliente` | ✅ |
 | **A-19** | `tests/contract/test_isolation.py` | ✅ |
 | **A-20** | `tests/contract/` — mismo resultado antes y después de conmutar, y tras retirar `finance` del monolito (`tests/contract/runs/`) | ✅ |
-| **A-21** | `services/finance-service/.env.docker` solo contiene `DATABASE_URL` y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
+| **A-21** | `services/finance-service/.env.docker` y `services/analytics-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido) | ✅ (categorización) |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
+| **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
+| **A-26** | `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato`, `as/api/test_api.py::TestResumenPublico` | ✅ |
+| **A-27** | `tests/contract/test_analytics.py::TestDePuntaAPunta` (sondeo con límite de 15 s) | ✅ |
 
 ## Eventos de dominio (ADR-15, E2-M4a)
 
@@ -61,6 +65,16 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/` y `cs/` abrevia `
 | El relay publica en orden, no republica y no pierde eventos con el stream caído | `fs/test_outbox.py::TestRelay`, `TestComandos` |
 | El backfill es idempotente | `fs/test_outbox.py::TestBackfill` |
 | Por el Gateway: tres eventos en `XRANGE`; con `docker compose stop redis` el registro sigue y el evento se publica al volver | `tests/contract/runs/2026-10-20-outbox-eventos.txt` |
+
+## Consumo en analytics-service (ADR-15, E2-M4b)
+
+| Qué se verifica | Test o evidencia |
+|---|---|
+| Reglas de `Dashboard`, `Insight` y `SpendingPattern`, con sus números exactos y sus umbrales | `as/domain/test_analytics_domain.py` |
+| Alta, reclasificación y borrado proyectados; duplicados, eventos viejos y lápidas | `as/test_projection.py::TestProyector` |
+| `XACK` solo después del commit; pendientes recuperados; mensajes fuera de contrato descartados sin bloquear | `as/test_projection.py::TestConsumidor`, `TestComando`, `TestRedisEventSource` |
+| Contrato HTTP de la API y del resumen público | `as/api/test_api.py`, `tests/contract/test_analytics.py` |
+| De punta a punta por el Gateway, idempotencia al reprocesar el stream completo, resiliencia con el worker detenido y privacidad con menos de *k* usuarios | `tests/contract/runs/2026-10-20-analytics-eventos.txt` |
 
 ---
 
@@ -112,4 +126,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M3a)*
+*Finty · Guía de verificación · Entrega 2 (E2-M4b)*

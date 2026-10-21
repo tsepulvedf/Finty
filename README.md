@@ -84,7 +84,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, `finance-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service`, `categorization-service` y `analytics-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -94,9 +94,11 @@ cp .env.docker.example .env.docker
 #    Edita .env.docker: SECRET_KEY propia y la misma contraseña en DB_PASSWORD y POSTGRES_PASSWORD.
 cp services/finance-service/.env.docker.example services/finance-service/.env.docker
 #    Edita DATABASE_URL con esa misma contraseña (escapada en formato URL si tiene símbolos).
+cp services/analytics-service/.env.docker.example services/analytics-service/.env.docker
+#    Igual: DATABASE_URL con la misma contraseña, hacia finty_analytics.
 
 # 2. Construir y arrancar. Las bases y las migraciones se crean solas antes de que
-#    arranquen Django y finance-service.
+#    arranquen Django, finance-service y analytics-service.
 docker compose up -d --build
 
 # 3. Comprobar
@@ -123,9 +125,9 @@ docker compose down -v                                        # detener y BORRAR
 
 **Migraciones.** Las aplica el servicio de un solo uso `migrate`: corre `manage.py migrate`, termina, y `django` no arranca hasta que haya terminado con éxito. Así cada `up` deja el esquema al día, una migración fallida impide arrancar contra un esquema incompleto, y los workers de gunicorn nunca compiten por migrar.
 
-`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías.
+`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías, y `analytics-migrate` para `analytics-service`.
 
-**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
+**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`, `finty_analytics`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
 
 > En Git Bash para Windows, antepón `MSYS_NO_PATHCONV=1` a los comandos de `docker compose exec` que reciben rutas absolutas del contenedor; si no, Git Bash las reescribe como rutas de Windows.
 
@@ -142,6 +144,34 @@ docker compose exec finance-service flask outbox-backfill               # evento
 ```
 
 Si Redis se detiene, las transacciones se siguen registrando y sus eventos quedan pendientes en `outbox_event`. Al volver Redis, el relay los publica. `finance-migrate` corre el backfill en cada `up`.
+
+## Analytics y el endpoint público
+
+`analytics-worker` consume `finty.finance.events` con el grupo de consumidores `analytics` y guarda una fila por transacción en `finty_analytics`. Nunca consulta `finty_finance`. `analytics-service` calcula al leer el dashboard, los insights y los gastos recurrentes; las reglas y sus umbrales están en la §6.5 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+```bash
+TOKEN=<token de /api/v1/auth/login/>
+curl -H "Authorization: Token $TOKEN" "http://localhost/api/v1/analytics/dashboard/?period=2026-10"
+curl -H "Authorization: Token $TOKEN" "http://localhost/api/v1/analytics/insights/?period=2026-10"
+curl -H "Authorization: Token $TOKEN" "http://localhost/api/v1/analytics/spending-patterns/"
+
+# Endpoint expuesto al equipo aliado: sin token, con k-anonimato (k = 3)
+curl "http://localhost/api/v1/public/spending-summary/?period=2026-10"
+
+docker compose logs -f analytics-worker                                       # el consumidor
+docker compose exec redis redis-cli XINFO GROUPS finty.finance.events          # pendientes y lag del grupo
+```
+
+**Consistencia eventual.** Una transacción aparece en el dashboard unos instantes después de registrarla (en local, alrededor de un segundo). Si `analytics-worker` se detiene, `finance-service` sigue funcionando, y al volver el worker se pone al día. Reprocesar el stream completo no duplica nada: el worker descarta los `event_id` ya aplicados.
+
+```bash
+# Reprocesar toda la historia (idempotente)
+docker compose stop analytics-worker
+docker compose exec redis redis-cli XGROUP SETID finty.finance.events analytics 0
+docker compose start analytics-worker
+```
+
+Los umbrales se cambian con variables `ANALYTICS_*` en `services/analytics-service/.env.docker`, por ejemplo `ANALYTICS_PUBLIC_MIN_USERS=5`.
 
 ## Conmutar el categorizador
 
@@ -184,7 +214,7 @@ Los tests de dominio no llevan la marca `django_db`, que es como `pytest-django`
 
 ### Suite de contrato (caja negra)
 
-`tests/contract/` prueba el contrato `/api/v1/` del bloque finance a través del Gateway, sin saber quién responde detrás: es la evidencia de la conmutación (A-20). Crea sus propios usuarios y no importa código de Finty.
+`tests/contract/` prueba el contrato `/api/v1/` de los bloques finance y analytics a través del Gateway, sin saber quién responde detrás: es la evidencia de la conmutación (A-20). Los tests de analytics esperan la consistencia eventual sondeando con un límite de 15 s. Crea sus propios usuarios y no importa código de Finty.
 
 ```bash
 # Con el stack de Docker arriba
@@ -195,11 +225,11 @@ CONTRACT_BASE_URL=http://localhost ../../venv/Scripts/python -m pytest -v
 CONTRACT_BASE_URL=http://localhost CONTRACT_THROTTLE=1 ../../venv/Scripts/python -m pytest -m throttle
 ```
 
-Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra dos usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP).
+Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra tres usuarios (el tercero lo exige el k-anonimato), que cuentan contra la cuota anónima de DRF (60 por hora y por IP).
 
 ### Contratos estáticos entre servicios
 
-`tests/services/` comprueba, leyendo el código fuente por AST, que toda categoría que puede emitir `categorization-service` esté sembrada en `finty_finance` con el mismo tipo (A-12).
+`tests/services/` comprueba, leyendo el código fuente por AST, que toda categoría que puede emitir `categorization-service` esté sembrada en `finty_finance` con el mismo tipo (A-12), y que todo campo del evento que lee `analytics-service` lo escriba `finance-service` (A-25).
 
 ```bash
 cd tests/services && ../../venv/Scripts/python -m pytest -v
@@ -212,6 +242,18 @@ Sin base de datos. Mismo procedimiento que `finance-service`, sin `FINANCE_TEST_
 ```bash
 cd services/categorization-service
 py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest
+```
+
+### Tests de analytics-service
+
+Mismo procedimiento que `finance-service`, con su propia base de pruebas:
+
+```bash
+cd services/analytics-service
+py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest tests/domain tests/test_architecture.py     # sin base de datos
+export ANALYTICS_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_analytics_test"
 .venv/Scripts/python -m pytest
 ```
 
@@ -256,8 +298,10 @@ finty/
 │       ├── services.py         ANILLO MEDIO · AccountService y TransactionService.
 │       ├── commands.py         flask verify-invariants (auditoría de INV-07 e INV-08).
 │       └── api/                ANILLO EXTERNO · Blueprints, esquemas y traducción de errores.
-│   └── categorization-service/ Categorización, en Flask y sin base de datos (E2-M3b).
-│                               Categorizer, los tres categorizadores y CategorizerFactory.
+│   ├── categorization-service/ Categorización, en Flask y sin base de datos (E2-M3b).
+│   │                           Categorizer, los tres categorizadores y CategorizerFactory.
+│   └── analytics-service/      AnalyticsInsightsContext, en Flask (E2-M4b). Dashboard, Insight,
+│                               SpendingPattern, el worker de eventos y el resumen público.
 ├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
 ├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.

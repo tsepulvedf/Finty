@@ -75,7 +75,10 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    # AOF con fsync cada segundo (ADR-15): el stream finty.finance.events es la
+    # unica copia de un evento ya marcado como publicado en el outbox. Sin AOF,
+    # un reinicio de Redis perderia esas entradas sin que nadie las reenvie.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
       - redisdata:/data
     healthcheck:

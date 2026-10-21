@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy import update
 
 from tests.doubles import MockCategorizer
+from infra.outbox import SqlAlchemyOutbox
 from models import Account
 from services import AccountService, TransactionService
 
@@ -33,7 +34,7 @@ def accounts(session):
 
 @pytest.fixture
 def service(session):
-    return TransactionService(session, MockCategorizer("Alimentación", 0.9))
+    return TransactionService(session, MockCategorizer("Alimentación", 0.9), SqlAlchemyOutbox(session))
 
 
 @pytest.fixture

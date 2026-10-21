@@ -24,12 +24,14 @@ que si se traduce aqui son las del ORM, que no deben escapar de esta capa.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 import messages
+from domain import events
 from domain.builders import AccountBuilder, TransactionBuilder
 from domain.exceptions import (
     AccountHasTransactionsError,
@@ -47,7 +49,7 @@ from domain.value_objects import (
     TransactionType,
 )
 from infra.listing import Listing
-from models import DEFAULT_CURRENCY, Account, Category, Transaction
+from models import DEFAULT_CURRENCY, Account, Category, OutboxEvent, Transaction
 
 MANUAL_CATEGORY_CONFIDENCE = 1.0
 
@@ -82,6 +84,29 @@ def atomic(session):
     except BaseException:
         session.rollback()
         raise
+
+
+def _utcnow():
+    """Instante actual en UTC: el `occurred_at` de los eventos."""
+    return datetime.now(timezone.utc)
+
+
+def _transaction_facts(movement, account, category):
+    """Foto de una transaccion para el payload de sus eventos (ADR-15).
+
+    Unico punto donde una fila de transaccion se convierte en `TransactionFacts`.
+    """
+    source = movement.categorization_source
+    return events.TransactionFacts(
+        user_id=account.user_id,
+        transaction_id=movement.id,
+        account_id=account.id,
+        amount=Money(movement.amount, account.currency),
+        transaction_type=movement.type,
+        category_name=category.name if category is not None else None,
+        categorization_source=CategorizationSource(source) if source is not None else None,
+        occurred_on=movement.occurred_on,
+    )
 
 
 def _as_uuid(value):
@@ -516,13 +541,18 @@ class AccountService:
 class TransactionService:
     """Casos de uso sobre transacciones.
 
-    Recibe el categorizador por constructor y depende solo de la ABC
-    `Categorizer` (ARCHITECTURE.md 8, fila DIP).
+    Recibe el categorizador y el outbox por constructor y depende solo de sus
+    ABC, `Categorizer` y `EventOutbox` (ARCHITECTURE.md 8, fila DIP).
+
+    **Cada escritura registra su evento de dominio en el mismo bloque `atomic()`
+    que el cambio** (outbox transaccional, ADR-15): registrar, reclasificar o
+    eliminar una transaccion y su evento se confirman juntos o no se confirman.
     """
 
-    def __init__(self, session, categorizer):
+    def __init__(self, session, categorizer, outbox):
         self._session = session
         self._categorizer = categorizer
+        self._outbox = outbox
         self._accounts = AccountService(session)
 
     def register_transaction(
@@ -575,6 +605,14 @@ class TransactionService:
 
             account.balance = new_balance.amount
 
+            # El flush asigna el id de la transaccion, que viaja en el evento.
+            self._session.flush()
+            self._outbox.record(
+                events.transaction_manually_added(
+                    _transaction_facts(created, account, category), _utcnow()
+                )
+            )
+
         return created
 
     def recategorize(self, user_id, transaction_id, category_name):
@@ -589,6 +627,12 @@ class TransactionService:
             movement.category = category
             movement.categorization_source = CategorizationSource.MANUAL.value
             movement.categorization_confidence = MANUAL_CATEGORY_CONFIDENCE
+
+            self._outbox.record(
+                events.transaction_categorized(
+                    _transaction_facts(movement, movement.account, category), _utcnow()
+                )
+            )
         return movement
 
     def delete_transaction(self, user_id, transaction_id):
@@ -609,8 +653,11 @@ class TransactionService:
             )
             TransactionRules.ensure_balance_allowed(snapshot.account_type, reverted)
 
+            # La foto se toma antes de borrar: es lo que el consumidor debe olvidar.
+            facts = _transaction_facts(movement, account, movement.category)
             self._session.delete(movement)
             account.balance = reverted.amount
+            self._outbox.record(events.transaction_deleted(facts, _utcnow()))
 
     def list_transactions(
         self, user_id, account_id=None, category_id=None, date_from=None, date_to=None
@@ -699,3 +746,87 @@ class TransactionService:
             "categorization_source": source.value if source is not None else None,
             "categorization_confidence": draft.confidence,
         }
+
+
+class OutboxRelay:
+    """Publica los eventos pendientes del outbox en el stream (ADR-15).
+
+    Lee los pendientes en orden de `id`, publica cada uno y lo marca como
+    publicado en su propia transaccion. Si el stream falla, revierte la marca y
+    deja subir `EventStreamUnavailable`: el evento sigue pendiente y quien llama
+    reintenta. Por eso la entrega es **al menos una vez**: si el proceso muere
+    entre publicar y confirmar la marca, ese evento se publica otra vez, y el
+    consumidor lo reconoce por su `event_id`.
+
+    `FOR UPDATE SKIP LOCKED` permite correr mas de un relay sin que dos publiquen
+    el mismo evento a la vez.
+    """
+
+    def __init__(self, session, stream):
+        self._session = session
+        self._stream = stream
+
+    def publish_pending(self, limit=100):
+        """Publica hasta `limit` eventos pendientes y devuelve cuantos publico."""
+        published = 0
+        while published < limit:
+            with atomic(self._session):
+                pending = self._session.execute(
+                    select(OutboxEvent)
+                    .where(OutboxEvent.published_at.is_(None))
+                    .order_by(OutboxEvent.id)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                ).scalar_one_or_none()
+                if pending is None:
+                    return published
+                pending.stream_id = self._stream.publish(pending.message)
+                pending.published_at = _utcnow()
+            published += 1
+        return published
+
+    def pending_count(self):
+        """Eventos que aun no se publican."""
+        return self._session.execute(
+            select(func.count()).select_from(OutboxEvent).where(OutboxEvent.published_at.is_(None))
+        ).scalar_one()
+
+
+class OutboxBackfill:
+    """Genera `TransactionManuallyAdded` para las transacciones anteriores al outbox.
+
+    Idempotente: solo toma transacciones que no tienen ese evento, y el indice
+    unico parcial `uq_outbox_manually_added_once` impide un duplicado aunque dos
+    ejecuciones coincidan. `occurred_at` es el `created_at` de la transaccion:
+    el hecho ocurrio cuando se registro, no cuando se rellena el outbox.
+    """
+
+    def __init__(self, session, outbox):
+        self._session = session
+        self._outbox = outbox
+
+    def run(self, batch_size=200):
+        """Rellena el outbox y devuelve cuantos eventos genero."""
+        already_recorded = exists().where(
+            OutboxEvent.aggregate_id == Transaction.id,
+            OutboxEvent.event_type == events.EventType.TRANSACTION_MANUALLY_ADDED.value,
+        )
+        created = 0
+        while True:
+            with atomic(self._session):
+                missing = self._session.execute(
+                    select(Transaction)
+                    .where(~already_recorded)
+                    .order_by(Transaction.created_at, Transaction.id)
+                    .limit(batch_size)
+                ).unique().scalars().all()
+                for movement in missing:
+                    self._outbox.record(
+                        events.transaction_manually_added(
+                            _transaction_facts(movement, movement.account, movement.category),
+                            movement.created_at,
+                        )
+                    )
+            created += len(missing)
+            if len(missing) < batch_size:
+                return created

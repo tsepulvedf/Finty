@@ -27,6 +27,7 @@ from api.schemas import (
 from api.serializers import account_to_dict, category_to_dict, transaction_to_dict
 from infra.categorization_client import RemoteCategorizer
 from infra.categorizers import RuleBasedCategorizer
+from infra.outbox import SqlAlchemyOutbox
 from services import AccountService, CategoryService, TransactionService
 
 blueprint = Blueprint("finance", __name__, url_prefix="/api/v1")
@@ -42,7 +43,7 @@ CREATED = 201
 
 
 def _transaction_service():
-    """Servicio con el categorizador remoto y su respaldo local inyectados.
+    """Servicio con el categorizador remoto, su respaldo local y el outbox inyectados.
 
     El blueprint es el unico punto que conoce las implementaciones concretas;
     `TransactionService` solo conoce la ABC `Categorizer` (DIP). La eleccion
@@ -55,7 +56,7 @@ def _transaction_service():
         fallback=RuleBasedCategorizer(),
         timeout=current_app.config["CATEGORIZATION_TIMEOUT_SECONDS"],
     )
-    return TransactionService(session, categorizer)
+    return TransactionService(session, categorizer, SqlAlchemyOutbox(session))
 
 
 # --- /categories/ ------------------------------------------------------------

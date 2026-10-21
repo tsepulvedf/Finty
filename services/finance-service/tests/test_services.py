@@ -31,6 +31,7 @@ from domain.value_objects import (
 )
 from infra.categorizers import RuleBasedCategorizer
 from tests.doubles import MockCategorizer
+from infra.outbox import SqlAlchemyOutbox
 from models import Account, Transaction
 from services import AccountService, TransactionService
 
@@ -65,7 +66,7 @@ def accounts(session):
 
 @pytest.fixture
 def service(session):
-    return TransactionService(session, RuleBasedCategorizer())
+    return TransactionService(session, RuleBasedCategorizer(), SqlAlchemyOutbox(session))
 
 
 @pytest.fixture
@@ -286,13 +287,13 @@ class TestCategorizadorInyectado:
 
     def test_sin_categoria_manual_se_invoca_una_vez(self, session, user_id, account):
         categorizer = CountingCategorizer()
-        register(TransactionService(session, categorizer), user_id, account)
+        register(TransactionService(session, categorizer, SqlAlchemyOutbox(session)), user_id, account)
         assert categorizer.calls == 1
 
     def test_con_categoria_manual_no_se_invoca(self, session, user_id, account):
         categorizer = CountingCategorizer()
         created = register(
-            TransactionService(session, categorizer),
+            TransactionService(session, categorizer, SqlAlchemyOutbox(session)),
             user_id,
             account,
             category_name="Compras",
@@ -311,7 +312,7 @@ class TestCategorizadorInyectado:
         assert session.get(Account, account.id).balance == antes
 
     def test_el_mock_reporta_su_propia_procedencia(self, session, user_id, account):
-        created = register(TransactionService(session, MockCategorizer()), user_id, account)
+        created = register(TransactionService(session, MockCategorizer(), SqlAlchemyOutbox(session)), user_id, account)
         assert created.categorization_source == CategorizationSource.MOCK.value
 
     def test_un_money_explicito_se_respeta(self, service, user_id, account):

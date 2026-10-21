@@ -18,6 +18,7 @@ from domain.exceptions import ZeroAmountError
 from infra.categorization_client import RemoteCategorizer
 from infra.categorizers import RuleBasedCategorizer
 from tests.doubles import MockCategorizer
+from infra.outbox import SqlAlchemyOutbox
 from models import Account, Category, Transaction
 from services import AccountService, CategoryService, TransactionService
 
@@ -65,14 +66,14 @@ def registrar(service, user_id, account, amount, kind="expense", **extra):
 
 class TestLSPEnElServicio:
     def test_registra_una_transaccion_valida(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         movimiento = registrar(service, user_id, account, "120000", description="Mercado de la semana")
 
         assert session.get(Transaction, movimiento.id) is not None
 
     def test_la_categoria_queda_resuelta(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         movimiento = registrar(service, user_id, account, "120000", description="Mercado de la semana")
 
@@ -80,14 +81,14 @@ class TestLSPEnElServicio:
         assert session.get(Category, movimiento.category_id) is not None
 
     def test_la_categoria_corresponde_al_tipo(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         movimiento = registrar(service, user_id, account, "500000", "income", description="Pago de nomina")
 
         assert movimiento.category.applies_to == "income"
 
     def test_la_fuente_y_la_confianza_quedan_registradas(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         movimiento = registrar(service, user_id, account, "120000", description="Taxi")
 
@@ -95,7 +96,7 @@ class TestLSPEnElServicio:
         assert 0.0 <= movimiento.categorization_confidence <= 1.0
 
     def test_el_balance_queda_correcto(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         registrar(service, user_id, account, "120000", description="Mercado")
 
@@ -103,13 +104,13 @@ class TestLSPEnElServicio:
         assert session.get(Account, account.id).balance == Decimal("880000.00")
 
     def test_las_invariantes_siguen_aplicando(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         with pytest.raises(ZeroAmountError):
             registrar(service, user_id, account, "0")
 
     def test_una_descripcion_hostil_no_rompe_el_registro(self, session, user_id, account, factory):
-        service = TransactionService(session, factory())
+        service = TransactionService(session, factory(), SqlAlchemyOutbox(session))
 
         movimiento = registrar(service, user_id, account, "1000", description="'; DROP TABLE x; --🍔")
 

@@ -17,6 +17,7 @@ from sqlalchemy import select, update
 
 from domain.shared.value_objects import Money
 from tests.doubles import MockCategorizer
+from infra.outbox import SqlAlchemyOutbox
 from models import Account, Transaction
 from services import (
     MISSING_CATEGORY,
@@ -37,7 +38,7 @@ def accounts(session):
 
 @pytest.fixture
 def service(session):
-    return TransactionService(session, MockCategorizer("Alimentación", 0.9))
+    return TransactionService(session, MockCategorizer("Alimentación", 0.9), SqlAlchemyOutbox(session))
 
 
 @pytest.fixture

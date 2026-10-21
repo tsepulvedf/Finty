@@ -10,6 +10,9 @@ Configuracion por entorno:
 - `EXCHANGE_RATE_API_URL` (opcional, la TRM de datos.gov.co), `EXCHANGE_RATE_TIMEOUT`
   (segundos, `3`) y `EXCHANGE_RATE_FALLBACK_USD_COP` (tasa fija, `3200`).
 - `TIME_ZONE` (opcional, `America/Bogota`): zona del proceso (RULES.md).
+- `ENTITLEMENTS_URL` (opcional, `http://subscription-service:8000`),
+  `ENTITLEMENTS_TIMEOUT` (`1` s) y `ENTITLEMENTS_CACHE_SECONDS` (`30`): gating
+  premium de INV-06 (`api/gating.py`).
 - Parametros de las reglas, `RECOMMENDATION_<NOMBRE>` (ver `domain/settings.py`):
   `RECOMMENDATION_SURPLUS_MONTHS`, `RECOMMENDATION_RATE_CONSERVATIVE`,
   `RECOMMENDATION_RATE_MODERATE`, `RECOMMENDATION_RATE_AGGRESSIVE` y
@@ -35,11 +38,13 @@ from api.context import (
     identify_user,
 )
 from api.errors import register_error_handlers
+from api.gating import ENTITLEMENTS_READER_KEY, enforce_entitlements
 from api.routes import exchange_rates, investment_plans, recommendations
 from domain.settings import RecommendationSettings
 from infra.analytics_client import HttpAnalyticsReader
 from infra.configuration import ConfigurationError
 from infra.database import build_engine, build_session_factory, ping
+from infra.entitlements import CachedEntitlementsReader, HttpEntitlementsReader
 from infra.exchange_rates import DEFAULT_TRM_URL, FixedExchangeRateProvider, TrmExchangeRateProvider
 from infra.rate_cache import RedisExchangeRateCache
 
@@ -52,6 +57,9 @@ DEFAULT_EXCHANGE_RATE_TIMEOUT = "3"
 # 2026-10-21 fue 3163,76 COP por dolar; 3200 es ese valor redondeado. Revisar si
 # la TRM se aleja mucho: una tasa fija desactualizada distorsiona las cifras.
 DEFAULT_FALLBACK_USD_COP = "3200"
+DEFAULT_ENTITLEMENTS_URL = "http://subscription-service:8000"
+DEFAULT_ENTITLEMENTS_TIMEOUT = "1"
+DEFAULT_ENTITLEMENTS_CACHE_SECONDS = "30"
 SETTINGS_PREFIX = "RECOMMENDATION_"
 
 
@@ -104,6 +112,16 @@ def _install_adapters(app):
         env.get("EXCHANGE_RATE_FALLBACK_USD_COP", DEFAULT_FALLBACK_USD_COP)
     ))
     extensions.setdefault(CLOCK_KEY, datetime.now)
+    if ENTITLEMENTS_READER_KEY not in extensions:
+        # Derechos premium de subscription-service, con cache corta de los "si" (INV-06).
+        extensions[ENTITLEMENTS_READER_KEY] = CachedEntitlementsReader.from_url(
+            HttpEntitlementsReader(
+                env.get("ENTITLEMENTS_URL", DEFAULT_ENTITLEMENTS_URL),
+                timeout=float(env.get("ENTITLEMENTS_TIMEOUT", DEFAULT_ENTITLEMENTS_TIMEOUT)),
+            ),
+            env.get("REDIS_URL", DEFAULT_REDIS_URL),
+            int(env.get("ENTITLEMENTS_CACHE_SECONDS", DEFAULT_ENTITLEMENTS_CACHE_SECONDS)),
+        )
 
 
 def create_app(session_factory=None, config=None, adapters=None):
@@ -122,6 +140,7 @@ def create_app(session_factory=None, config=None, adapters=None):
     _install_adapters(app)
 
     app.before_request(identify_user)
+    app.before_request(enforce_entitlements)
     app.teardown_appcontext(close_db_session)
     register_error_handlers(app)
 

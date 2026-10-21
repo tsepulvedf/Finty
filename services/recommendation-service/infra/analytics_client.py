@@ -29,6 +29,11 @@ from domain.shared.value_objects import Money
 
 DEFAULT_TIMEOUT_SECONDS = 1.0
 USER_ID_HEADER = "X-User-Id"
+# Se identifica como llamada interna: las recomendaciones de optimizacion son
+# gratuitas aunque lean insights y patrones, que son premium para el usuario (INV-06).
+# Nginx borra esta cabecera de toda peticion externa.
+INTERNAL_CALLER_HEADER = "X-Finty-Caller"
+CALLER_NAME = "recommendation-service"
 PATHS = {
     "dashboard": "/api/v1/analytics/dashboard/",
     "insights": "/api/v1/analytics/insights/",
@@ -66,7 +71,11 @@ class HttpAnalyticsReader(AnalyticsReader):
         query = urllib.parse.urlencode({"period": str(period)})
         request = urllib.request.Request(
             f"{self._base_url}{PATHS[name]}?{query}",
-            headers={USER_ID_HEADER: str(user_id), "Accept": "application/json"},
+            headers={
+                USER_ID_HEADER: str(user_id),
+                INTERNAL_CALLER_HEADER: CALLER_NAME,
+                "Accept": "application/json",
+            },
         )
         # urlopen lanza HTTPError ante 4xx y 5xx, y URLError o TimeoutError ante
         # fallos de red: todos terminan en AnalyticsUnavailable.

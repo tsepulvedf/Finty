@@ -63,6 +63,7 @@ def report_to_dict(report):
         "risk_profile_type": report.risk_profile_type.value if report.risk_profile_type else None,
         "display_currency": report.display_currency,
         "exchange_rates": [exchange_rate_to_dict(r) for r in report.exchange_rates],
+        "locked": [{"kind": kind.value, "code": code} for kind, code in report.locked],
         "recommendations": [
             {
                 "code": item.recommendation.code,

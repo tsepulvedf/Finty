@@ -54,3 +54,15 @@ INVESTMENT_DISCLAIMER = (
 ILLUSTRATIVE_RATE_NOTE = (
     "Tasa ilustrativa por perfil de riesgo: no es la rentabilidad de ningún producto."
 )
+
+# --- Gating premium (INV-06) ------------------------------------------------
+
+PREMIUM_REQUIRED = "Esta función es parte del plan PREMIUM."
+PREMIUM_HISTORY_REQUIRED = (
+    "El plan FREE incluye los últimos {months} meses de historial. "
+    "El historial completo es parte del plan PREMIUM."
+)
+ENTITLEMENTS_UNAVAILABLE = (
+    "No pudimos verificar tu suscripción en este momento. Las funciones PREMIUM "
+    "no están disponibles; intenta de nuevo en unos minutos."
+)

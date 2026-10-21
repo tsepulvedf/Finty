@@ -34,6 +34,7 @@ from domain.recommendations import (
 )
 from domain.risk_profile import QUESTIONS, RiskProfile
 from domain.shared.value_objects import Money
+from domain.value_objects import RecommendationKind
 from models import InvestmentPlanRecord, RiskProfileRecord
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,7 @@ class RecommendationReport:
     display_currency: str | None
     exchange_rates: tuple
     items: tuple  # DisplayedRecommendation
+    locked: tuple = ()  # ((tipo, code), ...): lo que no salio por INV-06
 
 
 class RecommendationService:
@@ -172,7 +174,9 @@ class RecommendationService:
         self._settings = settings
         self._clock = clock
 
-    def recommendations(self, user_id, display_currency=None):
+    def recommendations(self, user_id, display_currency=None, investment_lock=None):
+        """`investment_lock`: el `code` por el que el usuario no recibe las de inversion
+        (INV-06, lo decide el gating de la capa de entrada), o `None`."""
         if display_currency is not None:
             # Se valida antes de consultar nada: solo USD o COP.
             display_currency = ensure_supported_currency(display_currency)
@@ -186,11 +190,15 @@ class RecommendationService:
             logger.warning("analytics-service no disponible (%s); recomendaciones degradadas", exc)
             snapshot = None
 
-        if snapshot is None:
-            found = investment_recommendations(profile_type, None)
+        if investment_lock is not None:
+            investment = ()
+        elif snapshot is None:
+            investment = investment_recommendations(profile_type, None)
         else:
             surpluses = monthly_surpluses(period, snapshot.monthly_nets, self._settings.surplus_months)
-            found = optimization_recommendations(snapshot) + investment_recommendations(profile_type, surpluses)
+            investment = investment_recommendations(profile_type, surpluses)
+        optimization = optimization_recommendations(snapshot) if snapshot is not None else ()
+        found = optimization + investment
 
         items, rates = self._display(found, display_currency)
         return RecommendationReport(
@@ -200,6 +208,7 @@ class RecommendationService:
             display_currency=display_currency,
             exchange_rates=rates,
             items=items,
+            locked=((RecommendationKind.INVESTMENT, investment_lock),) if investment_lock else (),
         )
 
     def _display(self, found, display_currency):

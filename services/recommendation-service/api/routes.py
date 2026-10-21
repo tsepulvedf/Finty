@@ -1,7 +1,8 @@
 """Blueprints de recommendation-service (§10.8).
 
 Los blueprints no piensan (RULES.md, regla 3): validan la entrada, llaman al
-servicio y traducen el resultado a JSON. La identidad viene de `X-User-Id`.
+servicio y traducen el resultado a JSON. La identidad viene de `X-User-Id`, y
+INV-06 lo aplica `api/gating.py` antes del despacho.
 """
 from flask import Blueprint, jsonify
 
@@ -12,6 +13,7 @@ from api.context import (
     recommendation_service,
     risk_profile_service,
 )
+from api.gating import investment_lock
 from api.parsing import query_values, request_data
 from api.schemas import (
     ExchangeRateQuery,
@@ -36,7 +38,7 @@ exchange_rates = Blueprint("exchange_rates", __name__, url_prefix="/api/v1/excha
 @recommendations.get("/")
 def list_recommendations():
     query = validate_input(RecommendationQuery, query_values())
-    report = recommendation_service().recommendations(current_user_id(), query.display_currency)
+    report = recommendation_service().recommendations(current_user_id(), query.display_currency, investment_lock())
     return jsonify(report_to_dict(report))
 
 

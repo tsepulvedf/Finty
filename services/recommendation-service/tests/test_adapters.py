@@ -211,6 +211,8 @@ class TestHttpAnalyticsReader:
         assert [(str(n.period), n.net) for n in snapshot.monthly_nets] == [("2026-09", Money("300000", "COP"))]
         for _, query, headers in server.requests:
             assert headers["X-User-Id"] == str(user) and query["period"] == ["2026-10"]
+            # Llamada interna: las de optimizacion son gratuitas aunque lean insights (INV-06).
+            assert headers["X-Finty-Caller"] == "recommendation-service"
 
     @pytest.mark.parametrize("broken", ["/api/v1/analytics/insights/", "/api/v1/analytics/dashboard/"])
     def test_un_500_es_unavailable(self, server, broken):

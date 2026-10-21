@@ -43,3 +43,15 @@ class ExchangeRateCache(ABC):
     @abstractmethod
     def store(self, exchange_rate, on, expires_in):
         """Guarda la tasa del dia (con TTL `expires_in` s) y la ultima conocida."""
+
+
+class EntitlementsUnavailable(Exception):
+    """subscription-service no respondio, o respondio fuera de contrato."""
+
+
+class EntitlementsReader(ABC):
+    """Consulta el derecho premium de un usuario (INV-06, D-14)."""
+
+    @abstractmethod
+    def entitlement(self, user_id):
+        """`Entitlement` del usuario, o `EntitlementsUnavailable`."""

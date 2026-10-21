@@ -106,6 +106,7 @@ def session(connection):
 def adapters():
     """Dobles de los puertos: analytics, API de tasas, cache, respaldo y reloj."""
     from tests.doubles import FakeAnalytics, FakeRateProvider, MemoryRateCache, fixed_clock
+    from tests.entitlements_double import FakeEntitlements
     from infra.exchange_rates import FixedExchangeRateProvider
 
     return {
@@ -114,6 +115,7 @@ def adapters():
         "cache": MemoryRateCache(),
         "fallback": FixedExchangeRateProvider("3200"),
         "clock": fixed_clock(),
+        "entitlements": FakeEntitlements(),
     }
 
 
@@ -121,6 +123,7 @@ def adapters():
 def app(connection, adapters):
     """Aplicacion Flask cuyas peticiones usan la conexion del test y los dobles."""
     from api import context
+    from api.gating import ENTITLEMENTS_READER_KEY
     from app import create_app
 
     application = create_app(
@@ -131,6 +134,7 @@ def app(connection, adapters):
             context.RATE_CACHE_KEY: adapters["cache"],
             context.RATE_FALLBACK_KEY: adapters["fallback"],
             context.CLOCK_KEY: adapters["clock"],
+            ENTITLEMENTS_READER_KEY: adapters["entitlements"],
         },
     )
     application.testing = True

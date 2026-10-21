@@ -5,12 +5,13 @@
 Configuracion por entorno:
 - `DATABASE_URL` (obligatoria): URL de `finty_finance`, y solo de ella (A-21).
 - `CATEGORIZER_PROVIDER` (opcional, `RULE` por defecto): ver `infra/factories.py`.
-- `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida, la
-  misma de `settings.py` en el monolito.
+- `TIME_ZONE` (opcional, `America/Bogota`): zona de los instantes de salida y
+  del proceso (el "hoy" de INV-12), la misma de `settings.py` en el monolito.
 
 Comandos de mantenimiento: `flask verify-invariants` (`commands.py`).
 """
 import os
+import time
 
 from flask import Flask, jsonify
 
@@ -40,6 +41,20 @@ def health():
     return jsonify({"status": "ok"})
 
 
+def _set_process_time_zone(time_zone):
+    """Fija la zona horaria del proceso, como hace Django con `TIME_ZONE`.
+
+    El dominio decide "hoy" con `date.today()` (INV-12: fecha no futura), que usa
+    la zona del proceso. El contenedor corre en UTC: sin esto, desde las 19:00 de
+    Bogota el servicio aceptaria como de hoy una fecha que alla es de manana, y
+    el monolito no lo hacia. `time.tzset` solo existe en POSIX; en Windows el
+    proceso conserva la zona del sistema.
+    """
+    os.environ["TZ"] = time_zone
+    if hasattr(time, "tzset"):
+        time.tzset()
+
+
 def _session_factory_from_environment():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
@@ -58,6 +73,7 @@ def create_app(session_factory=None):
     """
     app = Flask(__name__)
     app.config["TIME_ZONE"] = os.environ.get("TIME_ZONE", DEFAULT_TIME_ZONE)
+    _set_process_time_zone(app.config["TIME_ZONE"])
 
     # Mismo JSON que el renderer de DRF: compacto, en UTF-8 y sin reordenar los
     # campos (el orden de los serializers es parte del contrato).

@@ -389,3 +389,10 @@ class TestSufijoDeFormato:
 
     def test_el_sufijo_tambien_exige_identidad(self, anonimo):
         assert anonimo.get("/api/v1/accounts.json").status_code == 401
+
+
+def test_la_zona_horaria_del_proceso_es_la_de_time_zone(app):
+    """Como Django: `date.today()` del dominio (INV-12) usa la zona de Bogota."""
+    import os
+
+    assert os.environ["TZ"] == app.config["TIME_ZONE"] == "America/Bogota"

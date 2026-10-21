@@ -7,12 +7,14 @@
 # E2-M4a: finance-outbox-relay publica los eventos de dominio en Redis Streams.
 # E2-M4b: analytics-service y analytics-worker, que consume esos eventos.
 # E2-M5: recommendation-service, que lee analytics por HTTP y consulta la TRM.
+# E2-M6a: subscription-service (pagos simulados) y el gating premium de INV-06.
 # Los demas servicios Flask y los workers de Celery se agregan en sus modulos.
 #
 #   cp .env.docker.example .env.docker                       # y completa los valores
 #   cp services/finance-service/.env.docker.example services/finance-service/.env.docker
 #   cp services/analytics-service/.env.docker.example services/analytics-service/.env.docker
 #   cp services/recommendation-service/.env.docker.example services/recommendation-service/.env.docker
+#   cp services/subscription-service/.env.docker.example services/subscription-service/.env.docker
 #   docker compose up -d --build
 #
 # Solo `nginx` publica un puerto en el host (A-17). El resto se comunica por la
@@ -51,6 +53,8 @@ x-analytics: &analytics
   env_file: services/analytics-service/.env.docker
   environment:
     REDIS_URL: redis://redis:6379/0
+    # Derechos premium para el gating de INV-06 (insights, patrones, historial).
+    ENTITLEMENTS_URL: http://subscription-service:8000
 
 # recommendation-service: proceso web y paso de migraciones. Lee analytics por
 # HTTP en la red interna (no consume eventos) y cachea la TRM en Redis (ADR-12).
@@ -62,10 +66,22 @@ x-recommendation: &recommendation
   environment:
     ANALYTICS_URL: http://analytics-service:8000
     REDIS_URL: redis://redis:6379/0
+    # Derechos premium para el gating de INV-06 (inversion y planes).
+    ENTITLEMENTS_URL: http://subscription-service:8000
     # La API oficial de la TRM. Se puede apuntar a una URL inalcanzable para
     # verificar la degradacion (A-22) sin editar archivos:
     #   EXCHANGE_RATE_API_URL=http://127.0.0.1:9 docker compose up -d recommendation-service
     EXCHANGE_RATE_API_URL: ${EXCHANGE_RATE_API_URL:-https://www.datos.gov.co/resource/32sa-8pi3.json}
+
+# subscription-service: proceso web y paso de migraciones (ADR-14).
+x-subscription: &subscription
+  build:
+    context: ./services/subscription-service
+  image: finty/subscription-service:local
+  env_file: services/subscription-service/.env.docker
+  environment:
+    # Pasarela de PaymentGatewayFactory. Un valor desconocido impide arrancar.
+    PAYMENT_GATEWAY: ${PAYMENT_GATEWAY:-MOCK}
 
 services:
   db:
@@ -246,6 +262,31 @@ services:
     <<: *recommendation
     depends_on:
       recommendation-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Paso de un solo uso: migraciones de finty_subscription con Alembic.
+  subscription-migrate:
+    <<: *subscription
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Sin `ports` (A-17). Ademas de su API, sirve /internal/entitlements/ a
+  # analytics y recommendation por la red interna; Nginx bloquea /internal/.
+  # Los demas servicios no lo esperan: si no esta, niegan lo premium (INV-06).
+  subscription-service:
+    <<: *subscription
+    depends_on:
+      subscription-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]

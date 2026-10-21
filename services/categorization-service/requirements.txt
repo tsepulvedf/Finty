@@ -1,0 +1,7 @@
+Flask==3.1.2
+pydantic==2.11.9
+gunicorn==23.0.0
+pytest==8.4.2
+# Base IANA de zonas horarias para `zoneinfo` solo en Windows, igual que en
+# finance-service. En la imagen Linux la aporta el sistema.
+tzdata==2026.5; sys_platform == "win32"

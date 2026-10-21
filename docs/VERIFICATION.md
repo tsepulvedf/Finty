@@ -11,12 +11,13 @@ Estado a la fecha de este documento (2026-10-20):
 | Monolito (`core`, `identity`) | **175**, todos en verde | `pytest` en la raíz |
 | `finance-service` | **731**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **137**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
-| `recommendation-service` | **170**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **143**, más 6 opcionales (2 de throttling, A-13, dos de A-22 y la degradación de A-28) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| `analytics-service` | **172**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
+| `subscription-service` | **83**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
+| Contrato de caja negra (A-20) | **150**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
 
-En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/` y `rs/` abrevia `services/recommendation-service/tests/`.
+En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
 
 ---
 
@@ -44,12 +45,12 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 
 | Criterio | Test | Estado |
 |---|---|---|
-| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio`, `as/test_architecture.py::TestPurezaDelDominio`, `rs/test_architecture.py::TestPurezaDelDominio` | ✅ |
+| **A-16** | `fs/test_architecture.py::TestPurezaDelDominio`, `as/test_architecture.py::TestPurezaDelDominio`, `rs/test_architecture.py::TestPurezaDelDominio`, `ss/test_architecture.py::TestPurezaDelDominio` | ✅ |
 | **A-17** | `docker compose config`: solo `nginx` declara `ports` (verificado en E2-M1a y E2-M2a) | ✅ |
 | **A-18** | `tests/contract/test_auth.py::TestA18XUserIdDelCliente` | ✅ |
 | **A-19** | `tests/contract/test_isolation.py` | ✅ |
 | **A-20** | `tests/contract/` — mismo resultado antes y después de conmutar, y tras retirar `finance` del monolito (`tests/contract/runs/`) | ✅ |
-| **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker` y `services/recommendation-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
+| **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker`, `services/recommendation-service/.env.docker` y `services/subscription-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido). Tasas: `rs/test_exchange_rate_service.py::TestCadenaDeDegradacion` y `rs/test_adapters.py::TestTrmExchangeRateProvider`; por el Gateway, `live` → `cached` → `fallback` en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt` | ✅ (categorización y tasas) |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
 | **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
@@ -57,6 +58,9 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | **A-27** | `tests/contract/test_analytics.py::TestDePuntaAPunta` (sondeo con límite de 15 s) | ✅ |
 | **A-28** | `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1` y `analytics-service` detenido; `rs/api/test_api.py::TestRecomendaciones::test_analytics_caido_degrada_sin_500`; evidencia en `runs/` | ✅ |
 | **A-29** | `tests/contract/test_recommendations.py::TestInversionPorPerfil`; `rs/domain/test_recommendation_domain.py::TestInversion` | ✅ |
+| **A-30** | `ss/domain/test_subscription_domain.py::TestInv05`; `ss/api/test_api.py::TestCheckout` y `TestIdempotencia` (confirmar dos veces no extiende; el índice único impide dos vigentes) | ✅ |
+| **A-31** | `tests/contract/test_subscriptions.py::TestSuscripciones::test_de_free_a_premium_y_cancelacion`; `as/api/test_gating.py`, `rs/api/test_gating.py`; evidencia en `tests/contract/runs/2026-10-21-suscripciones-y-gating.txt` | ✅ |
+| **A-32** | `tests/contract/test_subscriptions.py::TestSubscriptionCaido` con `CONTRACT_SUBSCRIPTION_DOWN=1` y `subscription-service` detenido; `TestSubscriptionCaido` de `as/` y `rs/`; evidencia en `runs/` | ✅ |
 
 ## Eventos de dominio (ADR-15, E2-M4a)
 
@@ -97,8 +101,8 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | INV-12 · Fecha no futura | `TransactionRules.ensure_date_not_future` | `fs/domain/test_transaction_rules.py::TestFechaNoFutura` |
 | INV-13 · No borrar cuenta con transacciones | FK con `RESTRICT` | `fs/persistence/test_constraints.py::TestCuenta::test_inv_13_no_se_borra_una_cuenta_con_transacciones` |
 | INV-14 · Saldo negativo solo en crédito | Servicio bajo bloqueo, `AccountBuilder` y `CHECK` sobre la apertura | `fs/test_services.py::TestAtomicidad`, `fs/persistence/test_constraints.py::TestCuenta` |
-
-INV-05 e INV-06 son de `subscription-service` (E2-M6).
+| INV-05 · Pago aprobado antes de activar | `Subscription.activate()` y `confirm_payment()` idempotente | `ss/domain/test_subscription_domain.py::TestInv05`, `ss/api/test_api.py::TestIdempotencia` |
+| INV-06 · Premium requiere suscripción activa | Middleware `api/gating.py` de analytics y recommendation | `as/api/test_gating.py`, `rs/api/test_gating.py`, `tests/contract/test_subscriptions.py` |
 
 ---
 
@@ -129,4 +133,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M5)*
+*Finty · Guía de verificación · Entrega 2 (E2-M6a)*

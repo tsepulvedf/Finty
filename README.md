@@ -84,7 +84,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, `finance-service`, `categorization-service`, `analytics-service` y `recommendation-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. `/api/v1/recommendations/`, `/api/v1/investment-plans/` y `/api/v1/exchange-rates/` van a `recommendation-service`, con token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service`, `categorization-service`, `analytics-service`, `recommendation-service` y `subscription-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. `/api/v1/recommendations/`, `/api/v1/investment-plans/` y `/api/v1/exchange-rates/` van a `recommendation-service`, y `/api/v1/subscriptions/` a `subscription-service`, todas con token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -98,6 +98,8 @@ cp services/analytics-service/.env.docker.example services/analytics-service/.en
 #    Igual: DATABASE_URL con la misma contraseña, hacia finty_analytics.
 cp services/recommendation-service/.env.docker.example services/recommendation-service/.env.docker
 #    Igual, hacia finty_recommendation.
+cp services/subscription-service/.env.docker.example services/subscription-service/.env.docker
+#    Igual, hacia finty_subscription.
 
 # 2. Construir y arrancar. Las bases y las migraciones se crean solas antes de que
 #    arranquen Django y los servicios Flask.
@@ -127,9 +129,9 @@ docker compose down -v                                        # detener y BORRAR
 
 **Migraciones.** Las aplica el servicio de un solo uso `migrate`: corre `manage.py migrate`, termina, y `django` no arranca hasta que haya terminado con éxito. Así cada `up` deja el esquema al día, una migración fallida impide arrancar contra un esquema incompleto, y los workers de gunicorn nunca compiten por migrar.
 
-`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías; `analytics-migrate` y `recommendation-migrate` hacen lo mismo para sus servicios.
+`finance-migrate` hace lo mismo para `finance-service` con `alembic upgrade head`, incluida la siembra del catálogo de categorías; `analytics-migrate`, `recommendation-migrate` y `subscription-migrate` hacen lo mismo para sus servicios.
 
-**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`, `finty_analytics`, `finty_recommendation`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
+**Bases de datos.** `deploy/postgres/init/01-create-databases.sh` crea una base lógica por servicio (`finty_identity`, `finty_finance`, `finty_analytics`, `finty_recommendation`, `finty_subscription`). Lo ejecuta PostgreSQL al inicializar un volumen vacío y, además, el paso de un solo uso `db-init` en cada `up`, así que una base nueva aparece también en un volumen que ya existe, sin pasos manuales. Para agregar la de un servicio nuevo, añádela a `FINTY_DATABASES` en ese script.
 
 > En Git Bash para Windows, antepón `MSYS_NO_PATHCONV=1` a los comandos de `docker compose exec` que reciben rutas absolutas del contenedor; si no, Git Bash las reescribe como rutas de Windows.
 
@@ -217,6 +219,30 @@ Sin la variable, el proveedor es `RULE`. Si `categorization-service` se detiene 
 
 El mismo `POST /api/v1/transactions/` devolverá un `categorization_source` distinto —`rule` o `mock`— según el proveedor activo. El campo registra **el mecanismo que realmente clasificó**: cuando `AICategorizer` degrada a su respaldo, la procedencia grabada es `rule`, no `ai`.
 
+## Suscripciones y funciones premium
+
+`subscription-service` vende el plan PREMIUM (29 900 COP al mes) con una pasarela simulada: `PAYMENT_GATEWAY=MOCK` aprueba siempre. El período es de un mes, sin renovación automática. La suscripción solo se activa con el pago aprobado (INV-05).
+
+```bash
+curl -H "Authorization: Token $TOKEN" http://localhost/api/v1/subscriptions/plans/
+curl -X POST -H "Authorization: Token $TOKEN" -H "Content-Type: application/json" \
+  -d '{"plan":"PREMIUM"}' http://localhost/api/v1/subscriptions/checkout/
+curl -H "Authorization: Token $TOKEN" http://localhost/api/v1/subscriptions/me/
+curl -X POST -H "Authorization: Token $TOKEN" http://localhost/api/v1/subscriptions/me/cancel/   # acceso hasta el fin del período
+```
+
+**Funciones premium (INV-06).** `analytics-service` y `recommendation-service` consultan el derecho del usuario en `subscription-service` (`/internal/entitlements/`, solo por la red interna) antes de responder:
+
+| FREE | PREMIUM |
+|---|---|
+| Movimientos, dashboard de los últimos 3 meses, recomendaciones de optimización, perfil de riesgo, tasas | Además: insights, patrones de gasto, historial completo, recomendaciones de inversión y planes de inversión |
+
+Sin derecho, la respuesta es 403 `premium_required`. Si `subscription-service` no responde, lo premium se niega con 503 `entitlements_unavailable` y lo gratuito sigue funcionando. Detalle en §7.1 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+```bash
+PAYMENT_GATEWAY=OTRO docker compose up -d subscription-service   # no arranca: valor desconocido (ADR-14)
+```
+
 ## Tests
 
 ```bash
@@ -248,7 +274,7 @@ CONTRACT_BASE_URL=http://localhost ../../venv/Scripts/python -m pytest -v
 CONTRACT_BASE_URL=http://localhost CONTRACT_THROTTLE=1 ../../venv/Scripts/python -m pytest -m throttle
 ```
 
-Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra cuatro usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP) y contra la ráfaga de 10 de la zona `finty_auth` de Nginx. Si una corrida repetida recibe 429 en el registro, espera un minuto; la cuota de DRF vive en la memoria de `django` y se reinicia con `docker compose restart django`.
+Las corridas de antes y después de la conmutación están en `tests/contract/runs/`. Cada corrida registra cinco usuarios, que cuentan contra la cuota anónima de DRF (60 por hora y por IP) y contra la ráfaga de 10 de la zona `finty_auth` de Nginx; el cliente espera hasta 20 s ante un 429. Cuatro de ellos activan PREMIUM con el checkout del mock al crearse; `lucia` empieza FREE para las pruebas de INV-06. Si una corrida repetida recibe 429 en el registro, espera un minuto; la cuota de DRF vive en la memoria de `django` y se reinicia con `docker compose restart django`.
 
 ### Contratos estáticos entre servicios
 
@@ -279,6 +305,18 @@ py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.tx
 export ANALYTICS_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_analytics_test"
 .venv/Scripts/python -m pytest
 ```
+
+### Tests de subscription-service
+
+```bash
+cd services/subscription-service
+py -3.11 -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest tests/domain tests/test_architecture.py   # sin base
+export SUBSCRIPTION_TEST_DATABASE_URL="postgresql+psycopg2://finty:<clave>@localhost:5432/finty_subscription_test"
+.venv/Scripts/python -m pytest
+```
+
+Los pagos rechazados y con error se prueban con un doble de `PaymentGateway`; el mock solo aprueba.
 
 ### Tests de recommendation-service
 
@@ -337,8 +375,10 @@ finty/
 │   │                           Categorizer, los tres categorizadores y CategorizerFactory.
 │   ├── analytics-service/      AnalyticsInsightsContext, en Flask (E2-M4b). Dashboard, Insight,
 │   │                           SpendingPattern, el worker de eventos y el resumen público.
-│   └── recommendation-service/ RecommendationContext, en Flask (E2-M5). RiskProfile,
-│                               Recommendation, InvestmentPlan y el Adapter de tasas (TRM).
+│   ├── recommendation-service/ RecommendationContext, en Flask (E2-M5). RiskProfile,
+│   │                           Recommendation, InvestmentPlan y el Adapter de tasas (TRM).
+│   └── subscription-service/   SubscriptionBillingContext, en Flask (E2-M6a). SubscriptionPlan,
+│                               Subscription, Payment, PaymentGatewayFactory y los derechos premium.
 ├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
 ├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.

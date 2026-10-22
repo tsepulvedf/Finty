@@ -30,10 +30,12 @@ from domain.exceptions import (
 from domain.interfaces import ContactNotFound, ContactUnavailable, PaymentOutcome, PaymentRequest
 from domain.notifications import (
     DEFAULT_DAYS_BEFORE_EXPIRY,
+    DEFAULT_WELCOME_RECOVERY_HOURS,
     NotificationKind,
     deserves_welcome,
     expiring_window,
     is_expiring,
+    welcome_recovery_start,
 )
 from domain.subscription import Entitlement, Payment, Subscription
 from domain.value_objects import (
@@ -316,13 +318,15 @@ class NotificationService:
     (no queda registro) y la tarea reintenta despues.
     """
 
-    def __init__(self, session, contacts, composer, sender, clock=utcnow, days_before=DEFAULT_DAYS_BEFORE_EXPIRY):
+    def __init__(self, session, contacts, composer, sender, clock=utcnow, days_before=DEFAULT_DAYS_BEFORE_EXPIRY,
+                 welcome_recovery_hours=DEFAULT_WELCOME_RECOVERY_HOURS):
         self._session = session
         self._contacts = contacts
         self._composer = composer
         self._sender = sender
         self._clock = clock
         self._days_before = days_before
+        self._welcome_recovery_hours = welcome_recovery_hours
 
     def send_premium_welcome(self, subscription_id):
         record = self._session.get(SubscriptionRecord, subscription_id)
@@ -336,12 +340,15 @@ class NotificationService:
 
         El camino rapido es la tarea que el checkout encola despues del commit;
         si el broker no respondio en ese momento, la bienvenida no salio. Esta
-        pasada busca las suscripciones ACTIVE en periodo sin la bienvenida
-        registrada para ese periodo y la envia. La restriccion unica de
-        `sent_notification` evita el duplicado si el camino rapido llega a la vez.
-        Devuelve cuantas salieron.
+        pasada busca las suscripciones ACTIVE en periodo, activadas dentro de la
+        ventana de recuperacion (24 horas por defecto), sin la bienvenida
+        registrada para ese periodo, y la envia. La ventana evita enviar una
+        bienvenida dias despues, por ejemplo a las suscripciones anteriores a esta
+        tarea. La restriccion unica de `sent_notification` evita el duplicado si
+        el camino rapido llega a la vez. Devuelve cuantas salieron.
         """
         now = self._clock()
+        since = welcome_recovery_start(now, self._welcome_recovery_hours)
         welcomed = (
             select(SentNotificationRecord.id)
             .where(
@@ -355,6 +362,7 @@ class NotificationService:
             select(SubscriptionRecord).where(
                 SubscriptionRecord.status == SubscriptionStatus.ACTIVE.value,
                 SubscriptionRecord.current_period_end > now,
+                SubscriptionRecord.current_period_start >= since,
                 ~welcomed,
             )
         ).all()

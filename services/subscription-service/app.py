@@ -11,7 +11,8 @@ Configuracion por entorno:
 - E2-M7 (correos y Celery): `CELERY_BROKER_URL` (`redis://redis:6379/1`),
   `IDENTITY_URL` (`http://django:8000`, de donde sale el contacto),
   `EMAIL_BACKEND` (`console` o `file`; con `file`, `EMAIL_FILE_DIR`) y
-  `NOTIFY_DAYS_BEFORE_EXPIRY` (`3`).
+  `NOTIFY_DAYS_BEFORE_EXPIRY` (`3`) y `WELCOME_RECOVERY_WINDOW_HOURS` (`24`,
+  al menos 1: si no, no arranca).
 
     celery -A celery_app:celery worker -Q subscription   # contenedor subscription-worker
     celery -A celery_app:celery beat                     # contenedor subscription-beat
@@ -36,7 +37,11 @@ from api.context import (
 )
 from api.errors import register_error_handlers
 from api.routes import internal, subscriptions
-from domain.notifications import DEFAULT_DAYS_BEFORE_EXPIRY
+from domain.notifications import (
+    DEFAULT_DAYS_BEFORE_EXPIRY,
+    DEFAULT_WELCOME_RECOVERY_HOURS,
+    validate_welcome_recovery_hours,
+)
 from domain.plans import DEFAULT_PREMIUM_PRICE_IN_CENTS, plan_catalog
 from infra.celery_factory import make_celery
 from infra.celery_queue import CeleryNotificationQueue
@@ -77,6 +82,17 @@ def _session_factory_from_environment():
     return build_session_factory(build_engine(database_url))
 
 
+def _welcome_recovery_hours():
+    """Falla al arrancar si la ventana es menor a una hora (D-32)."""
+    raw = os.environ.get("WELCOME_RECOVERY_WINDOW_HOURS", str(DEFAULT_WELCOME_RECOVERY_HOURS))
+    try:
+        return validate_welcome_recovery_hours(int(raw))
+    except ValueError as exc:
+        raise ConfigurationError(
+            f"WELCOME_RECOVERY_WINDOW_HOURS invalida ({raw!r}): debe ser un entero de al menos 1 hora."
+        ) from exc
+
+
 def create_app(session_factory=None, config=None, adapters=None):
     app = Flask(__name__, static_folder=None)
     app.config["TIME_ZONE"] = os.environ.get("TIME_ZONE", DEFAULT_TIME_ZONE)
@@ -85,6 +101,7 @@ def create_app(session_factory=None, config=None, adapters=None):
     app.config["NOTIFY_DAYS_BEFORE_EXPIRY"] = int(
         os.environ.get("NOTIFY_DAYS_BEFORE_EXPIRY", DEFAULT_DAYS_BEFORE_EXPIRY)
     )
+    app.config["WELCOME_RECOVERY_WINDOW_HOURS"] = _welcome_recovery_hours()
     app.config.update(config or {})
     _set_process_time_zone(app.config["TIME_ZONE"])
 

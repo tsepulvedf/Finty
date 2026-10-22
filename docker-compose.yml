@@ -93,6 +93,8 @@ x-subscription: &subscription
     CELERY_BROKER_URL: redis://redis:6379/1
     IDENTITY_URL: http://django:8000
     EMAIL_BACKEND: ${EMAIL_BACKEND:-console}
+    # Red de seguridad de la bienvenida: solo las activadas en estas horas (D-32).
+    WELCOME_RECOVERY_WINDOW_HOURS: ${WELCOME_RECOVERY_WINDOW_HOURS:-24}
 
 services:
   db:

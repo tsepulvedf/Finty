@@ -72,4 +72,5 @@ def notification_service():
         extensions[EMAIL_SENDER_KEY],
         extensions[CLOCK_KEY],
         current_app.config["NOTIFY_DAYS_BEFORE_EXPIRY"],
+        current_app.config["WELCOME_RECOVERY_WINDOW_HOURS"],
     )

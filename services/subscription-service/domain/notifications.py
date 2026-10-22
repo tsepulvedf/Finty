@@ -19,6 +19,11 @@ from enum import StrEnum
 from domain.value_objects import SubscriptionStatus
 
 DEFAULT_DAYS_BEFORE_EXPIRY = 3
+# Ventana de la red de seguridad de la bienvenida (D-32): solo se recuperan las
+# activadas hace poco. Tiene que ser bastante mayor que el intervalo del beat
+# (15 minutos) para que ninguna se escape entre dos pasadas.
+DEFAULT_WELCOME_RECOVERY_HOURS = 24
+MIN_WELCOME_RECOVERY_HOURS = 1
 SUPPORTED_LANGUAGES = ("es", "en")
 DEFAULT_LANGUAGE = "es"
 
@@ -51,6 +56,21 @@ class EmailMessage:
 def deserves_welcome(subscription, now):
     """La bienvenida solo tiene sentido si la suscripcion da acceso ahora."""
     return subscription.grants_premium(now)
+
+
+def validate_welcome_recovery_hours(hours):
+    """La ventana debe ser de al menos una hora; devuelve las horas validadas."""
+    if hours < MIN_WELCOME_RECOVERY_HOURS:
+        raise ValueError(
+            f"WELCOME_RECOVERY_WINDOW_HOURS debe ser de al menos {MIN_WELCOME_RECOVERY_HOURS} "
+            f"hora (el beat pasa cada 15 minutos): {hours}"
+        )
+    return hours
+
+
+def welcome_recovery_start(now, hours=DEFAULT_WELCOME_RECOVERY_HOURS):
+    """Las suscripciones activadas desde este instante entran en la recuperacion."""
+    return now - timedelta(hours=validate_welcome_recovery_hours(hours))
 
 
 def expiring_window(now, days_before=DEFAULT_DAYS_BEFORE_EXPIRY):

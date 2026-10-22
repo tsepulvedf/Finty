@@ -165,6 +165,45 @@ class TestBienvenidaDeRespaldo:
         assert notifications().send_missing_welcomes() == 0
         assert adapters["sender"].sent == []
 
+    def test_activada_hace_mas_de_24_horas_no_recibe_la_bienvenida(self, ana, juan, adapters, session, notifications):
+        adapters["queue"].down = True
+        activate(ana)
+        adapters["clock"].advance(hours=24, minutes=1)
+        activate(juan)
+
+        assert notifications().send_missing_welcomes() == 1
+        [message] = adapters["sender"].sent
+        assert message.to.startswith(juan.user_id.hex[:8])
+        assert sent_rows(session, ana.user_id) == []
+
+    def test_la_ventana_es_configurable(self, ana, adapters, session):
+        adapters["queue"].down = True
+        activate(ana)
+        adapters["clock"].advance(hours=3)
+        corta = NotificationService(session, adapters["contacts"], adapters["composer"], adapters["sender"],
+                                    adapters["clock"], welcome_recovery_hours=2)
+        larga = NotificationService(session, adapters["contacts"], adapters["composer"], adapters["sender"],
+                                    adapters["clock"], welcome_recovery_hours=4)
+        assert corta.send_missing_welcomes() == 0
+        assert larga.send_missing_welcomes() == 1
+
+    @pytest.mark.parametrize("valor", ["0", "-5", "media"])
+    def test_una_ventana_menor_a_una_hora_impide_arrancar(self, monkeypatch, connection, valor):
+        from app import create_app
+        from infra.configuration import ConfigurationError
+        from tests.conftest import _session_on
+
+        monkeypatch.setenv("WELCOME_RECOVERY_WINDOW_HOURS", valor)
+        with pytest.raises(ConfigurationError):
+            create_app(session_factory=lambda: _session_on(connection))
+
+    def test_la_ventana_se_lee_del_entorno(self, monkeypatch, connection):
+        from app import create_app
+        from tests.conftest import _session_on
+
+        monkeypatch.setenv("WELCOME_RECOVERY_WINDOW_HOURS", "48")
+        assert create_app(session_factory=lambda: _session_on(connection)).config["WELCOME_RECOVERY_WINDOW_HOURS"] == 48
+
     def test_identity_caido_reintenta_sin_marcar(self, ana, adapters, session, notifications):
         adapters["queue"].down = True
         activate(ana)

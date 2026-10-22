@@ -9,6 +9,17 @@
 #
 #   docker compose build   construye ambas con su `target`
 
+# --- Catalogos de traduccion -------------------------------------------------
+# Compila los .po de `locale/` a .mo con GNU gettext (ADR-11). Va en una etapa
+# propia para que la imagen final no cargue gettext: solo recibe los .mo. Los .mo
+# no se versionan, asi que nunca quedan desactualizados respecto a los .po.
+FROM python:3.11-slim AS messages
+
+RUN apt-get update     && apt-get install -y --no-install-recommends gettext     && rm -rf /var/lib/apt/lists/*
+
+COPY locale/ /locale/
+RUN find /locale -name "*.po" -exec sh -c 'msgfmt --check -o "${1%.po}.mo" "$1"' _ {} \;
+
 # --- Monolito Django ---------------------------------------------------------
 FROM python:3.11-slim AS django
 
@@ -25,6 +36,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
+COPY --from=messages /locale/ /app/locale/
 
 # `settings.py` exige estas variables al importarse, pero collectstatic no abre
 # conexion a la base: los valores son marcadores que solo existen en este paso y

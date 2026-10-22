@@ -13,6 +13,9 @@ __pycache__/
 # Django
 db.sqlite3
 staticfiles/
+# Los catalogos compilados se generan en el build de la imagen (Dockerfile):
+# la unica fuente versionada son los .po.
+*.mo
 
 # Tests
 .pytest_cache/

@@ -62,6 +62,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Idioma de la peticion: la cookie que fija el selector ES/EN (`set_language`)
+    # y, sin ella, `Accept-Language`. Va despues de las sesiones y antes de
+    # CommonMiddleware, como pide Django (ADR-11).
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -148,7 +152,21 @@ REST_FRAMEWORK = {
 
 # --- Internacionalizacion --------------------------------------------------
 
+# `es-co` es el idioma por defecto (los textos de DRF que reproduce el contrato
+# de /api/v1/ son los de `es`, la variante que Django elige para `es-co`).
 LANGUAGE_CODE = "es-co"
+
+# Idiomas del selector ES/EN del frontend (ADR-11). La eleccion queda en la cookie
+# de idioma de Django (`django_language`), que fija la vista `set_language`.
+LANGUAGES = [
+    ("es", "Español"),
+    ("en", "English"),
+]
+
+# Catalogos propios: `locale/<idioma>/LC_MESSAGES/django.po` (plantillas) y
+# `djangojs.po` (textos de JavaScript, servidos por JavaScriptCatalog). Los .mo
+# se compilan en el build de la imagen y no se versionan (Dockerfile).
+LOCALE_PATHS = [BASE_DIR / "locale"]
 
 TIME_ZONE = "America/Bogota"
 

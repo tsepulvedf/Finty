@@ -43,9 +43,13 @@ class ConsoleEmailSender(EmailSender):
         self._stream = stream
 
     def send(self, message):
+        """Legible en el log: cabeceras sin codificar MIME (el .eml si las codifica)."""
         stream = self._stream or sys.stdout
         separator = "-" * 72
-        stream.write(f"{separator}\n[correo] {_mime(message).as_string()}\n{separator}\n")
+        stream.write(
+            f"{separator}\n[correo] From: {FROM_ADDRESS}\nTo: {message.to}\n"
+            f"Subject: {message.subject}\n\n{message.body}\n{separator}\n"
+        )
         stream.flush()
 
 

@@ -97,6 +97,7 @@ class TestEnvio:
         ConsoleEmailSender(stream).send(self.MESSAGE)
         output = stream.getvalue()
         assert "To: ana@finty.co" in output and "Cuerpo del correo." in output
+        assert "Subject: Asunto con tilde: ¡Hola!" in output, "el asunto se lee sin codificar"
 
     def test_archivo(self, tmp_path, capsys):
         FileEmailSender(tmp_path).send(self.MESSAGE)

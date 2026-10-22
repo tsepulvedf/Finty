@@ -4,18 +4,18 @@ Mapea cada criterio del **Anexo A** de [`ARCHITECTURE.md`](ARCHITECTURE.md) al t
 
 **Desde E2-M3a** el contexto `finance` ya no vive en el monolito: lo sirve `services/finance-service/` (ADR-08). **Desde E2-M3b** la categorización (los categorizadores y `CategorizerFactory`) vive en `services/categorization-service/`, y `finance-service` la consume por HTTP con un respaldo local. Por eso los criterios de la Entrega 1 que hablaban de cuentas, transacciones, categorización y balance se verifican ahora en la suite de ese servicio. En el monolito quedan `core` e `identity`. El criterio autoritativo de capas sigue siendo el análisis del AST (A-15 en el monolito, A-16 en el servicio); un `grep` es solo una comprobación rápida.
 
-Estado a la fecha de este documento (2026-10-22):
+Estado a la fecha de este documento (2026-10-22, E2-M7):
 
 | Suite | Tests | Cómo se corre |
 |---|---|---|
-| Monolito (`core`, `identity`, frontend) | **348**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
+| Monolito (`core`, `identity`, frontend) | **369**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
 | `finance-service` | **744**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **184**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `analytics-service` | **250**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
-| `subscription-service` | **94**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **159**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
-| Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
+| `subscription-service` | **142**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
+| Contrato de caja negra (A-20) | **172**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| Contratos estáticos entre servicios | **18** (incluye la convención de Celery en Compose, que se omite sin Docker) | `pytest` en `tests/services/` |
 
 En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
 
@@ -120,6 +120,24 @@ Sale con código 1 si quedan balances desviados (INV-07), así que se puede enca
 
 ---
 
+## Tareas asíncronas (E2-M7)
+
+| Criterio | Test o evidencia | Estado |
+|---|---|---|
+| **A-33** reporte mensual asíncrono | `tests/contract/test_reports.py`; `as/api/test_reports.py`, `as/test_tasks.py`, `as/test_report_csv.py` | ✅ |
+| **A-34** avisos una sola vez y vencimiento | `ss/test_notifications.py` (reloj controlado), `ss/test_tasks.py` | ✅ |
+| **A-35** resiliencia de las tareas | `tests/contract/runs/2026-10-22-tareas-asincronas.txt` (secciones 3 y 4) | ✅ |
+| **A-36** tareas sin lógica y convención de Compose | `TestTareasSinLogica` en `as/test_architecture.py` y `ss/test_architecture.py`; `tests/services/test_compose_celery.py` | ✅ |
+| Contacto interno de identity bloqueado desde fuera | `identity/tests/test_internal_contact.py`; `tests/contract/test_routing.py::TestInternal` | ✅ |
+
+```bash
+docker compose stop analytics-celery     # el reporte queda PENDING
+docker compose start analytics-celery    # y se completa
+docker compose logs subscription-worker | grep -A12 "\[correo\]"
+```
+
+---
+
 ## Frontend (E2-M8b)
 
 | Requisito | Test | Estado |
@@ -155,4 +173,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M8b)*
+*Finty · Guía de verificación · Entrega 2 (E2-M7)*

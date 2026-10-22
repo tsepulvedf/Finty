@@ -84,7 +84,7 @@ Todas se leen de `.env` (ver `.env.example`). **No hay valores por defecto para 
 
 ## Ejecutar con Docker
 
-Levanta el monolito, `finance-service`, `categorization-service`, `analytics-service`, `recommendation-service` y `subscription-service` (Flask), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. `/api/v1/recommendations/`, `/api/v1/investment-plans/` y `/api/v1/exchange-rates/` van a `recommendation-service`, y `/api/v1/subscriptions/` a `subscription-service`, todas con token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
+Levanta el monolito, `finance-service`, `categorization-service`, `analytics-service`, `recommendation-service` y `subscription-service` (Flask), sus workers y beats de Celery (E2-M7), PostgreSQL 18, Redis y Nginx como Gateway. Solo Nginx publica un puerto en el host (el 80); el resto solo es alcanzable desde la red interna de Compose. Desde E2-M2b, Nginx envía todo el bloque `accounts`, `transactions` y `categories` a `finance-service`, después de verificar el token contra Django (`auth_request`). `/api/v1/analytics/` va a `analytics-service` con la misma verificación, y `/api/v1/public/` también, pero sin token. `/api/v1/recommendations/`, `/api/v1/investment-plans/` y `/api/v1/exchange-rates/` van a `recommendation-service`, y `/api/v1/subscriptions/` a `subscription-service`, todas con token. Las rutas de `identity` y el frontend siguen en Django. Es independiente de la puesta en marcha local: `.env` y el PostgreSQL del host siguen funcionando igual.
 
 Requisitos: Docker Engine con Compose v2 (Docker Desktop en Windows) y el puerto 80 libre.
 
@@ -260,6 +260,36 @@ Sin derecho, la respuesta es 403 `premium_required`. Si `subscription-service` n
 ```bash
 PAYMENT_GATEWAY=OTRO docker compose up -d subscription-service   # no arranca: valor desconocido (ADR-14)
 ```
+
+## Tareas asíncronas (Celery)
+
+Celery 5.5.3 con Redis como broker, en la base lógica 1 (la 0 es del stream y las cachés). Sin result backend: el estado de cada tarea queda en la base del servicio. La convención completa está en ADR-15 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+| Contenedor | Qué hace |
+|---|---|
+| `analytics-celery` | Genera el reporte mensual en CSV (`analytics.generate_monthly_report`) |
+| `analytics-celery-beat` | Cada 2 minutos vuelve a encolar los reportes que quedaron PENDING |
+| `subscription-worker` | Envía la bienvenida a Premium, el aviso de vencimiento y vence las suscripciones |
+| `subscription-beat` | Aviso de vencimiento diario (9:00 de Bogotá) y `expire_subscriptions` cada 15 minutos |
+
+**Reporte mensual.** El CSV tiene los movimientos del período y un resumen por categoría y moneda, con encabezados en el idioma de `Accept-Language`. El dashboard lo ofrece con el botón "Descargar reporte".
+
+```bash
+curl -X POST -H "Authorization: Token $TOKEN" -H "Content-Type: application/json" -H "Accept-Language: en" \
+  -d '{"period":"2026-10"}' http://localhost/api/v1/analytics/reports/          # 202 PENDING
+curl -H "Authorization: Token $TOKEN" http://localhost/api/v1/analytics/reports/<id>/            # READY
+curl -H "Authorization: Token $TOKEN" -OJ http://localhost/api/v1/analytics/reports/<id>/download/
+```
+
+**Correos.** No hay servidor de correo: con `EMAIL_BACKEND=console` (por defecto) cada correo queda en el log del worker, en el idioma del usuario (`language` de su perfil). Con `EMAIL_BACKEND=file` también se guarda como `.eml` en `/tmp/finty-mail` dentro del contenedor.
+
+```bash
+docker compose logs -f subscription-worker        # bienvenida al activar Premium
+docker compose logs -f analytics-celery           # reportes
+docker compose exec redis redis-cli -n 1 LLEN analytics    # mensajes esperando en la cola
+```
+
+Si un worker se detiene, lo pendiente espera en Redis y se procesa al volver. Si identity no responde, el correo se reintenta con espera creciente y la activación del pago no se afecta. La evidencia está en `tests/contract/runs/2026-10-22-tareas-asincronas.txt`.
 
 ## Tests
 

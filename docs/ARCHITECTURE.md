@@ -1772,6 +1772,7 @@ sequenceDiagram
 │   └── login/             POST    → token
 ├── profile/               GET,PUT → perfil del usuario autenticado
 ├── accounts/              GET,POST
+│   ├── summary/           GET     → saldo total por moneda (E2-M8b, D-29)
 │   ├── {id}/              GET,PUT,DELETE
 │   └── {id}/archive/      POST    → archivar (no borra)
 ├── categories/            GET     → catálogo (read-only)
@@ -1780,6 +1781,14 @@ sequenceDiagram
     ├── {id}/              GET,DELETE
     └── {id}/categorize/   POST    → reclasificación manual
 ```
+
+**Extensiones compatibles de E2-M8b (D-29, D-30):** las sirve `finance-service` y no cambian nada de lo anterior.
+- `GET /transactions/` admite, además de `account_id`, `category_id`, `date_from` y `date_to`:
+  - `q`: busca en la descripción sin distinguir mayúsculas ni tildes. `cafe` encuentra "CAFÉ"; `%` y `_` se toman literalmente. Hasta 255 caracteres, y en blanco no filtra.
+  - `type`: `income` o `expense`; otro valor responde 400 con el mensaje de `ChoiceField`.
+
+  Antes, un `type` desconocido se ignoraba; ahora es un filtro. El test de paridad que usaba `?type=x` como parámetro desconocido pasó a usar otro nombre.
+- `GET /accounts/summary/` → `{"currencies": [{"currency": "COP", "balance": "312000.50", "accounts": 2}, …]}`: el saldo total y el número de cuentas **activas** por moneda, ordenado por moneda. Nunca suma monedas distintas ni convierte; el cliente presenta el equivalente con `/exchange-rates/` (ADR-12).
 
 **Versionado desde el día 1 (`/api/v1/`):** el prefijo identifica el **contrato**, no la ubicación física de quien lo sirve. Por eso la migración a Flask no cambia de versión (ADR-08), y `/api/v2/` queda reservado para cambios incompatibles del contrato. *(v2.1 proponía usar `/api/v2/` como vía del Strangler; esa idea queda sustituida por C-23.)*
 
@@ -1864,7 +1873,7 @@ Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde 
 
 | Ruta | Respuesta 200 |
 |------|---------------|
-| `GET /api/v1/analytics/dashboard/?period=` | `{"period": "2026-10", "currencies": [{"currency": "COP", "income": "500000.00", "expense": "120000.00", "net": "380000.00", "categories": [{"category_name": "Alimentación", "transaction_type": "expense", "total": "120000.00", "share": "1.0000"}], "accounts": [{"account_id": "…", "income": …, "expense": …, "net": …}], "trend": [{"period": "2026-05", "income": …, "expense": …, "net": …}, … 6 meses]}]}`. Sin movimientos, `currencies` es `[]` |
+| `GET /api/v1/analytics/dashboard/?period=` | `{"period": "2026-10", "currencies": [{"currency": "COP", "income": "500000.00", "expense": "120000.00", "net": "380000.00", "categories": [{"category_name": "Alimentación", "transaction_type": "expense", "total": "120000.00", "share": "1.0000"}], "accounts": [{"account_id": "…", "income": …, "expense": …, "net": …}], "trend": [{"period": "2026-05", "income": …, "expense": …, "net": …}, … 6 meses]}]}`. Sin movimientos, `currencies` es `[]` Desde E2-M8b cada moneda trae también `"previous": {"period", "income", "expense", "net"} | null`, `"expense_change_pct": "25.0" | null` (variación de los gastos frente al mes anterior; nula si ese mes no tuvo gastos) y `"savings_rate": "0.2900" | null` (neto sobre ingresos; nula sin ingresos). Para un usuario Free, `previous` solo aparece si el mes anterior está dentro de su ventana de 3 meses (INV-06). Las reglas viven en `domain/dashboard.py` (`Comparison`, `savings_rate`) |
 | `GET /api/v1/analytics/insights/?period=` | `{"period": "2026-10", "insights": [{"type": "NEGATIVE_SAVINGS", "code": "negative_savings", "severity": "warning", "period": "2026-10", "params": {"currency": "COP", "deficit": "50000.00"}, "evidence": {"income": "100000.00", "expense": "150000.00"}}]}`. `params` y `evidence` de cada `code` en §6.5 |
 | `GET /api/v1/analytics/spending-patterns/?period=` | `{"reference_period": "2026-10", "window_months": 6, "patterns": [{"description": "netflix", "category_name": "Entretenimiento", "currency": "COP", "average_amount": "39900.00", "months_present": 3, "window_months": 6, "occurrences": 3, "monthly_frequency": "1.00", "last_seen": "2026-10-03"}]}`. `period` marca el último mes de la ventana |
 
@@ -2059,8 +2068,8 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | D-27 | `SubscriptionActivated` y `PremiumFeaturesUnlocked` (DDD Stage 1) | **No se publican en E2-M6a.** Los consumidores del derecho lo consultan cuando lo necesitan (`/internal/entitlements/`), y como la caché solo guarda los "sí", un pago se refleja en la siguiente petición sin necesidad de un evento que invalide nada. E2-M7 decidirá si `SubscriptionActivated` hace falta para notificaciones (correo de bienvenida); si se publica, irá por un outbox como el de finance (ADR-15) | Abierta — E2-M7 |
 | D-28 | Consecuencia de INV-06 en DDD Stage 1 | Incorporada en §7.1: la consecuencia de violar INV-06 es la **pérdida de ingresos**, y con ella se justifica negar lo premium cuando no se puede verificar la suscripción (fail-closed). También se reconcilia la expresión formal (`status = 'ACTIVE'`) con el estado CANCELED en período de E2-M6a | **Cerrada** (E2-M6a) |
 | D-25 | Dependencia síncrona `recommendation → analytics` | Aceptada con degradación (`degraded: true`) y timeout de 1 s. No hay caché de lo que responde analytics: una recomendación degradada se recupera sola en la siguiente lectura. Si la latencia de las tres llamadas (insights, patrones y dashboard) pesara, se podrían paralelizar o pedir a analytics un endpoint combinado | Abierta, sin módulo asignado |
-| D-29 | Saldo consolidado y comparaciones del dashboard | El diseño muestra un "saldo consolidado" (todas las cuentas sumadas y convertidas) y frases como "4,7 % menos que septiembre" o "ahorras el 29 %". La API no las calcula y sumar saldos o comparar períodos en el navegador sería lógica de negocio. **E2-M8a no las muestra:** el dashboard presenta ingresos, gastos y neto del período, el valor del mes anterior tal como viene en la tendencia, y el saldo de cada cuenta convertido con la tasa de la API | Abierta — si se quieren, agregarlas como datos de la API (finance o analytics) |
-| D-30 | Filtros de movimientos | El diseño trae búsqueda por descripción y filtro por tipo. `GET /transactions/` admite cuenta, categoría y rango de fechas, y filtrar en el navegador una página de 50 daría resultados incompletos. **E2-M8a ofrece los filtros que admite la API** (cuenta, categoría, desde y hasta) | Abierta — agregar `search` y `type` al contrato de finance si se quieren |
+| D-29 | Saldo consolidado y comparaciones del dashboard | **Resuelta como datos de la API (E2-M8b).** `GET /accounts/summary/` (finance) da el saldo total por moneda, sin mezclar ni convertir. El dashboard de analytics agrega el período anterior, la variación porcentual de los gastos y la tasa de ahorro, con las reglas en su `domain/` (§10.6). El frontend solo presenta: convierte cada total con la tasa de `/exchange-rates/` y muestra la fuente | **Cerrada** (E2-M8b) |
+| D-30 | Filtros de movimientos | **Resuelta en finance-service (E2-M8b):** `GET /transactions/` admite `q` (sin mayúsculas ni tildes, con `translate` de PostgreSQL y sin la extensión `unaccent`) y `type` (§10.2). El frontend agrega la búsqueda y el filtro por tipo | **Cerrada** (E2-M8b) |
 | D-31 | Mensajes de validación (400) de los servicios Flask | finance-service reproduce los textos de DRF en español por contrato (A-20), así que un 400 por campo llega en español aunque la interfaz esté en inglés. El frontend valida antes los campos obligatorios y los formatos, con mensajes traducidos, y muestra el texto de la API solo si aun así llega un 400 | Abierta — traducir por código de validación si se agrega uno al contrato |
 | D-21 | Traducción de las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext y sus respuestas llevan solo `{"detail": ...}`, la forma de DRF. **Decisión:** el frontend las traduce por **código de estado HTTP** (401 → sesión no válida, 429 → demasiadas peticiones), no por un `code` en el cuerpo. El Gateway y la suite de contrato (A-20) no cambian: el cuerpo de esas respuestas sigue siendo el de DRF. Se descartó agregar `code` al cuerpo porque cambiaría la forma del contrato | **Cerrada** (E2-M3b); implementada en E2-M8a (`frontend/static/finty/js/codes.js`) |
 

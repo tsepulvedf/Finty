@@ -137,6 +137,21 @@ docker compose down -v                                        # detener y BORRAR
 
 **Estáticos.** `collectstatic` corre al construir la imagen de Django, y la etapa `gateway` del `Dockerfile` copia el resultado en la imagen de Nginx, que sirve `/static/` sin pasar por Django.
 
+## Frontend
+
+Django sirve las pantallas en `http://localhost/`: ingreso (`/`), registro (`/registro/`), dashboard (`/dashboard/`) y movimientos (`/movimientos/`). Las plantillas (`frontend/templates/finty/`) no reciben datos de negocio: su JavaScript (`frontend/static/finty/js/`) pide todo a `/api/v1/` desde el navegador. El diseño de referencia está en `docs/design/`.
+
+- **Idiomas:** español e inglés, con el selector ES/EN de la cabecera. La elección queda en la cookie `django_language`.
+- **Traducciones:** `locale/{es,en}/LC_MESSAGES/` (`django.po` para plantillas, `djangojs.po` para JavaScript). En Docker los `.mo` se compilan solos; fuera de Docker:
+
+```bash
+python manage.py makemessages -l es -l en --ignore=venv --ignore=.venv --ignore=services --ignore=staticfiles --ignore=docs --ignore=tests --add-location=file
+python manage.py makemessages -d djangojs -l es -l en --ignore=venv --ignore=.venv --ignore=services --ignore=staticfiles --ignore=docs --ignore=tests --add-location=file
+python manage.py compilemessages    # requiere GNU gettext (msgfmt)
+```
+
+- **Sin red externa:** la tipografía Manrope se sirve desde `frontend/static/finty/fonts/` (licencia OFL-1.1); la página no carga nada de otro origen.
+
 ## Eventos de dominio
 
 `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el Redis Stream `finty.finance.events`, con un outbox transaccional: el evento se escribe en la misma transacción que el cambio, y el contenedor `finance-outbox-relay` lo publica después. El contrato está en la §10.5 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -379,6 +394,8 @@ finty/
 │   │                           Recommendation, InvestmentPlan y el Adapter de tasas (TRM).
 │   └── subscription-service/   SubscriptionBillingContext, en Flask (E2-M6a). SubscriptionPlan,
 │                               Subscription, Payment, PaymentGatewayFactory y los derechos premium.
+├── frontend/                   Plantillas Django con gettext y estáticos (CSS, JS, Manrope).
+├── locale/                     Catálogos de traducción es y en (.po); los .mo se compilan en el build.
 ├── deploy/                     Nginx (API Gateway) y la creación de bases de PostgreSQL.
 ├── tests/contract/             Suite de contrato de caja negra contra el Gateway.
 └── docs/                       ARCHITECTURE.md y VERIFICATION.md.

@@ -8,7 +8,7 @@ Estado a la fecha de este documento (2026-10-20):
 
 | Suite | Tests | Cómo se corre |
 |---|---|---|
-| Monolito (`core`, `identity`) | **175**, todos en verde | `pytest` en la raíz |
+| Monolito (`core`, `identity`, frontend) | **232**, todos en verde | `pytest` en la raíz |
 | `finance-service` | **731**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
 | `analytics-service` | **172**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
@@ -52,6 +52,7 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | **A-20** | `tests/contract/` — mismo resultado antes y después de conmutar, y tras retirar `finance` del monolito (`tests/contract/runs/`) | ✅ |
 | **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker`, `services/recommendation-service/.env.docker` y `services/subscription-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido). Tasas: `rs/test_exchange_rate_service.py::TestCadenaDeDegradacion` y `rs/test_adapters.py::TestTrmExchangeRateProvider`; por el Gateway, `live` → `cached` → `fallback` en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt` | ✅ (categorización y tasas) |
+| **A-23** | Primer tramo: `core/tests/test_frontend.py::TestA23SinTextosQuemados` (ningún texto visible fuera de `{% translate %}` en las plantillas de E2-M8a) y `TestCatalogos` (catálogos `es` y `en` completos, sin `fuzzy`, con cada texto de plantillas y JavaScript) | ✅ plantillas del núcleo; resto en E2-M8b |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
 | **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
 | **A-26** | `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato`, `as/api/test_api.py::TestResumenPublico` | ✅ |
@@ -134,4 +135,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M6b)*
+*Finty · Guía de verificación · Entrega 2 (E2-M8a)*

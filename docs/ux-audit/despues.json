@@ -1,0 +1,1446 @@
+{
+  "base": "http://localhost",
+  "date": "2026-10-22T20:39:05.657Z",
+  "results": [
+    {
+      "page": "ingreso",
+      "path": "/",
+      "lang": "es",
+      "width": 1440,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ingreso-es-1440-anonimo.png"
+    },
+    {
+      "page": "registro",
+      "path": "/registro/",
+      "lang": "es",
+      "width": 1440,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "registro-es-1440-anonimo.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-es-1440-free.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-es-1440-free.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-es-1440-free.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-es-1440-free.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-es-1440-free.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-es-1440-free.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-es-1440-free.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-es-1440-free.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "es",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-es-1440-free.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-es-1440-premium.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-es-1440-premium.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-es-1440-premium.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-es-1440-premium.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-es-1440-premium.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-es-1440-premium.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-es-1440-premium.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-es-1440-premium.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "es",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-es-1440-premium.png"
+    },
+    {
+      "page": "ingreso",
+      "path": "/",
+      "lang": "es",
+      "width": 390,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ingreso-es-390-anonimo.png"
+    },
+    {
+      "page": "registro",
+      "path": "/registro/",
+      "lang": "es",
+      "width": 390,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "registro-es-390-anonimo.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-es-390-free.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-es-390-free.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-es-390-free.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-es-390-free.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-es-390-free.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-es-390-free.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-es-390-free.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-es-390-free.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "es",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-es-390-free.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-es-390-premium.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-es-390-premium.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-es-390-premium.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-es-390-premium.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-es-390-premium.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-es-390-premium.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-es-390-premium.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-es-390-premium.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "es",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-es-390-premium.png"
+    },
+    {
+      "page": "ingreso",
+      "path": "/",
+      "lang": "en",
+      "width": 1440,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ingreso-en-1440-anonimo.png"
+    },
+    {
+      "page": "registro",
+      "path": "/registro/",
+      "lang": "en",
+      "width": 1440,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "registro-en-1440-anonimo.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-en-1440-free.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-en-1440-free.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-en-1440-free.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-en-1440-free.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-en-1440-free.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-en-1440-free.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-en-1440-free.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-en-1440-free.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "en",
+      "width": 1440,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-en-1440-free.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-en-1440-premium.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-en-1440-premium.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-en-1440-premium.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-en-1440-premium.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-en-1440-premium.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-en-1440-premium.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-en-1440-premium.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-en-1440-premium.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "en",
+      "width": 1440,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-en-1440-premium.png"
+    },
+    {
+      "page": "ingreso",
+      "path": "/",
+      "lang": "en",
+      "width": 390,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ingreso-en-390-anonimo.png"
+    },
+    {
+      "page": "registro",
+      "path": "/registro/",
+      "lang": "en",
+      "width": 390,
+      "user": "anonimo",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "registro-en-390-anonimo.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-en-390-free.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-en-390-free.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-en-390-free.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-en-390-free.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 96,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-en-390-free.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-en-390-free.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-en-390-free.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-en-390-free.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "en",
+      "width": 390,
+      "user": "free",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-en-390-free.png"
+    },
+    {
+      "page": "dashboard",
+      "path": "/dashboard/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "dashboard-en-390-premium.png"
+    },
+    {
+      "page": "movimientos",
+      "path": "/movimientos/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "movimientos-en-390-premium.png"
+    },
+    {
+      "page": "insights",
+      "path": "/insights/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "insights-en-390-premium.png"
+    },
+    {
+      "page": "inversiones",
+      "path": "/inversiones/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "inversiones-en-390-premium.png"
+    },
+    {
+      "page": "perfil-de-riesgo",
+      "path": "/perfil-de-riesgo/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "perfil-de-riesgo-en-390-premium.png"
+    },
+    {
+      "page": "planes",
+      "path": "/planes/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "planes-en-390-premium.png"
+    },
+    {
+      "page": "pago",
+      "path": "/pago/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "pago-en-390-premium.png"
+    },
+    {
+      "page": "bienvenida",
+      "path": "/bienvenida/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "bienvenida-en-390-premium.png"
+    },
+    {
+      "page": "ajustes",
+      "path": "/ajustes/",
+      "lang": "en",
+      "width": 390,
+      "user": "premium",
+      "accessibility": 100,
+      "bestPractices": 100,
+      "failedA11y": [],
+      "axe": {
+        "critical": 0,
+        "serious": 0,
+        "moderate": 0,
+        "minor": 0
+      },
+      "violations": [],
+      "screenshot": "ajustes-en-390-premium.png"
+    }
+  ]
+}

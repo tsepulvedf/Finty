@@ -14,7 +14,8 @@ export function format(template, values) {
 
 /** Idioma activo de la pagina, el que eligio el selector ES/EN. */
 export function language() {
-  return document.documentElement.lang || "es";
+  // Sin `document` (los tests de Node), espanol.
+  return (typeof document !== "undefined" && document.documentElement.lang) || "es";
 }
 
 /** Locale de Intl para cifras y fechas: Colombia en espanol, EE. UU. en ingles. */

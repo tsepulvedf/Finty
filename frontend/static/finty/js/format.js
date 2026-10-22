@@ -33,6 +33,10 @@ export function plainAmount(amount, currency) {
 
 /** Monto con signo explicito, como en los diseños: `+ $ 3.100.000` o `− $ 38.000`. */
 export function signedMoney(amount, currency, type) {
+  // Un monto en cero no lleva signo: `$ 0`, nunca `+ $ 0`.
+  if (Number(amount) === 0) {
+    return money(0, currency);
+  }
   const negative = type ? type === "expense" : Number(amount) < 0;
   return (negative ? MINUS : "+") + " " + money(amount, currency);
 }

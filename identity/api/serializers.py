@@ -37,12 +37,13 @@ class ProfileInputSerializer(serializers.Serializer):
     preferred_currency = serializers.CharField(
         min_length=3, max_length=3, required=False
     )
+    language = serializers.ChoiceField(choices=["es", "en"], required=False)
 
     def validate(self, attrs):
         """Exige al menos un campo. Regla de forma, no de negocio."""
         if not attrs:
             raise serializers.ValidationError(
-                "Envia al menos 'display_name' o 'preferred_currency'."
+                "Envia al menos 'display_name', 'preferred_currency' o 'language'."
             )
         return attrs
 
@@ -54,7 +55,16 @@ class ProfileOutputSerializer(serializers.Serializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     display_name = serializers.CharField(read_only=True)
     preferred_currency = serializers.CharField(read_only=True)
+    language = serializers.CharField(read_only=True)
     onboarding_completed = serializers.BooleanField(read_only=True)
+
+
+class ContactOutputSerializer(serializers.Serializer):
+    """Contacto de un usuario para los correos de subscription-service (interno)."""
+
+    email = serializers.EmailField(source="user.email", read_only=True)
+    display_name = serializers.CharField(read_only=True)
+    language = serializers.CharField(read_only=True)
 
 
 class AuthOutputSerializer(serializers.Serializer):

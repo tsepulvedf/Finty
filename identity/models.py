@@ -79,6 +79,8 @@ class UserProfile(models.Model):
     )
     display_name = models.CharField(max_length=120)
     preferred_currency = models.CharField(max_length=3, default="COP")
+    # Idioma de lo que Finty le envia (correos de subscription-service, E2-M7).
+    language = models.CharField(max_length=2, default="es")
     onboarding_completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

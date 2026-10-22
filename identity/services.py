@@ -31,6 +31,10 @@ from identity.exceptions import (
 )
 from identity.models import User, UserProfile
 
+# Idiomas en que Finty le escribe al usuario (los de `settings.LANGUAGES`).
+SUPPORTED_LANGUAGES = ("es", "en")
+DEFAULT_LANGUAGE = "es"
+
 # Esquema de la cabecera `Authorization`, el mismo de `TokenAuthentication`.
 TOKEN_KEYWORD = b"token"
 # Codificacion con la que WSGI entrega las cabeceras (`HTTP_HEADER_ENCODING`).
@@ -45,12 +49,13 @@ class ProfileService:
     recibe un `Categorizer` (ARCHITECTURE.md 6.3).
     """
 
-    def register_user(self, email, password, display_name):
+    def register_user(self, email, password, display_name, language=None):
         """Registra un usuario nuevo con su perfil y devuelve `(user, token)`.
 
         El `User`, el `UserProfile` y el token se crean dentro de la misma
         transaccion: o queda todo o no queda nada. Un registro fallido no puede
-        dejar un usuario huerfano sin perfil.
+        dejar un usuario huerfano sin perfil. `language` es el idioma activo de
+        la peticion (`es-co`, `en`...): se guarda como `es` o `en`.
         """
         normalized_email = self._normalize_email(email)
 
@@ -65,7 +70,9 @@ class ProfileService:
                     email=normalized_email, password=password
                 )
                 UserProfile.objects.create(
-                    user=user, display_name=display_name.strip()
+                    user=user,
+                    display_name=display_name.strip(),
+                    language=self._supported_language(language),
                 )
                 token, _ = Token.objects.get_or_create(user=user)
         except IntegrityError as exc:
@@ -99,7 +106,7 @@ class ProfileService:
         except UserProfile.DoesNotExist as exc:
             raise ProfileNotFoundError() from exc
 
-    def complete_profile(self, user, display_name=None, preferred_currency=None):
+    def complete_profile(self, user, display_name=None, preferred_currency=None, language=None):
         """Actualiza parcialmente el perfil y devuelve la version persistida.
 
         Solo se escriben los campos recibidos. El perfil se marca como
@@ -122,6 +129,10 @@ class ProfileService:
             profile.preferred_currency = validate_currency_code(preferred_currency)
             updated_fields.append("preferred_currency")
 
+        if language is not None:
+            profile.language = self._supported_language(language)
+            updated_fields.append("language")
+
         if not updated_fields:
             return profile
 
@@ -141,6 +152,25 @@ class ProfileService:
         return bool(profile.display_name.strip()) and bool(
             profile.preferred_currency.strip()
         )
+
+    def contact(self, user_id):
+        """Datos de contacto para los correos de otros servicios (E2-M7).
+
+        Un id inexistente, o de un usuario inactivo, responde como no encontrado.
+        """
+        try:
+            profile = UserProfile.objects.select_related("user").get(
+                user_id=user_id, user__is_active=True
+            )
+        except (UserProfile.DoesNotExist, DjangoValidationError, ValueError) as exc:
+            raise ProfileNotFoundError() from exc
+        return profile
+
+    @staticmethod
+    def _supported_language(code):
+        """`en`, `en-us`... → `en`; cualquier otro (o ninguno) → `es`."""
+        prefix = (code or "").split("-")[0].lower()
+        return prefix if prefix in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
 
     @staticmethod
     def _normalize_email(email):

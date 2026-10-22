@@ -154,6 +154,7 @@ class TestPerfilLectura:
             "email": "ana@finty.co",
             "display_name": "Ana Restrepo",
             "preferred_currency": "COP",
+            "language": "es",
             "onboarding_completed": False,
         }
 
@@ -251,3 +252,31 @@ class TestFlujoCompleto:
 
         assert cliente_ana.get(PROFILE_URL).json()["email"] == "ana@finty.co"
         assert cliente_juan.get(PROFILE_URL).json()["email"] == "juan@finty.co"
+
+
+class TestIdiomaDelPerfil:
+    """E2-M7: el idioma en que Finty le escribe al usuario."""
+
+    def test_el_registro_guarda_el_idioma_de_la_peticion(self, client):
+        client.cookies["django_language"] = "en"
+        response = client.post(
+            REGISTER_URL,
+            {"email": "tom@finty.co", "password": PASSWORD, "display_name": "Tom"},
+            format="json",
+        )
+        assert UserProfile.objects.get(user_id=response.json()["user_id"]).language == "en"
+
+    def test_por_defecto_es_espanol(self, registered):
+        assert UserProfile.objects.get(user_id=registered["user_id"]).language == "es"
+
+    def test_put_cambia_el_idioma(self, auth_client):
+        response = auth_client.put(PROFILE_URL, {"language": "en"}, format="json")
+        assert response.status_code == 200
+        assert response.json()["language"] == "en"
+        assert auth_client.get(PROFILE_URL).json()["language"] == "en"
+
+    @pytest.mark.parametrize("idioma", ["fr", "EN", "", "english"])
+    def test_idioma_no_soportado_devuelve_400(self, auth_client, idioma):
+        response = auth_client.put(PROFILE_URL, {"language": idioma}, format="json")
+        assert response.status_code == 400
+        assert "language" in response.json()

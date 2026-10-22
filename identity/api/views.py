@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from identity.api.serializers import (
     AuthOutputSerializer,
+    ContactOutputSerializer,
     LoginInputSerializer,
     ProfileInputSerializer,
     ProfileOutputSerializer,
@@ -45,6 +46,7 @@ class RegisterAPIView(APIView):
             email=serializer.validated_data["email"],
             password=serializer.validated_data["password"],
             display_name=serializer.validated_data["display_name"],
+            language=request.LANGUAGE_CODE,
         )
         return Response(_auth_payload(user, token_key), status=status.HTTP_201_CREATED)
 
@@ -118,3 +120,23 @@ class GatewayAuthVerifyAPIView(APIView):
     def get_exception_handler(self):
         """Los rechazos van en cabecera, no en JSON: Nginx no lee el cuerpo."""
         return gateway_auth_exception_handler
+
+
+class InternalContactAPIView(APIView):
+    """`GET /internal/users/<user_id>/contact/` — contacto para los correos (E2-M7).
+
+    Lo llama subscription-service por la red interna de Compose para escribirle
+    al usuario en su idioma. Como `/internal/auth/verify/`, Nginx responde 404 a
+    todo `/internal/` que llegue de fuera (ADR-09), y Django no publica puertos:
+    por eso no lleva autenticacion de DRF. Tampoco throttles: la cuota anonima
+    por IP la agotaria la IP de un servicio.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = []
+
+    def get(self, request, user_id):
+        """`{email, display_name, language}`; 404 `profile_not_found` si no existe."""
+        profile = ProfileService().contact(user_id)
+        return Response(ContactOutputSerializer(profile).data, status=status.HTTP_200_OK)

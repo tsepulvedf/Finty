@@ -206,6 +206,106 @@ msgid "Planes de inversión"
 msgstr "Planes de inversión"
 
 #: .\frontend\static\finty\js\codes.js
+msgid "CDT"
+msgstr "CDT"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Fondo de liquidez"
+msgstr "Fondo de liquidez"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Fondo de inversión colectiva"
+msgstr "Fondo de inversión colectiva"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "ETF"
+msgstr "ETF"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Acciones"
+msgstr "Acciones"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "%(first)s o %(last)s"
+msgstr "%(first)s o %(last)s"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Conservador"
+msgstr "Conservador"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Priorizas no perder dinero, aunque el crecimiento sea menor."
+msgstr "Priorizas no perder dinero, aunque el crecimiento sea menor."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Moderado"
+msgstr "Moderado"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Aceptas algo de variación a cambio de un crecimiento mayor que el de un CDT."
+msgstr "Aceptas algo de variación a cambio de un crecimiento mayor que el de un CDT."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Agresivo"
+msgstr "Agresivo"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Toleras caídas temporales buscando el mayor crecimiento a largo plazo."
+msgstr "Toleras caídas temporales buscando el mayor crecimiento a largo plazo."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Origen: un insight de tus gastos"
+msgstr "Origen: un insight de tus gastos"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Origen: un patrón de gasto recurrente"
+msgstr "Origen: un patrón de gasto recurrente"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Origen: tu perfil de riesgo"
+msgstr "Origen: tu perfil de riesgo"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Reduce tu gasto en %(category)s"
+msgstr "Reduce tu gasto en %(category)s"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Este mes gastaste %(current)s, un %(pct)s más que tu promedio. Volver al promedio liberaría unos %(saving)s."
+msgstr "Este mes gastaste %(current)s, un %(pct)s más que tu promedio. Volver al promedio liberaría unos %(saving)s."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Arma un presupuesto"
+msgstr "Arma un presupuesto"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Este mes tus gastos superaron a tus ingresos en %(deficit)s. Un presupuesto por categoría te ayuda a equilibrarlos."
+msgstr "Este mes tus gastos superaron a tus ingresos en %(deficit)s. Un presupuesto por categoría te ayuda a equilibrarlos."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Revisa tu gasto fijo «%(description)s»"
+msgstr "Revisa tu gasto fijo «%(description)s»"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Pagas en promedio %(amount)s y apareció en %(months)s de los últimos %(window)s meses. Al año suma unos %(annual)s."
+msgstr "Pagas en promedio %(amount)s y apareció en %(months)s de los últimos %(window)s meses. Al año suma unos %(annual)s."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Primero, un fondo de emergencia"
+msgstr "Primero, un fondo de emergencia"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Tu excedente mensual promedio es de %(surplus)s. Antes de invertir, construye un ahorro que cubra varios meses de gastos."
+msgstr "Tu excedente mensual promedio es de %(surplus)s. Antes de invertir, construye un ahorro que cubra varios meses de gastos."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Para un perfil %(profile)s, Finty sugiere este tipo de instrumento según tu excedente mensual."
+msgstr "Para un perfil %(profile)s, Finty sugiere este tipo de instrumento según tu excedente mensual."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Esta es una orientación general por tipo de instrumento, no una asesoría financiera ni una recomendación de un producto o entidad específica."
+msgstr "Esta es una orientación general por tipo de instrumento, no una asesoría financiera ni una recomendación de un producto o entidad específica."
+
+#: .\frontend\static\finty\js\codes.js
 msgid "Registra efectivo, banco y tarjeta."
 msgstr "Registra efectivo, banco y tarjeta."
 
@@ -442,6 +542,7 @@ msgid "El CVC debe tener 3 dígitos."
 msgstr "El CVC debe tener 3 dígitos."
 
 #: .\frontend\static\finty\js\pages\checkout.js
+#: .\frontend\static\finty\js\pages\investments.js
 msgid "%(count)s mes"
 msgid_plural "%(count)s meses"
 msgstr[0] "%(count)s mes"
@@ -637,6 +738,7 @@ msgid "Hola, %(name)s"
 msgstr "Hola, %(name)s"
 
 #: .\frontend\static\finty\js\pages\insights.js
+#: .\frontend\static\finty\js\pages\investments.js
 msgid "%(first)s a %(last)s"
 msgstr "%(first)s a %(last)s"
 
@@ -703,6 +805,116 @@ msgstr "Monto promedio"
 msgid "Insights de %(month)s"
 msgstr "Insights de %(month)s"
 
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Excedente mensual promedio"
+msgstr "Excedente mensual promedio"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "No disponible ahora"
+msgstr "No disponible ahora"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Tu perfil"
+msgstr "Tu perfil"
+
+#: .\frontend\static\finty\js\pages\investments.js
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Puntaje: %(score)s"
+msgstr "Puntaje: %(score)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Instrumento sugerido"
+msgstr "Instrumento sugerido"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Invierte tu excedente con Premium"
+msgstr "Invierte tu excedente con Premium"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Con Premium te sugerimos en qué tipo de instrumento invertirlo según tu perfil, y puedes guardar planes con su proyección."
+msgstr "Con Premium te sugerimos en qué tipo de instrumento invertirlo según tu perfil, y puedes guardar planes con su proyección."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Desbloquear"
+msgstr "Desbloquear"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Primero, tu perfil de riesgo"
+msgstr "Primero, tu perfil de riesgo"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Responde cinco preguntas para que Finty te sugiera un tipo de instrumento."
+msgstr "Responde cinco preguntas para que Finty te sugiera un tipo de instrumento."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Responder el cuestionario"
+msgstr "Responder el cuestionario"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Parte del análisis de tus gastos no está disponible en este momento: las recomendaciones pueden estar incompletas."
+msgstr "Parte del análisis de tus gastos no está disponible en este momento: las recomendaciones pueden estar incompletas."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Nada que optimizar este mes"
+msgstr "Nada que optimizar este mes"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Cuando un gasto se dispare o se repita cada mes, aquí verás cómo ajustarlo."
+msgstr "Cuando un gasto se dispare o se repita cada mes, aquí verás cómo ajustarlo."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Escala de perfil: %(current)s de %(all)s"
+msgstr "Escala de perfil: %(current)s de %(all)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Aún no has respondido el cuestionario."
+msgstr "Aún no has respondido el cuestionario."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "TRM del %(date)s por 1 USD · fuente: %(source)s"
+msgstr "TRM del %(date)s por 1 USD · fuente: %(source)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Por 1 USD · fuente: %(source)s"
+msgstr "Por 1 USD · fuente: %(source)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "%(instrument)s · %(months)s"
+msgstr "%(instrument)s · %(months)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Creado con perfil %(profile)s"
+msgstr "Creado con perfil %(profile)s"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Aporte mensual"
+msgstr "Aporte mensual"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Total aportado"
+msgstr "Total aportado"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Proyección"
+msgstr "Proyección"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Proyección ilustrativa con una tasa anual de referencia del %(rate)s. No es un rendimiento garantizado."
+msgstr "Proyección ilustrativa con una tasa anual de referencia del %(rate)s. No es un rendimiento garantizado."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Aún no tienes planes"
+msgstr "Aún no tienes planes"
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Guarda una meta con su aporte mensual y su horizonte para ver la proyección."
+msgstr "Guarda una meta con su aporte mensual y su horizonte para ver la proyección."
+
+#: .\frontend\static\finty\js\pages\investments.js
+msgid "Plan de inversión guardado."
+msgstr "Plan de inversión guardado."
+
 #: .\frontend\static\finty\js\pages\login.js
 msgid "Escribe tu correo y tu contraseña."
 msgstr "Escribe tu correo y tu contraseña."
@@ -732,6 +944,22 @@ msgstr "Todo lo del plan Free"
 #: .\frontend\static\finty\js\pages\plans.js
 msgid "Recomendado"
 msgstr "Recomendado"
+
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Responde las cinco preguntas y guarda tu perfil para ver el resultado."
+msgstr "Responde las cinco preguntas y guarda tu perfil para ver el resultado."
+
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Ver mis inversiones"
+msgstr "Ver mis inversiones"
+
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Responde las cinco preguntas antes de guardar."
+msgstr "Responde las cinco preguntas antes de guardar."
+
+#: .\frontend\static\finty\js\pages\risk_profile.js
+msgid "Perfil guardado."
+msgstr "Perfil guardado."
 
 #: .\frontend\static\finty\js\pages\transactions.js
 msgid "todas las cuentas"

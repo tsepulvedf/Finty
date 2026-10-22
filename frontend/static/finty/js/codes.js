@@ -85,6 +85,101 @@ export const BENEFITS = {
   investment_plans: gettext("Planes de inversión"),
 };
 
+/** Tipos de instrumento: siempre genericos, nunca un producto o una entidad (§6.6). */
+export const INSTRUMENTS = {
+  cdt: gettext("CDT"),
+  liquidity_fund: gettext("Fondo de liquidez"),
+  collective_investment_fund: gettext("Fondo de inversión colectiva"),
+  etf: gettext("ETF"),
+  stocks: gettext("Acciones"),
+};
+
+/** `["cdt", "liquidity_fund"]` → `CDT o Fondo de liquidez`. */
+export function instrumentList(codes) {
+  const names = (codes || []).map((code) => INSTRUMENTS[code] || code);
+  if (names.length < 2) {
+    return names.join("");
+  }
+  return format(gettext("%(first)s o %(last)s"), { first: names.slice(0, -1).join(", "), last: names[names.length - 1] });
+}
+
+/** Tipos de perfil de riesgo: nombre y descripcion. El tipo lo decide recommendation-service. */
+export const RISK_PROFILES = {
+  conservative: {
+    name: gettext("Conservador"),
+    text: gettext("Priorizas no perder dinero, aunque el crecimiento sea menor."),
+  },
+  moderate: {
+    name: gettext("Moderado"),
+    text: gettext("Aceptas algo de variación a cambio de un crecimiento mayor que el de un CDT."),
+  },
+  aggressive: {
+    name: gettext("Agresivo"),
+    text: gettext("Toleras caídas temporales buscando el mayor crecimiento a largo plazo."),
+  },
+};
+
+/** De donde sale cada recomendacion (`source`, veraz como A-14). */
+export const RECOMMENDATION_SOURCES = {
+  insight: gettext("Origen: un insight de tus gastos"),
+  pattern: gettext("Origen: un patrón de gasto recurrente"),
+  risk_profile: gettext("Origen: tu perfil de riesgo"),
+};
+
+/**
+ * Titulo y texto de una recomendacion por `code`. `amount(key)` presenta un
+ * monto de `params` o `evidence` (en la moneda de presentacion si la API la
+ * convirtio); la pagina lo entrega.
+ */
+export function recommendationContent(recommendation, amount) {
+  const params = recommendation.params || {};
+  const evidence = recommendation.evidence || {};
+  switch (recommendation.code) {
+    case "reduce_category":
+      return {
+        title: format(gettext("Reduce tu gasto en %(category)s"), { category: categoryName(params.category_name) }),
+        text: format(gettext("Este mes gastaste %(current)s, un %(pct)s más que tu promedio. Volver al promedio liberaría unos %(saving)s."), {
+          current: amount("current"), pct: percent(Number(params.increase_pct) / 100, 1), saving: amount("potential_saving"),
+        }),
+      };
+    case "build_budget":
+      return {
+        title: gettext("Arma un presupuesto"),
+        text: format(gettext("Este mes tus gastos superaron a tus ingresos en %(deficit)s. Un presupuesto por categoría te ayuda a equilibrarlos."), { deficit: amount("deficit") }),
+      };
+    case "review_recurring_expense":
+      return {
+        title: format(gettext("Revisa tu gasto fijo «%(description)s»"), { description: params.description }),
+        text: format(gettext("Pagas en promedio %(amount)s y apareció en %(months)s de los últimos %(window)s meses. Al año suma unos %(annual)s."), {
+          amount: amount("average_amount"), months: evidence.months_present, window: evidence.window_months, annual: amount("annualized_cost"),
+        }),
+      };
+    case "build_emergency_fund":
+      return {
+        title: gettext("Primero, un fondo de emergencia"),
+        text: format(gettext("Tu excedente mensual promedio es de %(surplus)s. Antes de invertir, construye un ahorro que cubra varios meses de gastos."), { surplus: amount("monthly_surplus") }),
+      };
+    case "invest_by_risk_profile":
+      return {
+        title: instrumentList(params.instrument_types),
+        text: format(gettext("Para un perfil %(profile)s, Finty sugiere este tipo de instrumento según tu excedente mensual."), {
+          profile: (RISK_PROFILES[params.risk_profile_type] || { name: params.risk_profile_type }).name.toLocaleLowerCase(),
+        }),
+      };
+    default:
+      return { title: "", text: "" };
+  }
+}
+
+/** Avisos que la API adjunta por `code` (su `message` queda como respaldo). */
+const NOTICES = {
+  investment_disclaimer: gettext("Esta es una orientación general por tipo de instrumento, no una asesoría financiera ni una recomendación de un producto o entidad específica."),
+};
+
+export function noticeText(notice) {
+  return notice ? NOTICES[notice.code] || notice.message || "" : "";
+}
+
 /** Descripcion corta de cada beneficio, para la bienvenida. */
 export const BENEFIT_DETAILS = {
   transaction_tracking: gettext("Registra efectivo, banco y tarjeta."),

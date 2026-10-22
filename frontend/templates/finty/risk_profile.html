@@ -1,0 +1,78 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Perfil de riesgo" %}{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'page-investments' %}">{% translate "← Volver a inversiones" %}</a>
+<div class="page-head">
+  <div class="page-head__titles">
+    <h1 class="page-title">{% translate "Tu perfil de riesgo" %}</h1>
+    <p class="lead">{% translate "Cinco preguntas para conocer cuánta variación aceptas en tus inversiones. Puedes cambiar tus respuestas cuando quieras." %}</p>
+  </div>
+</div>
+
+{% comment %}
+  Cuestionario de §6.6. Cada opcion envia su respuesta (1 a 3) por `code`; el
+  puntaje y el tipo de perfil los calcula recommendation-service y la pagina
+  muestra lo que devuelve el PUT, sin recalcularlo.
+{% endcomment %}
+<div class="layout">
+  <form class="stack layout__main" id="risk-form" novalidate aria-label="{% translate 'Cuestionario de perfil de riesgo' %}">
+    <fieldset class="question" aria-describedby="q-investment_horizon">
+      <legend>{% translate "Pregunta 1 de 5" %}</legend>
+      <span class="question__text" id="q-investment_horizon">{% translate "¿En cuánto tiempo necesitarías el dinero?" %}</span>
+      <div class="options">
+        <label class="option"><input type="radio" name="investment_horizon" value="1" required><span>{% translate "Menos de 1 año" %}</span></label>
+        <label class="option"><input type="radio" name="investment_horizon" value="2" required><span>{% translate "De 1 a 3 años" %}</span></label>
+        <label class="option"><input type="radio" name="investment_horizon" value="3" required><span>{% translate "Más de 3 años" %}</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="question" aria-describedby="q-loss_reaction">
+      <legend>{% translate "Pregunta 2 de 5" %}</legend>
+      <span class="question__text" id="q-loss_reaction">{% translate "Si tu inversión cae un 10 por ciento en un mes, ¿qué haces?" %}</span>
+      <div class="options">
+        <label class="option"><input type="radio" name="loss_reaction" value="1" required><span>{% translate "Retiro todo" %}</span></label>
+        <label class="option"><input type="radio" name="loss_reaction" value="2" required><span>{% translate "Espero" %}</span></label>
+        <label class="option"><input type="radio" name="loss_reaction" value="3" required><span>{% translate "Aporto más" %}</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="question" aria-describedby="q-experience">
+      <legend>{% translate "Pregunta 3 de 5" %}</legend>
+      <span class="question__text" id="q-experience">{% translate "¿Con qué has invertido antes?" %}</span>
+      <div class="options">
+        <label class="option"><input type="radio" name="experience" value="1" required><span>{% translate "Con nada" %}</span></label>
+        <label class="option"><input type="radio" name="experience" value="2" required><span>{% translate "Ahorro o CDT" %}</span></label>
+        <label class="option"><input type="radio" name="experience" value="3" required><span>{% translate "Fondos o acciones" %}</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="question" aria-describedby="q-income_stability">
+      <legend>{% translate "Pregunta 4 de 5" %}</legend>
+      <span class="question__text" id="q-income_stability">{% translate "Tus ingresos son…" %}</span>
+      <div class="options">
+        <label class="option"><input type="radio" name="income_stability" value="1" required><span>{% translate "Inestables" %}</span></label>
+        <label class="option"><input type="radio" name="income_stability" value="2" required><span>{% translate "Algo estables" %}</span></label>
+        <label class="option"><input type="radio" name="income_stability" value="3" required><span>{% translate "Muy estables" %}</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="question" aria-describedby="q-goal">
+      <legend>{% translate "Pregunta 5 de 5" %}</legend>
+      <span class="question__text" id="q-goal">{% translate "Tu objetivo principal es…" %}</span>
+      <div class="options">
+        <label class="option"><input type="radio" name="goal" value="1" required><span>{% translate "Proteger el capital" %}</span></label>
+        <label class="option"><input type="radio" name="goal" value="2" required><span>{% translate "Crecer con moderación" %}</span></label>
+        <label class="option"><input type="radio" name="goal" value="3" required><span>{% translate "Maximizar el crecimiento" %}</span></label>
+      </div>
+    </fieldset>
+  </form>
+  <aside class="layout__side">
+    <section class="result" id="risk-result" aria-live="polite" aria-busy="true">
+      <span class="eyebrow-tag">{% translate "Resultado" %}</span>
+      <div id="risk-result-body"><span class="skeleton skeleton--title"></span></div>
+    </section>
+    <div class="notice notice--error" id="risk-error" role="alert" hidden>
+      {% include "finty/_alert_icon.html" %}<span id="risk-error-text"></span>
+    </div>
+    <button type="submit" form="risk-form" class="btn btn--primary btn--block" id="risk-submit">{% translate "Guardar perfil" %}</button>
+    <p class="fine-print">{% translate "Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera." %}</p>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/risk_profile.js' %}"></script>{% endblock %}

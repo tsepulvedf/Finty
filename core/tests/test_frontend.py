@@ -31,6 +31,8 @@ MODULOS = {
     "/dashboard/": "dashboard",
     "/movimientos/": "transactions",
     "/insights/": "insights",
+    "/inversiones/": "investments",
+    "/perfil-de-riesgo/": "risk_profile",
     "/planes/": "plans",
     "/pago/": "checkout",
     "/bienvenida/": "welcome",
@@ -78,12 +80,14 @@ class TestPaginas:
         for atributo, ruta in [
             ("data-url-login", "/"), ("data-url-register", "/registro/"),
             ("data-url-dashboard", "/dashboard/"), ("data-url-transactions", "/movimientos/"),
-            ("data-url-insights", "/insights/"), ("data-url-plans", "/planes/"), ("data-url-checkout", "/pago/"), ("data-url-welcome", "/bienvenida/"),
+            ("data-url-insights", "/insights/"), ("data-url-investments", "/inversiones/"),
+            ("data-url-risk-profile", "/perfil-de-riesgo/"), ("data-url-plans", "/planes/"), ("data-url-checkout", "/pago/"), ("data-url-welcome", "/bienvenida/"),
         ]:
             assert f'{atributo}="{ruta}"' in html
 
     @pytest.mark.parametrize("url, enlace", [
         ("/dashboard/", "/dashboard/"), ("/movimientos/", "/movimientos/"), ("/insights/", "/insights/"),
+        ("/inversiones/", "/inversiones/"), ("/perfil-de-riesgo/", "/inversiones/"),
     ])
     def test_la_navegacion_marca_la_pagina_actual(self, client, url, enlace):
         html = client.get(url).content.decode("utf-8")
@@ -331,6 +335,7 @@ class TestA23SinTextosQuemados:
         assert {p.name for p in PLANTILLAS} >= {
             "base.html", "app_base.html", "login.html", "register.html", "dashboard.html", "transactions.html",
             "plans.html", "checkout.html", "welcome.html", "insights.html",
+            "investments.html", "risk_profile.html",
         }
 
     @pytest.mark.parametrize("plantilla", PLANTILLAS, ids=lambda p: p.name)

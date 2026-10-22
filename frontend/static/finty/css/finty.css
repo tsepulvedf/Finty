@@ -671,3 +671,56 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .locked-hero { padding: 28px 20px; }
   .locked-hero__title { font-size: 24px; }
 }
+
+/* Recomendaciones e inversion */
+.recommendation {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: 20px 22px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;
+}
+.recommendation__body { flex: 1 1 300px; display: flex; flex-direction: column; gap: 6px; }
+.recommendation__title { margin: 0; font-size: 17px; font-weight: 800; }
+.recommendation__text { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.disclaimer {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--manual-soft); color: var(--manual-ink); font-size: 13px; line-height: 1.5;
+}
+.plan-card { border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.plan-card__head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.plan-card__title { margin: 0; font-size: 17px; font-weight: 800; }
+.profile-card { gap: 14px; }
+.profile-card .eyebrow-tag, .profile-card__note { color: var(--deep-ink); }
+.profile-card__name { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+.profile-card__text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--deep-ink-3); }
+.scale { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.scale__step { height: 8px; border-radius: 99px; background: #2F6B5D; }
+.scale__step.is-current { background: var(--accent); }
+.scale__labels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; font-size: 12px; color: var(--deep-ink); }
+.scale__labels span:nth-child(2) { text-align: center; }
+.scale__labels span:nth-child(3) { text-align: right; }
+.scale__labels .is-current { color: #FFFFFF; font-weight: 800; }
+
+/* Cuestionario de perfil de riesgo */
+.question {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 12px;
+}
+.question legend { float: left; width: 100%; padding: 0; font-size: 13px; font-weight: 800; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase; }
+.question__text { font-size: 18px; font-weight: 800; line-height: 1.35; }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
+.option {
+  display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 14px;
+  border: 1px solid var(--control); border-radius: var(--radius); background: var(--surface);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.option input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--primary); }
+.option:has(input:checked) { border: 2px solid var(--primary); background: var(--primary-soft); color: var(--deep); }
+.option:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.result { background: var(--deep); color: #FFFFFF; border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.result .eyebrow-tag { color: var(--deep-ink); }
+.result__name { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+.result__score { font-size: 15px; color: var(--deep-ink); }
+.result__text { margin: 0; font-size: 15px; line-height: 1.55; color: var(--deep-ink-3); }
+.result__box { padding: 12px 14px; border-radius: var(--radius); background: #124C40; display: flex; flex-direction: column; gap: 4px; }
+.result__box a { color: #FFFFFF; font-weight: 800; }
+.back-link { align-self: flex-start; display: inline-flex; align-items: center; min-height: var(--tap); font-size: 15px; font-weight: 700; }
+.link-arrow { align-self: flex-start; font-size: 15px; font-weight: 800; }

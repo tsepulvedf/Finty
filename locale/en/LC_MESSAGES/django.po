@@ -79,6 +79,10 @@ msgid "Insights"
 msgstr "Insights"
 
 #: .\frontend\templates\finty\app_base.html
+msgid "Inversiones"
+msgstr "Investments"
+
+#: .\frontend\templates\finty\app_base.html
 msgid "Menú de la cuenta"
 msgstr "Account menu"
 
@@ -92,6 +96,7 @@ msgstr "Finty · Upgrade to Premium (simulation)"
 
 #: .\frontend\templates\finty\checkout.html
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\investments.html
 #: .\frontend\templates\finty\transactions.html
 msgid "Cancelar"
 msgstr "Cancel"
@@ -176,6 +181,7 @@ msgid "Mes siguiente"
 msgstr "Next month"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\investments.html
 msgid "Mostrar en"
 msgstr "Show in"
 
@@ -224,6 +230,7 @@ msgid "Nueva cuenta"
 msgstr "New account"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\investments.html
 msgid "Cerrar"
 msgstr "Close"
 
@@ -253,6 +260,7 @@ msgid "Crédito"
 msgstr "Credit"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\investments.html
 msgid "Moneda"
 msgstr "Currency"
 
@@ -304,6 +312,75 @@ msgstr "Findings"
 #: .\frontend\templates\finty\insights.html
 msgid "Gastos recurrentes"
 msgstr "Recurring expenses"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Ver recomendaciones para estos gastos →"
+msgstr "See recommendations for these expenses →"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Finty · Inversiones y recomendaciones"
+msgstr "Finty · Investments and recommendations"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Recomendaciones e inversión"
+msgstr "Recommendations and investing"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Basadas en tus insights, tu excedente mensual y tu perfil de riesgo."
+msgstr "Based on your insights, your monthly surplus and your risk profile."
+
+#: .\frontend\templates\finty\investments.html
+msgid "Para optimizar tus gastos"
+msgstr "To optimize your spending"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Para invertir tu excedente"
+msgstr "To invest your surplus"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Mis planes de inversión"
+msgstr "My investment plans"
+
+#: .\frontend\templates\finty\investments.html
+msgid "+ Nuevo plan"
+msgstr "+ New plan"
+
+#: .\frontend\templates\finty\investments.html
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Tu perfil de riesgo"
+msgstr "Your risk profile"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Actualizar perfil"
+msgstr "Update profile"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Tasa de cambio"
+msgstr "Exchange rate"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Si la fuente oficial no responde, Finty usa la última tasa conocida y te lo indica."
+msgstr "If the official source doesn't respond, Finty uses the last known rate and tells you so."
+
+#: .\frontend\templates\finty\investments.html
+msgid "Nuevo plan de inversión"
+msgstr "New investment plan"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Tipo de instrumento"
+msgstr "Instrument type"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Aporte mensual"
+msgstr "Monthly contribution"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Horizonte en meses"
+msgstr "Horizon in months"
+
+#: .\frontend\templates\finty\investments.html
+msgid "Guardar plan"
+msgstr "Save plan"
 
 #: .\frontend\templates\finty\login.html
 msgid "Finty · Ingreso"
@@ -412,6 +489,134 @@ msgstr "Already have an account?"
 #: .\frontend\templates\finty\register.html
 msgid "Ingresa"
 msgstr "Log in"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Finty · Perfil de riesgo"
+msgstr "Finty · Risk profile"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "← Volver a inversiones"
+msgstr "← Back to investments"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Cinco preguntas para conocer cuánta variación aceptas en tus inversiones. Puedes cambiar tus respuestas cuando quieras."
+msgstr "Five questions to learn how much variation you accept in your investments. You can change your answers whenever you want."
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Cuestionario de perfil de riesgo"
+msgstr "Risk profile questionnaire"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Pregunta 1 de 5"
+msgstr "Question 1 of 5"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "¿En cuánto tiempo necesitarías el dinero?"
+msgstr "How soon would you need the money?"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Menos de 1 año"
+msgstr "Less than 1 year"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "De 1 a 3 años"
+msgstr "1 to 3 years"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Más de 3 años"
+msgstr "More than 3 years"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Pregunta 2 de 5"
+msgstr "Question 2 of 5"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Si tu inversión cae un 10 por ciento en un mes, ¿qué haces?"
+msgstr "If your investment drops 10 percent in a month, what do you do?"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Retiro todo"
+msgstr "I withdraw everything"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Espero"
+msgstr "I wait"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Aporto más"
+msgstr "I add more"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Pregunta 3 de 5"
+msgstr "Question 3 of 5"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "¿Con qué has invertido antes?"
+msgstr "What have you invested in before?"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Con nada"
+msgstr "Nothing"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Ahorro o CDT"
+msgstr "Savings or CDs"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Fondos o acciones"
+msgstr "Funds or stocks"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Pregunta 4 de 5"
+msgstr "Question 4 of 5"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Tus ingresos son…"
+msgstr "Your income is…"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Inestables"
+msgstr "Unstable"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Algo estables"
+msgstr "Somewhat stable"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Muy estables"
+msgstr "Very stable"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Pregunta 5 de 5"
+msgstr "Question 5 of 5"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Tu objetivo principal es…"
+msgstr "Your main goal is…"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Proteger el capital"
+msgstr "Protecting my capital"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Crecer con moderación"
+msgstr "Growing moderately"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Maximizar el crecimiento"
+msgstr "Maximizing growth"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Resultado"
+msgstr "Result"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Guardar perfil"
+msgstr "Save profile"
+
+#: .\frontend\templates\finty\risk_profile.html
+msgid "Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera."
+msgstr "Your profile is only used to suggest instrument types. It is not financial advice."
 
 #: .\frontend\templates\finty\transactions.html
 msgid "Finty · Movimientos"

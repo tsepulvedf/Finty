@@ -1,0 +1,107 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Inversiones y recomendaciones" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head__titles">
+    <h1 class="page-title">{% translate "Recomendaciones e inversión" %}</h1>
+    <p class="lead">{% translate "Basadas en tus insights, tu excedente mensual y tu perfil de riesgo." %}</p>
+  </div>
+  <div class="page-head__tools">
+    <label class="inline-select">{% translate "Mostrar en" %}
+      <select class="select" id="display-currency">
+        <option value="COP">COP</option>
+        <option value="USD">USD</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<div id="degraded-notice"></div>
+
+<div class="layout">
+  <div class="layout__main">
+    <section class="stack" aria-labelledby="optimization-title">
+      <h2 class="section-title" id="optimization-title">{% translate "Para optimizar tus gastos" %}</h2>
+      <div class="stack" id="optimization" aria-busy="true">
+        {% for i in "12" %}<div class="recommendation"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text skeleton--full"></span></div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="stack" aria-labelledby="investment-title">
+      <h2 class="section-title" id="investment-title">{% translate "Para invertir tu excedente" %}</h2>
+      <div class="stack" id="investment" aria-busy="true">
+        <div class="card"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text skeleton--full"></span></div>
+      </div>
+    </section>
+
+    {# Solo Premium: todo /investment-plans/ esta detras del gating (INV-06). #}
+    <section class="card" id="plans-section" aria-labelledby="plans-title" hidden>
+      <div class="card__head">
+        <h2 class="card__title" id="plans-title">{% translate "Mis planes de inversión" %}</h2>
+        <button type="button" class="btn btn--secondary btn--small" id="new-plan">{% translate "+ Nuevo plan" %}</button>
+      </div>
+      <div class="stack" id="plans" aria-busy="true">
+        <span class="skeleton skeleton--row"></span>
+      </div>
+    </section>
+  </div>
+
+  <aside class="layout__side">
+    <section class="result profile-card" id="profile-card" aria-labelledby="profile-card-title" aria-busy="true">
+      <span class="eyebrow-tag" id="profile-card-title">{% translate "Tu perfil de riesgo" %}</span>
+      <div id="profile-card-body" class="stack"><span class="skeleton skeleton--title"></span></div>
+      <a class="btn btn--light" href="{% url 'page-risk-profile' %}" id="profile-card-link">{% translate "Actualizar perfil" %}</a>
+    </section>
+    <section class="card" aria-labelledby="rate-title">
+      <h2 class="card__title" id="rate-title">{% translate "Tasa de cambio" %}</h2>
+      <div id="rate" class="stack-tight" aria-busy="true"><span class="skeleton skeleton--title"></span></div>
+      <p class="fine-print">{% translate "Si la fuente oficial no responde, Finty usa la última tasa conocida y te lo indica." %}</p>
+    </section>
+  </aside>
+</div>
+
+<dialog class="dialog" id="plan-dialog" aria-labelledby="plan-dialog-title">
+  <form class="dialog__body" id="plan-form" method="dialog" novalidate>
+    <div class="dialog__head">
+      <h2 class="dialog__title" id="plan-dialog-title">{% translate "Nuevo plan de inversión" %}</h2>
+      <button type="button" class="dialog__close" id="plan-close" aria-label="{% translate 'Cerrar' %}">×</button>
+    </div>
+    <div class="field">
+      <label for="plan-instrument">{% translate "Tipo de instrumento" %}</label>
+      <select class="select" id="plan-instrument" name="instrument_type" required aria-describedby="plan-instrument_type-error"></select>
+      <span class="field__error" id="plan-instrument_type-error" hidden></span>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="plan-contribution">{% translate "Aporte mensual" %}</label>
+        <input class="input" id="plan-contribution" name="monthly_contribution" type="text" inputmode="decimal" required placeholder="0" aria-describedby="plan-monthly_contribution-error">
+        <span class="field__error" id="plan-monthly_contribution-error" hidden></span>
+      </div>
+      <div class="field">
+        <label for="plan-currency">{% translate "Moneda" %}</label>
+        <select class="select" id="plan-currency" name="currency">
+          <option value="COP">COP</option>
+          <option value="USD">USD</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="plan-horizon">{% translate "Horizonte en meses" %}</label>
+      <input class="input" id="plan-horizon" name="horizon_months" type="number" inputmode="numeric" min="1" step="1" required aria-describedby="plan-horizon_months-error">
+      <span class="field__error" id="plan-horizon_months-error" hidden></span>
+    </div>
+    <div class="notice notice--error" id="plan-error" role="alert" hidden>
+      {% include "finty/_alert_icon.html" %}<span id="plan-error-text"></span>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn--plain" id="plan-cancel">{% translate "Cancelar" %}</button>
+      <button type="submit" class="btn btn--primary" id="plan-submit">{% translate "Guardar plan" %}</button>
+    </div>
+  </form>
+</dialog>
+<template id="icon-info"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"></circle><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg></template>
+<template id="icon-spark"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 17l5-5 4 4 7-8" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg></template>
+<template id="icon-shield"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6l8-3Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"></path></svg></template>
+<template id="icon-lock"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"></rect><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" stroke="currentColor" stroke-width="2" fill="none"></path></svg></template>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/investments.js' %}"></script>{% endblock %}

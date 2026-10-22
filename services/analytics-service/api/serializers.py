@@ -51,6 +51,16 @@ def dashboard_to_dict(dashboard):
                     {"account_id": str(a.account_id), **_totals(a.totals)} for a in section.accounts
                 ],
                 "trend": [{"period": str(p.period), **_totals(p.totals)} for p in section.trend],
+                # D-29: comparacion con el periodo anterior y tasa de ahorro.
+                "previous": (
+                    {"period": str(section.comparison.period), **_totals(section.comparison.totals)}
+                    if section.comparison else None
+                ),
+                "expense_change_pct": (
+                    _value(section.comparison.expense_change_pct)
+                    if section.comparison and section.comparison.expense_change_pct is not None else None
+                ),
+                "savings_rate": _value(section.savings_rate) if section.savings_rate is not None else None,
             }
             for section in dashboard.currencies
         ],

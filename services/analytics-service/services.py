@@ -169,10 +169,12 @@ class AnalyticsService:
         self._session = session
         self._thresholds = thresholds
 
-    def dashboard(self, user_id, period):
+    def dashboard(self, user_id, period, earliest_period=None):
+        """`earliest_period`: primer periodo visible para el plan del usuario (INV-06)."""
         window = period.window(self._thresholds.trend_months)
-        facts = self._facts(user_id, window[0], period)
-        return Dashboard.build(period, facts, self._thresholds.trend_months)
+        first = min(window[0], period.shift(-1))
+        facts = self._facts(user_id, first, period)
+        return Dashboard.build(period, facts, self._thresholds.trend_months, earliest_period)
 
     def insights(self, user_id, period):
         first = period.shift(-self._thresholds.spike_lookback_months)

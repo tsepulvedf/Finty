@@ -82,6 +82,11 @@ def enforce_entitlements():
             _deny(access, messages.PREMIUM_HISTORY_REQUIRED.format(months=FREE_HISTORY_MONTHS))
 
 
+def earliest_visible_period():
+    """Primer periodo que ve el usuario: la ventana Free, o `None` con Premium."""
+    return free_history_window() if g.get("limited_history") else None
+
+
 def effective_thresholds():
     """Umbrales de la peticion: sin premium, la tendencia cubre solo 3 meses."""
     thresholds = current_app.config["ANALYTICS_THRESHOLDS"]

@@ -73,6 +73,37 @@ class TestTendencia:
         assert len(section["trend"]) == 6
 
 
+class TestComparacionSegunElPlan:
+    """D-29: el plan Free solo compara con un periodo de su ventana de 3 meses."""
+
+    def feed(self, session, user_id, periods):
+        from services import EventProjector
+        from tests.streams import Transaction, event
+
+        projector = EventProjector(session)
+        for i, period in enumerate(periods):
+            on = Period.parse(period).start
+            projector.project(event(Transaction(user_id=user_id, on=on, amount="1000.00").added()), f"{i}-0")
+
+    def test_free_dentro_de_la_ventana_compara(self, ana, entitlements, session):
+        entitlements.premium = False
+        self.feed(session, ana.user_id, [period(-1), period(0)])
+        [section] = ana.get(f"{DASHBOARD}?period={period(0)}").json["currencies"]
+        assert section["previous"]["period"] == period(-1)
+        assert section["expense_change_pct"] == "0.0"
+
+    def test_free_en_el_borde_de_la_ventana_no_compara(self, ana, entitlements, session):
+        entitlements.premium = False
+        self.feed(session, ana.user_id, [period(-3), period(-2)])
+        [section] = ana.get(f"{DASHBOARD}?period={period(-2)}").json["currencies"]
+        assert section["previous"] is None and section["expense_change_pct"] is None
+
+    def test_premium_compara_siempre(self, ana, session):
+        self.feed(session, ana.user_id, [period(-3), period(-2)])
+        [section] = ana.get(f"{DASHBOARD}?period={period(-2)}").json["currencies"]
+        assert section["previous"]["period"] == period(-3)
+
+
 class TestPremium:
     @pytest.mark.parametrize("url", [INSIGHTS, PATTERNS, f"{DASHBOARD}?period={period(-12)}"])
     def test_acceso_completo(self, ana, url):

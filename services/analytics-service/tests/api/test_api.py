@@ -76,8 +76,13 @@ class TestDashboard:
         feed(Transaction(user_id=ana.user_id).added(), Transaction(user_id=ana.user_id, kind="income", category="Salario", amount="500000.00").added())
         [cop] = ana.get(f"{DASHBOARD}?period=2026-10").json["currencies"]
 
-        assert list(cop) == ["currency", "income", "expense", "net", "categories", "accounts", "trend"]
+        assert list(cop) == [
+            "currency", "income", "expense", "net", "categories", "accounts", "trend",
+            "previous", "expense_change_pct", "savings_rate",
+        ]
         assert (cop["income"], cop["net"]) == ("500000.00", "380000.00")
+        assert cop["previous"] == {"period": "2026-09", "income": "0.00", "expense": "0.00", "net": "0.00"}
+        assert (cop["expense_change_pct"], cop["savings_rate"]) == (None, "0.7600")
         assert len(cop["trend"]) == 6 and cop["trend"][-1]["period"] == "2026-10"
         assert cop["categories"][0]["share"] == "1.0000"
 

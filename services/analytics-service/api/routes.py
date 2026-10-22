@@ -17,7 +17,7 @@ del despacho: insights y patrones son premium, y el dashboard FREE cubre 3 meses
 from flask import Blueprint, jsonify
 
 from api.context import current_user_id, db_session, requested_period
-from api.gating import effective_thresholds
+from api.gating import earliest_visible_period, effective_thresholds
 from api.serializers import dashboard_to_dict, insights_to_dict, patterns_to_dict, summary_to_dict
 from services import AnalyticsService, PublicSummaryService
 
@@ -37,7 +37,8 @@ def _service():
 @analytics.get("/dashboard/")
 def dashboard():
     period = requested_period()
-    return jsonify(dashboard_to_dict(_service().dashboard(current_user_id(), period)))
+    result = _service().dashboard(current_user_id(), period, earliest_visible_period())
+    return jsonify(dashboard_to_dict(result))
 
 
 @analytics.get("/insights/")

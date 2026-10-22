@@ -12,13 +12,14 @@ monedas llega en E2-M5. No se persiste: se calcula al leer.
 """
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from domain.period import Period
 from domain.shared.value_objects import Money
 from domain.value_objects import TransactionType
 
 SHARE_QUANTUM = Decimal("0.0001")
+PERCENT_QUANTUM = Decimal("0.1")
 
 
 def total_of(amounts, currency):
@@ -77,6 +78,32 @@ class TrendPoint:
 
 
 @dataclass(frozen=True)
+class Comparison:
+    """El periodo anterior y como cambiaron los gastos frente a el (D-29)."""
+
+    period: Period
+    totals: Totals
+    # (gastos del periodo - gastos del anterior) / gastos del anterior x 100, con
+    # un decimal. Nula si el anterior no tuvo gastos: no hay base para comparar.
+    expense_change_pct: Decimal | None
+
+
+def savings_rate(totals):
+    """Neto sobre ingresos (fraccion, 4 decimales); nula si no hubo ingresos."""
+    if totals.income.is_zero():
+        return None
+    return (totals.net.amount / totals.income.amount).quantize(SHARE_QUANTUM, rounding=ROUND_HALF_UP)
+
+
+def expense_change_pct(current, previous):
+    """Variacion porcentual de los gastos; nula si el periodo anterior no tuvo gastos."""
+    if previous.expense.is_zero():
+        return None
+    change = (current.expense.amount - previous.expense.amount) / previous.expense.amount * 100
+    return change.quantize(PERCENT_QUANTUM, rounding=ROUND_HALF_UP)
+
+
+@dataclass(frozen=True)
 class CurrencyDashboard:
     """Todas las cifras del dashboard en una sola moneda."""
 
@@ -85,6 +112,8 @@ class CurrencyDashboard:
     categories: tuple
     accounts: tuple
     trend: tuple
+    comparison: Comparison | None = None
+    savings_rate: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -95,24 +124,39 @@ class Dashboard:
     currencies: tuple
 
     @classmethod
-    def build(cls, period, facts, trend_months=6):
+    def build(cls, period, facts, trend_months=6, earliest_period=None):
         """Calcula el dashboard de `period` con las transacciones vigentes dadas.
 
         `facts` puede traer meses de mas: cada cifra filtra los suyos.
+
+        `earliest_period` es el primer periodo que el usuario puede ver. Sin el,
+        todos (Premium). Con el, la comparacion con el periodo anterior solo se
+        incluye si ese periodo no es anterior al limite (INV-06: el plan Free ve 3
+        meses).
         """
         window = period.window(trend_months)
-        in_window = [f for f in facts if window[0] <= f.period <= period]
-        currencies = sorted({f.currency for f in in_window})
+        previous = period.shift(-1)
+        comparable = earliest_period is None or previous >= earliest_period
+        first = min(window[0], previous) if comparable else window[0]
+        relevant = [f for f in facts if first <= f.period <= period]
+        currencies = sorted({f.currency for f in relevant if f.period >= window[0]})
         return cls(
             period,
-            tuple(_currency_dashboard(period, window, in_window, c) for c in currencies),
+            tuple(
+                _currency_dashboard(period, window, relevant, c, previous if comparable else None)
+                for c in currencies
+            ),
         )
 
 
-def _currency_dashboard(period, window, facts, currency):
+def _currency_dashboard(period, window, facts, currency, previous):
     mine = [f for f in facts if f.currency == currency]
     current = [f for f in mine if f.period == period]
     totals = Totals.of(current, currency)
+    comparison = None
+    if previous is not None:
+        before = Totals.of([f for f in mine if f.period == previous], currency)
+        comparison = Comparison(previous, before, expense_change_pct(totals, before))
     return CurrencyDashboard(
         currency=currency,
         totals=totals,
@@ -122,6 +166,8 @@ def _currency_dashboard(period, window, facts, currency):
             TrendPoint(month, Totals.of([f for f in mine if f.period == month], currency))
             for month in window
         ),
+        comparison=comparison,
+        savings_rate=savings_rate(totals),
     )
 
 

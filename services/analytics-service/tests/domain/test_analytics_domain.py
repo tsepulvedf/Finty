@@ -106,6 +106,61 @@ class TestDashboard:
         assert Dashboard.build(OCT, []).currencies == ()
 
 
+class TestComparacion:
+    """D-29: periodo anterior, variacion de gastos y tasa de ahorro."""
+
+    def section(self, facts, earliest=None):
+        [cop] = Dashboard.build(OCT, facts, earliest_period=earliest).currencies
+        return cop
+
+    def test_periodo_anterior_y_variacion_de_gastos(self):
+        facts = [
+            fact("200000", on=date(2026, 9, 5)), fact("1000000", "income", "Salario", on=date(2026, 9, 1)),
+            fact("250000", on=date(2026, 10, 5)), fact("1000000", "income", "Salario", on=date(2026, 10, 1)),
+        ]
+        cop = self.section(facts)
+        assert cop.comparison.period == Period(2026, 9)
+        assert (cop.comparison.totals.income, cop.comparison.totals.expense) == (money("1000000"), money("200000"))
+        assert cop.comparison.expense_change_pct == Decimal("25.0")
+
+    def test_gastos_que_bajan_dan_variacion_negativa(self):
+        facts = [fact("300", on=date(2026, 9, 5)), fact("200", on=date(2026, 10, 5))]
+        assert self.section(facts).comparison.expense_change_pct == Decimal("-33.3")
+
+    def test_sin_gastos_anteriores_la_variacion_es_nula(self):
+        cop = self.section([fact("200", on=date(2026, 10, 5))])
+        assert cop.comparison.totals.expense == money("0")
+        assert cop.comparison.expense_change_pct is None
+
+    def test_tasa_de_ahorro(self):
+        facts = [fact("1000000", "income", "Salario"), fact("710000")]
+        assert self.section(facts).savings_rate == Decimal("0.2900")
+
+    def test_ahorro_negativo(self):
+        facts = [fact("100", "income", "Salario"), fact("150")]
+        assert self.section(facts).savings_rate == Decimal("-0.5000")
+
+    def test_sin_ingresos_la_tasa_es_nula(self):
+        assert self.section([fact("150")]).savings_rate is None
+
+    def test_con_limite_el_anterior_dentro_de_la_ventana_se_incluye(self):
+        facts = [fact("100", on=date(2026, 9, 5)), fact("100")]
+        assert self.section(facts, earliest=Period(2026, 8)).comparison.period == Period(2026, 9)
+
+    def test_con_limite_el_anterior_fuera_de_la_ventana_no_se_incluye(self):
+        """Plan Free: si el mes anterior esta fuera de sus 3 meses, no hay comparacion."""
+        facts = [fact("100", on=date(2026, 9, 5)), fact("100")]
+        cop = self.section(facts, earliest=Period(2026, 10))
+        assert cop.comparison is None
+        assert cop.savings_rate is None
+
+    def test_monedas_por_separado(self):
+        facts = [fact("100", on=date(2026, 9, 5)), fact("7", currency="USD"), fact("200")]
+        sections = {s.currency: s for s in Dashboard.build(OCT, facts).currencies}
+        assert sections["COP"].comparison.expense_change_pct == Decimal("100.0")
+        assert sections["USD"].comparison.expense_change_pct is None
+
+
 class TestInsights:
     def spike_facts(self, current="200000"):
         history = [fact("100000", on=date(2026, m, 5)) for m in (7, 8, 9)]

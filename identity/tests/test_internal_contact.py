@@ -55,3 +55,9 @@ class TestContactoInterno:
 
     def test_solo_admite_get(self, ana):
         assert APIClient().post(url(ana.id)).status_code == 405
+
+    def test_acepta_el_host_interno_de_compose(self, ana):
+        """subscription-service llama a http://django:8000/...: Django no debe
+        responder 400 DisallowedHost aunque ALLOWED_HOSTS de la maquina no lo traiga."""
+        response = APIClient().get(url(ana.id), HTTP_HOST="django:8000")
+        assert response.status_code == 200

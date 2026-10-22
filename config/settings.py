@@ -41,7 +41,13 @@ SECRET_KEY = _env("SECRET_KEY")
 
 DEBUG = _env_bool("DEBUG")
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS")
+# Nombre del contenedor en la red interna de Compose: subscription-service llama a
+# http://django:8000/internal/users/<id>/contact/ (E2-M7). Solo resuelve dentro
+# de esa red, y Nginx bloquea /internal/ desde fuera; va siempre, sin depender
+# del .env.docker de cada maquina.
+INTERNAL_HOSTS = ["django"]
+
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS") + INTERNAL_HOSTS
 
 
 # --- Aplicaciones ----------------------------------------------------------

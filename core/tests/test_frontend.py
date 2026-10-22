@@ -7,9 +7,11 @@ Tres cosas, todas mecanicas:
 2. **La frontera se mantiene:** las vistas son `TemplateView` sin contexto y las
    plantillas solo interpolan el idioma y la ruta actual. Todo dato de negocio lo
    pide el JavaScript a /api/v1/. Y nada se carga de otro origen.
-3. **A-23, primer tramo:** ninguna plantilla de `frontend/templates/finty/` tiene
-   texto visible fuera de `{% translate %}` o `{% blocktranslate %}`, y los
-   catalogos `es` y `en` estan completos. E2-M8b extiende la cobertura.
+3. **A-23:** ninguna plantilla de `frontend/templates/finty/` (todas, sin
+   excepcion) tiene texto visible fuera de `{% translate %}` o
+   `{% blocktranslate %}`, y los catalogos `es` y `en` de los dos dominios estan
+   completos: sin entradas vacias ni fuzzy. El equivalente para JavaScript esta
+   en `test_frontend_a23_js.py`.
 """
 import re
 from html.parser import HTMLParser

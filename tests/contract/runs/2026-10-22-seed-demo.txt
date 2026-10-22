@@ -1,0 +1,28 @@
+# Evidencia E2-M9b - seed-demo idempotente (tools/seed_demo.py)
+# Fecha: 2026-10-22T17:22:29-05:00
+
+## Tercera corrida (las dos primeras: 67 movimientos creados y luego 0; ver el reporte de E2-M9b)
+seed-demo contra http://localhost
+  usuarios creados: 0
+  usuarios existentes: 2
+  cuentas creadas: 0
+  cuentas existentes: 5
+  movimientos creados: 0
+  movimientos existentes: 67
+  suscripciones activadas: 0
+  perfiles de riesgo: 0
+  planes de inversion: 0
+  usuarios: demo-free@finty.co (Free) y demo-premium@finty.co (Premium)
+
+## Cuarta corrida, inmediatamente despues
+seed-demo contra http://localhost
+  usuarios creados: 0
+  usuarios existentes: 2
+  cuentas creadas: 0
+  cuentas existentes: 5
+  movimientos creados: 0
+  movimientos existentes: 67
+  suscripciones activadas: 0
+  perfiles de riesgo: 0
+  planes de inversion: 0
+  usuarios: demo-free@finty.co (Free) y demo-premium@finty.co (Premium)

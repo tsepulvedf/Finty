@@ -19,6 +19,8 @@ staticfiles/
 
 # Tests
 .pytest_cache/
+# Dependencias de las herramientas de desarrollo (tools/ux-audit)
+node_modules/
 .coverage
 htmlcov/
 

@@ -1,0 +1,14 @@
+{
+  "name": "finty-ux-audit",
+  "private": true,
+  "description": "Auditoria de accesibilidad de E2-M9a (Lighthouse y axe-core). Solo desarrollo: no entra en ninguna imagen.",
+  "type": "module",
+  "scripts": {
+    "audit": "node audit.mjs"
+  },
+  "devDependencies": {
+    "axe-core": "4.14.0",
+    "lighthouse": "13.5.0",
+    "puppeteer-core": "25.16.0"
+  }
+}

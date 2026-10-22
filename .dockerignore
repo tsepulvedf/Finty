@@ -20,3 +20,8 @@ htmlcov/
 
 # Notas locales del asistente; no forman parte de la aplicacion
 CLAUDE.md
+
+# Herramientas de desarrollo (auditoria de UI/UX, E2-M9a): nunca en una imagen
+tools/
+node_modules/
+docs/ux-audit/

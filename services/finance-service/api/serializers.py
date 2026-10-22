@@ -55,6 +55,20 @@ def account_to_dict(account):
     }
 
 
+def summary_to_dict(balances):
+    """`GET /accounts/summary/`: una fila por moneda, sin un total que las mezcle."""
+    return {
+        "currencies": [
+            {
+                "currency": item.currency,
+                "balance": _money(item.balance.amount),
+                "accounts": item.accounts,
+            }
+            for item in balances
+        ]
+    }
+
+
 def transaction_to_dict(movement):
     """Salida de `TransactionOutputSerializer`."""
     category = movement.category

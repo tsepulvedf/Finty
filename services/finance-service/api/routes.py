@@ -24,7 +24,7 @@ from api.schemas import (
     TransactionInput,
     validate_input,
 )
-from api.serializers import account_to_dict, category_to_dict, transaction_to_dict
+from api.serializers import account_to_dict, category_to_dict, summary_to_dict, transaction_to_dict
 from infra.categorization_client import RemoteCategorizer
 from infra.categorizers import RuleBasedCategorizer
 from infra.outbox import SqlAlchemyOutbox
@@ -86,6 +86,12 @@ def list_accounts():
         current_user_id(), include_archived=query_flag("include_archived")
     )
     return jsonify(paginate(listing, account_to_dict))
+
+
+@routed("/accounts/summary/", ["GET"])
+def accounts_summary():
+    """Saldo total por moneda y numero de cuentas activas (D-29)."""
+    return jsonify(summary_to_dict(AccountService(db_session()).summary(current_user_id())))
 
 
 @routed("/accounts/", ["POST"])

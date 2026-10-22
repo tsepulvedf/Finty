@@ -1,10 +1,11 @@
-"""D-30 (E2-M8b): busqueda y tipo en /transactions/."""
+"""D-29 y D-30 (E2-M8b): busqueda y tipo en /transactions/, y /accounts/summary/."""
 from datetime import date, timedelta
 from urllib.parse import urlencode
 
 import pytest
 
 ACCOUNTS = "/api/v1/accounts/"
+SUMMARY = "/api/v1/accounts/summary/"
 TRANSACTIONS = "/api/v1/transactions/"
 YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
 
@@ -74,3 +75,34 @@ class TestTipo:
         response = ana.get(f"{TRANSACTIONS}?type=transfer")
         assert (response.status_code, response.json) == (400, {"type": ['"transfer" no es una elección válida.']})
 
+
+class TestResumen:
+    def test_saldo_por_moneda_sin_mezclar(self, ana):
+        nequi = account(ana, "Nequi", balance="100000")
+        account(ana, "Banco", balance="250000.50")
+        account(ana, "Dolares", currency="USD", balance="1250")
+        register(ana, nequi, "38000")
+
+        assert ana.get(SUMMARY).json == {"currencies": [
+            {"currency": "COP", "balance": "312000.50", "accounts": 2},
+            {"currency": "USD", "balance": "1250.00", "accounts": 1},
+        ]}
+
+    def test_excluye_archivadas_y_ajenas(self, ana, juan):
+        archivada = account(ana, "Vieja", balance="999")
+        assert ana.post(f"{ACCOUNTS}{archivada}/archive/").status_code == 200
+        account(juan, "De Juan", balance="5")
+        assert ana.get(SUMMARY).json == {"currencies": []}
+
+    def test_credito_negativo_resta(self, ana):
+        tarjeta = account(ana, "Visa", balance="0", kind="credit")
+        register(ana, tarjeta, "40000")
+        account(ana, "Nequi", balance="100000")
+        assert ana.get(SUMMARY).json["currencies"] == [{"currency": "COP", "balance": "60000.00", "accounts": 2}]
+
+    def test_sin_identidad_401(self, anonimo):
+        assert anonimo.get(SUMMARY).status_code == 401
+
+    def test_no_choca_con_el_detalle_de_cuenta(self, ana):
+        cuenta = account(ana, "Nequi")
+        assert ana.get(f"{ACCOUNTS}{cuenta}/").json["name"] == "Nequi"

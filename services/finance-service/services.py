@@ -234,6 +234,17 @@ def _normalized_search(text):
     return plain.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+@dataclass(frozen=True)
+class CurrencyBalance:
+    """Saldo total de las cuentas activas en una moneda (D-29)."""
+
+    balance: Money
+    accounts: int
+
+    @property
+    def currency(self):
+        return self.balance.currency
+
 class AccountService:
     """Casos de uso sobre cuentas."""
 
@@ -314,6 +325,24 @@ class AccountService:
             is_archived=account.is_archived,
             balance=Money(account.balance, account.currency),
         )
+
+    def summary(self, user_id):
+        """Saldo total por moneda y numero de cuentas (D-29).
+
+        Una fila por moneda: nunca se suma COP con USD. Solo cuentas activas, como
+        el listado por defecto. La conversion, si hace falta, es de presentacion y
+        la hace el cliente con `/exchange-rates/` (ADR-12).
+        """
+        rows = self._session.execute(
+            select(Account.currency, func.sum(Account.balance), func.count(Account.id))
+            .where(Account.user_id == user_id, Account.is_archived.is_(False))
+            .group_by(Account.currency)
+            .order_by(Account.currency)
+        ).all()
+        return [
+            CurrencyBalance(Money(total, currency), count)
+            for currency, total, count in rows
+        ]
 
     def list_accounts(self, user_id, include_archived=False):
         """Cuentas del usuario, ordenadas por nombre."""

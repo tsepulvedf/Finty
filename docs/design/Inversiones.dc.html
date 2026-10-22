@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Inversiones y recomendaciones</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17; font-variant-numeric: tabular-nums">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 10px; background: #E3F2EE; color: #0B5A4A; font-weight: 800; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <sc-if value="{{isFree}}" hint-placeholder-val="{{ false }}">
+          <a href="Planes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #FDF3DD; color: #6B4800; font-size: 14px; font-weight: 800; text-decoration: none">Plan Free · Mejorar</a>
+        </sc-if>
+        <sc-if value="{{isPremium}}" hint-placeholder-val="{{ true }}">
+          <a href="Ajustes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 14px; font-weight: 800; text-decoration: none">Premium</a>
+        </sc-if>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 720px">
+        <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px">Recomendaciones e inversión</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #52625D">Basadas en tus insights, tu excedente mensual y tu perfil de riesgo.</p>
+      </div>
+      <label style="display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #3F4F4A">Mostrar en
+        <select style="font: inherit; font-size: 15px; font-weight: 700; padding: 10px 12px; min-height: 44px; border: 1px solid #CBD6D2; border-radius: 12px; background: #FFFFFF; color: #0F1A17"><option>COP</option><option>USD</option></select>
+      </label>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section style="display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800">Para optimizar tus gastos</h2>
+          <article style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: #FDF3DD; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14l-1.5 9.5a2 2 0 01-2 1.5h-7a2 2 0 01-2-1.5z" stroke="#8A5A00" stroke-width="1.9" fill="none" stroke-linejoin="round"></path><path d="M9 7V5.5a3 3 0 016 0V7" stroke="#8A5A00" stroke-width="1.9" fill="none"></path></svg></span>
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 6px">
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800">Reduce tu gasto en Compras</h3>
+              <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #3F4F4A">Este mes gastaste $ 512.000, un 42 % más que tu promedio. Volver al promedio liberaría unos $ 152.000.</p>
+              <span style="font-size: 13px; color: #52625D">Origen: insight de gasto inusual</span>
+            </div>
+          </article>
+          <article style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v4h-4" stroke="#0B6E5B" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 6px">
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800">Revisa tus gastos fijos</h3>
+              <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #3F4F4A">Pagas $ 229.900 al mes en 3 gastos recurrentes. Confirma que sigues usando el gimnasio: apareció solo en los últimos 3 meses.</p>
+              <span style="font-size: 13px; color: #52625D">Origen: patrón de gasto recurrente</span>
+            </div>
+          </article>
+        </section>
+
+        <section style="display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800">Para invertir tu excedente</h2>
+          <sc-if value="{{isPremium}}" hint-placeholder-val="{{ true }}">
+            <article style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+                <div style="padding: 14px 16px; border-radius: 12px; background: #F3F6F5; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; color: #52625D">Excedente mensual promedio</span><span style="font-size: 20px; font-weight: 800">$ 1.640.000</span><span style="font-size: 12px; color: #52625D">jul–sep · ≈ USD 518</span></div>
+                <div style="padding: 14px 16px; border-radius: 12px; background: #F3F6F5; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; color: #52625D">Tu perfil</span><span style="font-size: 20px; font-weight: 800">Moderado</span><span style="font-size: 12px; color: #52625D">11 de 15 puntos</span></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <span style="font-size: 13px; font-weight: 800; color: #0B5A4A; letter-spacing: 0.3px">INSTRUMENTO SUGERIDO</span>
+                <h3 style="margin: 0; font-size: 22px; font-weight: 800">Fondo de inversión colectiva</h3>
+                <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #3F4F4A">Para un perfil moderado: diversificación con riesgo medio. Antes de invertir, asegúrate de tener un fondo de emergencia de al menos 3 meses de gastos.</p>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: #EEF0F7; color: #2E3A6B; font-size: 13px; line-height: 1.5">
+                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9.5" stroke="#2E3A6B" stroke-width="2" fill="none"></circle><path d="M12 11v6M12 7.5v.5" stroke="#2E3A6B" stroke-width="2.2" stroke-linecap="round"></path></svg>
+                <span>Esta es una orientación general por tipo de instrumento, no una asesoría financiera ni una recomendación de un producto o entidad específica.</span>
+              </div>
+            </article>
+          </sc-if>
+          <sc-if value="{{isFree}}" hint-placeholder-val="{{ false }}">
+            <article style="background: #FFFFFF; border: 1px dashed #E3C27A; border-radius: 16px; padding: 28px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center">
+              <span style="width: 52px; height: 52px; border-radius: 14px; background: #FDF3DD; display: flex; align-items: center; justify-content: center; flex: none"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" stroke="#8A5A00" stroke-width="1.9" fill="none"></rect><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5" stroke="#8A5A00" stroke-width="1.9" fill="none"></path></svg></span>
+              <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px">
+                <h3 style="margin: 0; font-size: 18px; font-weight: 800">Tienes un excedente de $ 1.640.000 al mes</h3>
+                <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #3F4F4A">Con Premium te sugerimos en qué tipo de instrumento invertirlo según tu perfil, y puedes guardar planes con su proyección.</p>
+              </div>
+              <a href="Planes.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 12px; background: #0B6E5B; color: #FFFFFF; font-size: 15px; font-weight: 800; text-decoration: none">Desbloquear</a>
+            </article>
+          </sc-if>
+        </section>
+
+        <sc-if value="{{isPremium}}" hint-placeholder-val="{{ true }}">
+          <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center">
+              <h2 style="margin: 0; font-size: 20px; font-weight: 800">Mis planes de inversión</h2>
+              <button type="button" style="font: inherit; font-size: 14px; font-weight: 800; min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #0B6E5B; color: #FFFFFF">+ Nuevo plan</button>
+            </div>
+            <article style="border: 1px solid #DFE6E3; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline">
+                <h3 style="margin: 0; font-size: 17px; font-weight: 800">Fondo colectivo · meta 3 años</h3>
+                <span style="font-size: 13px; color: #52625D">Creado con perfil Moderado</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+                <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #52625D">Aporte mensual</span><span style="font-size: 17px; font-weight: 800">$ 500.000</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #52625D">Horizonte</span><span style="font-size: 17px; font-weight: 800">36 meses</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #52625D">Total aportado</span><span style="font-size: 17px; font-weight: 800">$ 18.000.000</span></div>
+                <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #52625D">Proyección</span><span style="font-size: 17px; font-weight: 800; color: #0B6E5B">$ 20.891.000</span></div>
+              </div>
+              <p style="margin: 0; font-size: 13px; color: #52625D">Proyección ilustrativa con una tasa anual de referencia del 10 %. No es un rendimiento garantizado.</p>
+            </article>
+          </section>
+        </sc-if>
+      </div>
+
+      <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section style="background: #0B3D33; color: #FFFFFF; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <span style="font-size: 13px; font-weight: 800; color: #C9E5DD; letter-spacing: 0.3px">TU PERFIL DE RIESGO</span>
+          <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.5px">Moderado</span>
+          <div role="img" aria-label="Escala de perfil: conservador, moderado (seleccionado), agresivo" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+            <div style="height: 8px; border-radius: 99px; background: #2F6B5D"></div>
+            <div style="height: 8px; border-radius: 99px; background: #3FC4A2"></div>
+            <div style="height: 8px; border-radius: 99px; background: #2F6B5D"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; font-size: 12px; color: #C9E5DD"><span>Conservador</span><span style="text-align: center; color: #FFFFFF; font-weight: 800">Moderado</span><span style="text-align: right">Agresivo</span></div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #E6F4F0">Aceptas algo de variación a cambio de un crecimiento mayor que el de un CDT.</p>
+          <a href="PerfilRiesgo.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 12px; background: #FFFFFF; color: #0B3D33; font-size: 15px; font-weight: 800; text-decoration: none">Actualizar perfil</a>
+        </section>
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 17px; font-weight: 800">Tasa de cambio</h2>
+          <span style="font-size: 26px; font-weight: 800">$ 3.163,76</span>
+          <span style="font-size: 13px; color: #52625D">TRM oficial de hoy por 1 USD · fuente: en vivo</span>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #52625D">Si la fuente oficial no responde, Finty usa la última tasa conocida y te lo indica.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"plan":{"editor":"enum","options":["premium","free"],"default":"premium"},"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const plan = this.props.plan ?? 'premium';
+    return { isPremium: plan === 'premium', isFree: plan === 'free' };
+  }
+}
+</script>
+</body>
+</html>

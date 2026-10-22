@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+select:focus,button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17; font-variant-numeric: tabular-nums">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 10px; background: #E3F2EE; color: #0B5A4A; font-weight: 800; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <a href="Planes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #FDF3DD; color: #6B4800; font-size: 14px; font-weight: 800; text-decoration: none">Plan Free · Mejorar</a>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <p style="margin: 0; font-size: 15px; color: #52625D; font-weight: 600">Hola, Tomás</p>
+        <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px">Tu resumen de octubre</h1>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+        <div style="display: inline-flex; align-items: center; gap: 4px; background: #FFFFFF; border: 1px solid #CBD6D2; border-radius: 12px; padding: 4px">
+          <button type="button" aria-label="Mes anterior" style="width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 18px; color: #0F1A17">‹</button>
+          <span style="padding: 0 10px; font-size: 15px; font-weight: 800">Octubre 2026</span>
+          <button type="button" aria-label="Mes siguiente" style="width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 18px; color: #A3B0AC">›</button>
+        </div>
+        <label style="display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #3F4F4A">Mostrar en
+          <select style="font: inherit; font-size: 15px; font-weight: 700; padding: 10px 12px; min-height: 44px; border: 1px solid #CBD6D2; border-radius: 12px; background: #FFFFFF; color: #0F1A17">
+            <option>COP</option>
+            <option>USD</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <section aria-label="Indicadores del período" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; font-weight: 700; color: #52625D">Saldo consolidado</span>
+        <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.6px">$ 11.882.600</span>
+        <span style="font-size: 13px; color: #52625D">5 cuentas · USD convertido con TRM del día</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; font-weight: 700; color: #52625D">Ingresos</span>
+        <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.6px; color: #0B6E5B">+ $ 6.200.000</span>
+        <span style="font-size: 13px; color: #52625D">Igual que septiembre</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; font-weight: 700; color: #52625D">Gastos</span>
+        <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.6px; color: #A8431B">− $ 4.385.400</span>
+        <span style="font-size: 13px; color: #52625D">4,7 % menos que septiembre</span>
+      </div>
+      <div style="background: #0B3D33; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px; color: #FFFFFF">
+        <span style="font-size: 14px; font-weight: 700; color: #C9E5DD">Neto del mes</span>
+        <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.6px">+ $ 1.814.600</span>
+        <span style="font-size: 13px; color: #C9E5DD">Ahorras el 29 % de tus ingresos</span>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 20px">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800">Ingresos y gastos</h2>
+            <div style="display: flex; gap: 16px; font-size: 13px; font-weight: 700; color: #3F4F4A">
+              <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #0B6E5B"></span>Ingresos</span>
+              <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #F0A36B"></span>Gastos</span>
+            </div>
+          </div>
+          <div role="img" aria-label="Agosto: ingresos 6,2 millones, gastos 4,1 millones. Septiembre: ingresos 6,2 millones, gastos 4,6 millones. Octubre: ingresos 6,2 millones, gastos 4,39 millones." style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: end; height: 240px; padding: 0 12px; border-bottom: 1px solid #DFE6E3">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end">
+              <div style="display: flex; gap: 8px; align-items: flex-end; height: 200px">
+                <div style="width: 40px; height: 200px; background: #0B6E5B; border-radius: 6px 6px 0 0"></div>
+                <div style="width: 40px; height: 132px; background: #F0A36B; border-radius: 6px 6px 0 0"></div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end">
+              <div style="display: flex; gap: 8px; align-items: flex-end; height: 200px">
+                <div style="width: 40px; height: 200px; background: #0B6E5B; border-radius: 6px 6px 0 0"></div>
+                <div style="width: 40px; height: 148px; background: #F0A36B; border-radius: 6px 6px 0 0"></div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end">
+              <div style="display: flex; gap: 8px; align-items: flex-end; height: 200px">
+                <div style="width: 40px; height: 200px; background: #0B6E5B; border-radius: 6px 6px 0 0"></div>
+                <div style="width: 40px; height: 141px; background: #F0A36B; border-radius: 6px 6px 0 0"></div>
+              </div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #3F4F4A">
+            <span>Agosto</span><span>Septiembre</span><span>Octubre</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 12px; background: #FDF3DD">
+            <span style="font-size: 14px; color: #5C3E00; font-weight: 600">El plan Free muestra los últimos 3 meses. Con Premium ves todo tu historial.</span>
+            <a href="Planes.dc.html" style="font-size: 14px; font-weight: 800; color: #5C3E00">Ver Premium</a>
+          </div>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800">Últimos movimientos</h2>
+            <a href="Movimientos.dc.html" style="font-size: 15px; font-weight: 800">Ver todos</a>
+          </div>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 0; border-bottom: 1px solid #EDF1EF">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v7a3 3 0 006 0V4M9 4v16M17 4c-1.7 0-3 2-3 5s1.3 4 3 4v7" stroke="#0B6E5B" stroke-width="1.8" fill="none" stroke-linecap="round"></path></svg></span>
+              <div style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 15px; font-weight: 700">Almuerzo en el restaurante</span><span style="font-size: 13px; color: #52625D">18 oct · Bancolombia Ahorros · Alimentación · Automática 75 %</span></div>
+              <span style="font-size: 16px; font-weight: 800; color: #A8431B">− $ 38.000</span>
+            </li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 0; border-bottom: 1px solid #EDF1EF">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5" stroke="#0B6E5B" stroke-width="1.8" fill="none"></rect><circle cx="12" cy="12" r="2.5" stroke="#0B6E5B" stroke-width="1.8" fill="none"></circle></svg></span>
+              <div style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 15px; font-weight: 700">Pago de nómina</span><span style="font-size: 13px; color: #52625D">17 oct · Bancolombia Ahorros · Salario · Automática 75 %</span></div>
+              <span style="font-size: 16px; font-weight: 800; color: #0B6E5B">+ $ 3.100.000</span>
+            </li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 0; border-bottom: 1px solid #EDF1EF">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V11l2-5h10l2 5v5M5 16h14M5 16v2M19 16v2" stroke="#0B6E5B" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="8" cy="13.5" r="1" fill="#0B6E5B"></circle><circle cx="16" cy="13.5" r="1" fill="#0B6E5B"></circle></svg></span>
+              <div style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 15px; font-weight: 700">Uber al aeropuerto</span><span style="font-size: 13px; color: #52625D">16 oct · Tarjeta Visa · Transporte · Automática 75 %</span></div>
+              <span style="font-size: 16px; font-weight: 800; color: #A8431B">− $ 46.900</span>
+            </li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 0">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6v8a1 1 0 01-1 1h-4v-6h-6v6H5a1 1 0 01-1-1z" stroke="#0B6E5B" stroke-width="1.8" fill="none" stroke-linejoin="round"></path></svg></span>
+              <div style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 15px; font-weight: 700">Arriendo octubre</span><span style="font-size: 13px; color: #52625D">15 oct · Bancolombia Ahorros · Vivienda · Manual</span></div>
+              <span style="font-size: 16px; font-weight: 800; color: #A8431B">− $ 1.600.000</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800">Tus cuentas</h2>
+            <button type="button" style="font: inherit; font-size: 14px; font-weight: 800; min-height: 40px; padding: 0 14px; border: 1px solid #CBD6D2; border-radius: 10px; background: #FFFFFF; color: #0B6E5B">+ Nueva cuenta</button>
+          </div>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px">
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Bancolombia Ahorros</span><span style="font-size: 13px; color: #52625D">Banco · COP</span></div><span style="font-size: 15px; font-weight: 800">$ 8.420.300</span></li>
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Nequi</span><span style="font-size: 13px; color: #52625D">Banco · COP</span></div><span style="font-size: 15px; font-weight: 800">$ 612.500</span></li>
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Tarjeta Visa</span><span style="font-size: 13px; color: #52625D">Crédito · COP</span></div><span style="font-size: 15px; font-weight: 800; color: #A8431B">− $ 1.284.900</span></li>
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Efectivo</span><span style="font-size: 13px; color: #52625D">Efectivo · COP</span></div><span style="font-size: 15px; font-weight: 800">$ 180.000</span></li>
+            <li style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Ahorro en dólares</span><span style="font-size: 13px; color: #52625D">Banco · USD 1.250,00</span></div><span style="font-size: 15px; font-weight: 800">$ 3.954.700</span></li>
+          </ul>
+          <p style="margin: 0; padding: 12px 14px; border-radius: 12px; background: #F3F6F5; font-size: 13px; line-height: 1.5; color: #3F4F4A">Conversión con la TRM oficial de hoy, $ 3.163,76 por dólar · fuente: en vivo. Los montos guardados no cambian.</p>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800">Gastos por categoría</h2>
+          <div style="display: flex; flex-direction: column; gap: 12px; font-size: 14px">
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Vivienda</span><span style="color: #3F4F4A">$ 1.600.000 · 36 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 36%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Alimentación</span><span style="color: #3F4F4A">$ 980.000 · 22 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 22%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Compras</span><span style="color: #3F4F4A">$ 512.000 · 12 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 12%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Transporte</span><span style="color: #3F4F4A">$ 421.400 · 10 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 10%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Servicios</span><span style="color: #3F4F4A">$ 388.000 · 9 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 9%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Otros gastos y Salud</span><span style="color: #3F4F4A">$ 484.000 · 11 %</span></div><div style="height: 8px; border-radius: 99px; background: #EDF1EF"><div style="width: 11%; height: 8px; border-radius: 99px; background: #0B6E5B"></div></div></div>
+          </div>
+        </section>
+
+        <a href="Insights.dc.html" style="display: flex; flex-direction: column; gap: 10px; padding: 22px 24px; border-radius: 16px; background: #0B3D33; color: #FFFFFF; text-decoration: none">
+          <span style="display: inline-flex; align-self: flex-start; padding: 5px 10px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 12px; font-weight: 800; letter-spacing: 0.3px">PREMIUM</span>
+          <span style="font-size: 18px; font-weight: 800; line-height: 1.35">Detectamos 2 hallazgos y 3 gastos recurrentes este mes</span>
+          <span style="font-size: 14px; color: #C9E5DD; font-weight: 700">Ver insights →</span>
+        </a>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

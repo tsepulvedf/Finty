@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Insights</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17; font-variant-numeric: tabular-nums">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 10px; background: #E3F2EE; color: #0B5A4A; font-weight: 800; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <sc-if value="{{isFree}}" hint-placeholder-val="{{ false }}">
+          <a href="Planes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #FDF3DD; color: #6B4800; font-size: 14px; font-weight: 800; text-decoration: none">Plan Free · Mejorar</a>
+        </sc-if>
+        <sc-if value="{{isPremium}}" hint-placeholder-val="{{ true }}">
+          <a href="Ajustes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 14px; font-weight: 800; text-decoration: none">Premium</a>
+        </sc-if>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 720px">
+        <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px">Insights de octubre</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #52625D">Hallazgos calculados a partir de tus movimientos. Cada uno muestra los números con los que se decidió.</p>
+      </div>
+      <div style="display: inline-flex; align-items: center; gap: 4px; background: #FFFFFF; border: 1px solid #CBD6D2; border-radius: 12px; padding: 4px">
+        <button type="button" aria-label="Mes anterior" style="width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 18px; color: #0F1A17">‹</button>
+        <span style="padding: 0 10px; font-size: 15px; font-weight: 800">Octubre 2026</span>
+        <button type="button" aria-label="Mes siguiente" style="width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 18px; color: #A3B0AC">›</button>
+      </div>
+    </div>
+
+    <sc-if value="{{isFree}}" hint-placeholder-val="{{ false }}">
+      <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 20px; padding: 48px 40px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center">
+        <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 16px">
+          <span style="display: inline-flex; align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 12px; font-weight: 800; letter-spacing: 0.3px">FUNCIÓN PREMIUM</span>
+          <h2 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2">Descubre en qué cambió tu gasto y qué pagas todos los meses</h2>
+          <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #3F4F4A">Con Premium, Finty compara cada categoría con tus últimos 3 meses, te avisa cuando gastas más de lo habitual y encuentra tus gastos recurrentes.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px">
+            <a href="Planes.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 24px; border-radius: 12px; background: #0B6E5B; color: #FFFFFF; font-size: 16px; font-weight: 800; text-decoration: none">Ver planes</a>
+            <a href="Dashboard.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 20px; border-radius: 12px; border: 1px solid #CBD6D2; color: #0F1A17; font-size: 16px; font-weight: 700; text-decoration: none">Volver al dashboard</a>
+          </div>
+        </div>
+        <div aria-hidden="true" style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; opacity: 0.55">
+          <div style="height: 76px; border-radius: 14px; background: #FDF3DD"></div>
+          <div style="height: 76px; border-radius: 14px; background: #E3F2EE"></div>
+          <div style="height: 76px; border-radius: 14px; background: #EDF1EF"></div>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{isPremium}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 24px">
+        <section aria-label="Hallazgos" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px">
+          <article style="background: #FFFFFF; border: 1px solid #F0D9A6; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="width: 40px; height: 40px; border-radius: 12px; background: #FDF3DD; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 4 4 7-8" stroke="#8A5A00" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15 8h5v5" stroke="#8A5A00" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+              <span style="font-size: 13px; font-weight: 800; color: #6B4800; letter-spacing: 0.3px">ALERTA · GASTO INUSUAL</span>
+            </div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; line-height: 1.35">Tu gasto en Compras subió 42 % frente a tu promedio</h2>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+              <div style="padding: 12px 14px; border-radius: 12px; background: #F3F6F5; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; color: #52625D">Octubre</span><span style="font-size: 18px; font-weight: 800">$ 512.000</span></div>
+              <div style="padding: 12px 14px; border-radius: 12px; background: #F3F6F5; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 13px; color: #52625D">Promedio jul–sep</span><span style="font-size: 18px; font-weight: 800">$ 360.000</span></div>
+            </div>
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #52625D">Se marca cuando una categoría supera en 30 % o más el promedio de los 3 meses anteriores.</p>
+          </article>
+          <article style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="width: 40px; height: 40px; border-radius: 12px; background: #E3F2EE; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="#0B6E5B" stroke-width="2" fill="none"></circle><path d="M12 3.5V12h8.5" stroke="#0B6E5B" stroke-width="2" fill="none" stroke-linecap="round"></path></svg></span>
+              <span style="font-size: 13px; font-weight: 800; color: #0B5A4A; letter-spacing: 0.3px">DATO · CATEGORÍA PRINCIPAL</span>
+            </div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; line-height: 1.35">Vivienda concentra el 36 % de tus gastos del mes</h2>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <div style="height: 12px; border-radius: 99px; background: #EDF1EF"><div style="width: 36%; height: 12px; border-radius: 99px; background: #0B6E5B"></div></div>
+              <span style="font-size: 14px; color: #3F4F4A">$ 1.600.000 de $ 4.385.400 en gastos</span>
+            </div>
+            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #52625D">La categoría con mayor participación en los gastos del período.</p>
+          </article>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: baseline">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800">Gastos recurrentes</h2>
+            <span style="font-size: 14px; color: #52625D">3 detectados · $ 229.900 al mes</span>
+          </div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #52625D">Misma descripción y categoría, monto parecido (±10 %) y presente en al menos 3 de los últimos 6 meses.</p>
+          <div style="overflow-x: auto; border: 1px solid #EDF1EF; border-radius: 12px">
+            <table style="width: 100%; min-width: 620px; border-collapse: collapse; font-size: 14px">
+              <thead>
+                <tr style="background: #F3F6F5; text-align: left; color: #3F4F4A">
+                  <th scope="col" style="padding: 12px 16px; font-weight: 800">Gasto</th>
+                  <th scope="col" style="padding: 12px 16px; font-weight: 800">Categoría</th>
+                  <th scope="col" style="padding: 12px 16px; font-weight: 800">Meses presentes</th>
+                  <th scope="col" style="padding: 12px 16px; font-weight: 800">Última vez</th>
+                  <th scope="col" style="padding: 12px 16px; font-weight: 800; text-align: right">Promedio mensual</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-top: 1px solid #EDF1EF"><td style="padding: 14px 16px; font-weight: 700">Netflix</td><td style="padding: 14px 16px; color: #3F4F4A">Otros gastos</td><td style="padding: 14px 16px">6 de 6</td><td style="padding: 14px 16px; color: #3F4F4A">12 oct</td><td style="padding: 14px 16px; text-align: right; font-weight: 800">$ 44.900</td></tr>
+                <tr style="border-top: 1px solid #EDF1EF"><td style="padding: 14px 16px; font-weight: 700">Plan celular Claro</td><td style="padding: 14px 16px; color: #3F4F4A">Servicios</td><td style="padding: 14px 16px">5 de 6</td><td style="padding: 14px 16px; color: #3F4F4A">8 oct</td><td style="padding: 14px 16px; text-align: right; font-weight: 800">$ 65.000</td></tr>
+                <tr style="border-top: 1px solid #EDF1EF"><td style="padding: 14px 16px; font-weight: 700">Gimnasio</td><td style="padding: 14px 16px; color: #3F4F4A">Salud</td><td style="padding: 14px 16px">3 de 6</td><td style="padding: 14px 16px; color: #3F4F4A">3 oct</td><td style="padding: 14px 16px; text-align: right; font-weight: 800">$ 120.000</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <a href="Inversiones.dc.html" style="align-self: flex-start; font-size: 15px; font-weight: 800">Ver recomendaciones para estos gastos →</a>
+        </section>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"plan":{"editor":"enum","options":["premium","free"],"default":"premium"},"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const plan = this.props.plan ?? 'premium';
+    return { isPremium: plan === 'premium', isFree: plan === 'free' };
+  }
+}
+</script>
+</body>
+</html>

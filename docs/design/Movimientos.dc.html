@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Movimientos</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17; font-variant-numeric: tabular-nums">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 10px; background: #E3F2EE; color: #0B5A4A; font-weight: 800; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <a href="Planes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #FDF3DD; color: #6B4800; font-size: 14px; font-weight: 800; text-decoration: none">Plan Free · Mejorar</a>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px">Movimientos</h1>
+        <p style="margin: 0; font-size: 15px; color: #52625D">48 movimientos en octubre · todas las cuentas</p>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <section style="flex: 999 1 600px; min-width: 0; background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-wrap: wrap; gap: 12px">
+          <label style="flex: 2 1 220px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #3F4F4A">Buscar
+            <input type="search" placeholder="Descripción del movimiento" style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; box-sizing: border-box; border: 1px solid #B9C7C2; border-radius: 10px; color: #0F1A17">
+          </label>
+          <label style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #3F4F4A">Cuenta
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Todas</option><option>Bancolombia Ahorros</option><option>Nequi</option><option>Tarjeta Visa</option></select>
+          </label>
+          <label style="flex: 1 1 130px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #3F4F4A">Tipo
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Todos</option><option>Ingresos</option><option>Gastos</option></select>
+          </label>
+          <label style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #3F4F4A">Categoría
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Todas</option><option>Alimentación</option><option>Transporte</option><option>Vivienda</option></select>
+          </label>
+        </div>
+
+        <div style="overflow-x: auto; border: 1px solid #EDF1EF; border-radius: 12px">
+          <table style="width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px">
+            <thead>
+              <tr style="background: #F3F6F5; text-align: left; color: #3F4F4A">
+                <th scope="col" style="padding: 12px 16px; font-weight: 800">Fecha</th>
+                <th scope="col" style="padding: 12px 16px; font-weight: 800">Descripción</th>
+                <th scope="col" style="padding: 12px 16px; font-weight: 800">Categoría</th>
+                <th scope="col" style="padding: 12px 16px; font-weight: 800">Cuenta</th>
+                <th scope="col" style="padding: 12px 16px; font-weight: 800; text-align: right">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-top: 1px solid #EDF1EF; background: #F7FBFA">
+                <td style="padding: 14px 16px; color: #3F4F4A">18 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Almuerzo en el restaurante</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #E3F2EE; color: #0B5A4A; font-weight: 700">Alimentación</span><span style="font-size: 12px; color: #52625D">Automática · por reglas · 75 %</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Bancolombia Ahorros</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #A8431B">− $ 38.000</td>
+              </tr>
+              <tr style="border-top: 1px solid #EDF1EF">
+                <td style="padding: 14px 16px; color: #3F4F4A">17 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Pago de nómina</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #E3F2EE; color: #0B5A4A; font-weight: 700">Salario</span><span style="font-size: 12px; color: #52625D">Automática · por reglas · 75 %</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Bancolombia Ahorros</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #0B6E5B">+ $ 3.100.000</td>
+              </tr>
+              <tr style="border-top: 1px solid #EDF1EF">
+                <td style="padding: 14px 16px; color: #3F4F4A">16 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Uber al aeropuerto</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #E3F2EE; color: #0B5A4A; font-weight: 700">Transporte</span><span style="font-size: 12px; color: #52625D">Automática · por reglas · 75 %</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Tarjeta Visa</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #A8431B">− $ 46.900</td>
+              </tr>
+              <tr style="border-top: 1px solid #EDF1EF">
+                <td style="padding: 14px 16px; color: #3F4F4A">15 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Arriendo octubre</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #EEF0F7; color: #2E3A6B; font-weight: 700">Vivienda</span><span style="font-size: 12px; color: #52625D">Manual</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Bancolombia Ahorros</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #A8431B">− $ 1.600.000</td>
+              </tr>
+              <tr style="border-top: 1px solid #EDF1EF">
+                <td style="padding: 14px 16px; color: #3F4F4A">14 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Mercado D1</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #E3F2EE; color: #0B5A4A; font-weight: 700">Alimentación</span><span style="font-size: 12px; color: #52625D">Automática · por reglas · 75 %</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Nequi</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #A8431B">− $ 84.300</td>
+              </tr>
+              <tr style="border-top: 1px solid #EDF1EF">
+                <td style="padding: 14px 16px; color: #3F4F4A">12 oct</td>
+                <td style="padding: 14px 16px; font-weight: 700">Netflix</td>
+                <td style="padding: 14px 16px"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="padding: 4px 10px; border-radius: 999px; background: #F2F3F2; color: #3F4F4A; font-weight: 700">Otros gastos</span><span style="font-size: 12px; color: #52625D">Automática · sin coincidencia · 30 %</span></div></td>
+                <td style="padding: 14px 16px; color: #3F4F4A">Tarjeta Visa</td>
+                <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #A8431B">− $ 44.900</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: #3F4F4A">
+          <span>Mostrando 1–6 de 48</span>
+          <div style="display: flex; gap: 8px">
+            <button type="button" disabled style="font: inherit; font-weight: 700; min-height: 44px; padding: 0 16px; border: 1px solid #DFE6E3; border-radius: 10px; background: #F3F6F5; color: #8A9893">Anterior</button>
+            <button type="button" style="font: inherit; font-weight: 700; min-height: 44px; padding: 0 16px; border: 1px solid #CBD6D2; border-radius: 10px; background: #FFFFFF; color: #0F1A17">Siguiente</button>
+          </div>
+        </div>
+      </section>
+
+      <aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <form style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800">Registrar movimiento</h2>
+          <div role="group" aria-label="Tipo de movimiento" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid #CBD6D2; border-radius: 12px; overflow: hidden">
+            <button type="button" aria-pressed="true" style="font: inherit; font-size: 15px; font-weight: 800; min-height: 46px; border: 0; background: #0B6E5B; color: #FFFFFF">Gasto</button>
+            <button type="button" aria-pressed="false" style="font: inherit; font-size: 15px; font-weight: 800; min-height: 46px; border: 0; background: #FFFFFF; color: #3F4F4A">Ingreso</button>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Cuenta
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Bancolombia Ahorros · COP</option><option>Nequi · COP</option><option>Tarjeta Visa · COP</option><option>Ahorro en dólares · USD</option></select>
+          </label>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px">
+            <label style="flex: 1 1 140px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Monto
+              <input type="text" inputmode="decimal" placeholder="0" value="120.000" style="font: inherit; font-size: 16px; font-weight: 700; padding: 11px 12px; min-height: 44px; box-sizing: border-box; border: 1px solid #B9C7C2; border-radius: 10px; color: #0F1A17">
+            </label>
+            <label style="flex: 1 1 140px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Fecha
+              <input type="date" value="2026-10-21" style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; box-sizing: border-box; border: 1px solid #B9C7C2; border-radius: 10px; color: #0F1A17">
+            </label>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Descripción
+            <input type="text" value="Mercado D1" style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; box-sizing: border-box; border: 1px solid #B9C7C2; border-radius: 10px; color: #0F1A17">
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Categoría
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Automática (recomendado)</option><option>Alimentación</option><option>Transporte</option><option>Vivienda</option></select>
+          </label>
+          <p style="margin: 0; padding: 12px 14px; border-radius: 12px; background: #F3F6F5; font-size: 13px; line-height: 1.5; color: #3F4F4A">Finty clasifica el movimiento por su descripción y te dice cómo lo decidió. Puedes cambiar la categoría cuando quieras.</p>
+          <button type="submit" style="font: inherit; font-size: 16px; font-weight: 800; min-height: 50px; border: 0; border-radius: 12px; background: #0B6E5B; color: #FFFFFF">Guardar movimiento</button>
+        </form>
+
+        <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 13px; font-weight: 700; color: #52625D">Movimiento seleccionado</span>
+            <h2 style="margin: 0; font-size: 18px; font-weight: 800">Almuerzo en el restaurante</h2>
+          </div>
+          <dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; font-size: 14px">
+            <dt style="color: #52625D">Monto</dt><dd style="margin: 0; font-weight: 800; color: #A8431B">− $ 38.000</dd>
+            <dt style="color: #52625D">Clasificó</dt><dd style="margin: 0; font-weight: 700">Reglas · 75 %</dd>
+            <dt style="color: #52625D">Coincidió con</dt><dd style="margin: 0; font-weight: 700">"restaurante"</dd>
+          </dl>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Cambiar categoría
+            <select style="font: inherit; font-size: 15px; padding: 11px 12px; min-height: 44px; border: 1px solid #B9C7C2; border-radius: 10px; background: #FFFFFF; color: #0F1A17"><option>Alimentación</option><option>Entretenimiento</option><option>Otros gastos</option></select>
+          </label>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px">
+            <button type="button" style="flex: 1 1 140px; font: inherit; font-size: 15px; font-weight: 800; min-height: 46px; border: 0; border-radius: 12px; background: #0B3D33; color: #FFFFFF">Recategorizar</button>
+            <button type="button" style="flex: 1 1 120px; font: inherit; font-size: 15px; font-weight: 800; min-height: 46px; border: 1px solid #E6C2B3; border-radius: 12px; background: #FFFFFF; color: #A8431B">Eliminar</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

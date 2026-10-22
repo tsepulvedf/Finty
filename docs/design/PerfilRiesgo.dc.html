@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Perfil de riesgo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 10px; background: #E3F2EE; color: #0B5A4A; font-weight: 800; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <a href="Ajustes.dc.html" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 14px; font-weight: 800; text-decoration: none">Premium</a>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <a href="Inversiones.dc.html" style="align-self: flex-start; font-size: 15px; font-weight: 800; text-decoration: none">← Volver a inversiones</a>
+    <div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px">
+      <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.8px">Tu perfil de riesgo</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.5; color: #52625D">Cinco preguntas para conocer cuánta variación aceptas en tus inversiones. Puedes cambiar tus respuestas cuando quieras.</p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <form style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <sc-for list="{{questions}}" as="q" hint-placeholder-count="5">
+          <fieldset style="margin: 0; background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px">
+            <legend style="padding: 0; font-size: 13px; font-weight: 800; color: #52625D; letter-spacing: 0.3px">PREGUNTA {{q.number}} DE 5</legend>
+            <span style="font-size: 18px; font-weight: 800; line-height: 1.35">{{q.text}}</span>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px">
+              <sc-for list="{{q.options}}" as="opt" hint-placeholder-count="3">
+                <label style="{{opt.cardStyle}}">
+                  <input type="radio" name="{{q.name}}" checked="{{opt.checked}}" onChange="{{opt.pick}}" style="width: 20px; height: 20px; accent-color: #0B6E5B; margin: 0; flex: none">
+                  <span>{{opt.label}}</span>
+                </label>
+              </sc-for>
+            </div>
+          </fieldset>
+        </sc-for>
+      </form>
+
+      <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <section aria-live="polite" style="background: #0B3D33; color: #FFFFFF; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <span style="font-size: 13px; font-weight: 800; color: #C9E5DD; letter-spacing: 0.3px">RESULTADO</span>
+          <span style="font-size: 32px; font-weight: 800; letter-spacing: -0.5px">{{profileName}}</span>
+          <span style="font-size: 15px; color: #C9E5DD">{{score}} de 15 puntos</span>
+          <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #E6F4F0">{{profileText}}</p>
+          <div style="padding: 12px 14px; border-radius: 12px; background: #124C40; display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 12px; font-weight: 800; color: #C9E5DD; letter-spacing: 0.3px">INSTRUMENTO TÍPICO</span>
+            <span style="font-size: 16px; font-weight: 800">{{instrument}}</span>
+          </div>
+        </section>
+        <a href="Inversiones.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 12px; background: #0B6E5B; color: #FFFFFF; font-size: 16px; font-weight: 800; text-decoration: none">Guardar perfil</a>
+        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #52625D">Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera.</p>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { answers: [2, 2, 2, 3, 2] };
+  }
+  renderVals() {
+    const preguntas = [
+      { text: '¿En cuánto tiempo necesitarías el dinero que inviertas?', options: ['Menos de 1 año', 'Entre 1 y 5 años', 'Más de 5 años'] },
+      { text: 'Si tu inversión cae un 15 % en un mes, ¿qué harías?', options: ['Retiraría todo', 'Esperaría a que se recupere', 'Invertiría más'] },
+      { text: '¿Qué experiencia tienes invirtiendo?', options: ['Ninguna', 'Algo: CDT o fondos', 'Bastante: acciones o ETF'] },
+      { text: '¿Qué tan estables son tus ingresos?', options: ['Variables', 'Bastante estables', 'Muy estables'] },
+      { text: '¿Cuál es tu objetivo principal?', options: ['Proteger mi dinero', 'Crecer de forma moderada', 'Maximizar el crecimiento'] }
+    ];
+    const respuestas = this.state.answers;
+    const estiloBase = 'display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 14px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; box-sizing: border-box;';
+    const questions = preguntas.map((pregunta, indicePregunta) => ({
+      number: indicePregunta + 1,
+      name: 'pregunta-' + (indicePregunta + 1),
+      text: pregunta.text,
+      options: pregunta.options.map((etiqueta, indiceOpcion) => {
+        const puntaje = indiceOpcion + 1;
+        const seleccionada = respuestas[indicePregunta] === puntaje;
+        return {
+          label: etiqueta,
+          checked: seleccionada,
+          cardStyle: estiloBase + (seleccionada ? ' border: 2px solid #0B6E5B; background: #E3F2EE; color: #0B3D33;' : ' border: 1px solid #CBD6D2; background: #FFFFFF; color: #0F1A17;'),
+          pick: () => {
+            const nuevas = respuestas.slice();
+            nuevas[indicePregunta] = puntaje;
+            this.setState({ answers: nuevas });
+          }
+        };
+      })
+    }));
+    let puntajeTotal = 0;
+    for (const valor of respuestas) { puntajeTotal = puntajeTotal + valor; }
+    let profileName = 'Moderado';
+    let profileText = 'Aceptas algo de variación a cambio de un crecimiento mayor que el de un CDT.';
+    let instrument = 'Fondo de inversión colectiva';
+    if (puntajeTotal <= 8) {
+      profileName = 'Conservador';
+      profileText = 'Priorizas no perder dinero, aunque el crecimiento sea menor.';
+      instrument = 'CDT o fondo de liquidez';
+    } else if (puntajeTotal >= 13) {
+      profileName = 'Agresivo';
+      profileText = 'Toleras caídas temporales buscando el mayor crecimiento a largo plazo.';
+      instrument = 'ETF o acciones';
+    }
+    return { questions, score: puntajeTotal, profileName, profileText, instrument };
+  }
+}
+</script>
+</body>
+</html>

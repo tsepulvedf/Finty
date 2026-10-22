@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Finty · Planes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6F5;font-family:'Manrope',system-ui,sans-serif;color:#0F1A17}
+a{color:#0B6E5B}a:hover{color:#084F42}
+button:focus-visible,a:focus-visible{outline:3px solid #9FD3C6;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F3F6F5; font-family: 'Manrope', system-ui, sans-serif; color: #0F1A17; font-variant-numeric: tabular-nums">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DFE6E3">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px">
+      <a href="Dashboard.dc.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0F1A17; font-weight: 800; font-size: 22px; letter-spacing: -0.4px">
+        <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0B6E5B"></rect><path d="M11 26 L18 19 L22 23 L30 14" stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="30" cy="14" r="2.6" fill="#FFFFFF"></circle></svg>Finty</a>
+      <nav aria-label="Principal" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+        <a href="Dashboard.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Dashboard</a>
+        <a href="Movimientos.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Movimientos</a>
+        <a href="Insights.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Insights</a>
+        <a href="Inversiones.dc.html" style="padding: 10px 14px; border-radius: 10px; color: #3F4F4A; font-weight: 600; font-size: 15px; text-decoration: none">Inversiones</a>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <span style="display: inline-flex; align-items: center; padding: 9px 14px; border-radius: 999px; background: #FDF3DD; color: #6B4800; font-size: 14px; font-weight: 800">Plan Free</span>
+        <div role="group" aria-label="Idioma" style="display: inline-flex; border: 1px solid #CBD6D2; border-radius: 10px; overflow: hidden">
+          <button type="button" aria-pressed="true" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #0B6E5B; color: #FFFFFF">ES</button>
+          <button type="button" aria-pressed="false" style="font: inherit; font-size: 13px; font-weight: 800; padding: 0 12px; min-height: 40px; border: 0; background: #FFFFFF; color: #3F4F4A">EN</button>
+        </div>
+        <a href="Ajustes.dc.html" aria-label="Ajustes de la cuenta" style="width: 44px; height: 44px; border-radius: 999px; background: #0B3D33; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; text-decoration: none">TS</a>
+      </div>
+    </div>
+  </header>
+
+  <main style="max-width: 1080px; margin: 0 auto; padding: 48px 32px; display: flex; flex-direction: column; gap: 32px; box-sizing: border-box">
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center">
+      <h1 style="margin: 0; font-size: 40px; font-weight: 800; letter-spacing: -1px">Elige cómo quieres usar Finty</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #52625D; max-width: 620px">Registrar tus movimientos es gratis siempre. Premium agrega el análisis y las recomendaciones.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: stretch">
+      <section style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 800">Free</h2>
+          <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 40px; font-weight: 800; letter-spacing: -1px">$ 0</span><span style="font-size: 15px; color: #52625D">para siempre</span></div>
+        </div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 15px; flex: 1">
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0B6E5B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Registro de movimientos con clasificación automática</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0B6E5B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Dashboard mensual estándar</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0B6E5B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Historial de los últimos 3 meses</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0B6E5B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Recomendaciones para optimizar gastos</li>
+        </ul>
+        <span style="display: flex; align-items: center; justify-content: center; min-height: 50px; border-radius: 12px; background: #EDF1EF; color: #3F4F4A; font-size: 15px; font-weight: 800">Tu plan actual</span>
+      </section>
+
+      <section style="background: #0B3D33; color: #FFFFFF; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 18px 40px rgba(11, 61, 51, 0.18)">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+            <h2 style="margin: 0; font-size: 22px; font-weight: 800">Premium</h2>
+            <span style="padding: 5px 10px; border-radius: 999px; background: #F2B544; color: #3D2900; font-size: 12px; font-weight: 800; letter-spacing: 0.3px">RECOMENDADO</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 40px; font-weight: 800; letter-spacing: -1px">$ 29.900</span><span style="font-size: 15px; color: #C9E5DD">COP al mes</span></div>
+        </div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 15px; flex: 1">
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Todo lo del plan Free</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Insights automáticos sobre tus gastos</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Detección de gastos recurrentes</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Historial ilimitado</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Recomendaciones de inversión según tu perfil</li>
+          <li style="display: flex; gap: 12px; align-items: flex-start"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex: none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3FC4A2" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>Planes de inversión con proyección</li>
+        </ul>
+        <a href="Checkout.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 12px; background: #F2B544; color: #3D2900; font-size: 16px; font-weight: 800; text-decoration: none">Pasar a Premium</a>
+      </section>
+    </div>
+
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-size: 16px; font-weight: 800">Sin renovación automática</h3><p style="margin: 0; font-size: 14px; line-height: 1.5; color: #52625D">Cada período dura un mes. Para seguir en Premium, renuevas tú.</p></div>
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-size: 16px; font-weight: 800">Cancela cuando quieras</h3><p style="margin: 0; font-size: 14px; line-height: 1.5; color: #52625D">Conservas el acceso premium hasta que termine el período pagado.</p></div>
+      <div style="background: #FFFFFF; border: 1px solid #DFE6E3; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px"><h3 style="margin: 0; font-size: 16px; font-weight: 800">Tus datos siguen siendo tuyos</h3><p style="margin: 0; font-size: 14px; line-height: 1.5; color: #52625D">Si vuelves a Free, no pierdes ningún movimiento registrado.</p></div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1150}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

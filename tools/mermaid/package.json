@@ -1,0 +1,13 @@
+{
+  "name": "finty-mermaid-check",
+  "private": true,
+  "description": "Compila cada bloque Mermaid del repositorio con mermaid-cli (E2-M9b). Solo desarrollo: no entra en ninguna imagen.",
+  "type": "module",
+  "scripts": {
+    "check": "node check-mermaid.mjs"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "12.0.0",
+    "puppeteer": "25.16.0"
+  }
+}

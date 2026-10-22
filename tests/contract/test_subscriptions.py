@@ -29,7 +29,7 @@ INVESTMENT_PLANS = "/api/v1/investment-plans/"
 SUBSCRIPTION_DOWN_ENV = "CONTRACT_SUBSCRIPTION_DOWN"
 subscription_down = os.environ.get(SUBSCRIPTION_DOWN_ENV) == "1"
 
-FREE_BENEFITS = ["transaction_tracking", "standard_dashboard", "history_3_months"]
+FREE_BENEFITS = ["transaction_tracking", "standard_dashboard", "history_3_months", "optimization_recommendations"]
 MODERATE = {"investment_horizon": 2, "loss_reaction": 2, "experience": 2, "income_stability": 2, "goal": 2}
 
 

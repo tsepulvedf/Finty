@@ -31,7 +31,12 @@ class TestPlanes:
         plans = plan_catalog()
         free, premium = plans[PlanCode.FREE], plans[PlanCode.PREMIUM]
         assert (free.price_in_cents, premium.price_in_cents, premium.currency) == (0, 2_990_000, "COP")
-        assert free.benefits == (Benefit.TRANSACTION_TRACKING, Benefit.STANDARD_DASHBOARD, Benefit.HISTORY_3_MONTHS)
+        assert free.benefits == (
+            Benefit.TRANSACTION_TRACKING, Benefit.STANDARD_DASHBOARD, Benefit.HISTORY_3_MONTHS,
+            Benefit.OPTIMIZATION_RECOMMENDATIONS,
+        )
+        # Las recomendaciones de optimizacion son gratuitas: Premium tambien las incluye.
+        assert Benefit.OPTIMIZATION_RECOMMENDATIONS in premium.benefits
         assert {Benefit.INSIGHTS, Benefit.SPENDING_PATTERNS, Benefit.UNLIMITED_HISTORY,
                 Benefit.INVESTMENT_RECOMMENDATIONS, Benefit.INVESTMENT_PLANS} <= set(premium.benefits)
         assert (free.history_months, premium.history_months) == (3, None)

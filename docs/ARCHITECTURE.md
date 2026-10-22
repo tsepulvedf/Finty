@@ -886,8 +886,8 @@ Las tres clases de §4.4 que son dueñas de `subscription-service`, en `services
 
 | Plan | Precio | Historial | Beneficios (`code`) |
 |---|---|---|---|
-| `FREE` | 0 | 3 meses | `transaction_tracking`, `standard_dashboard`, `history_3_months` |
-| `PREMIUM` | 29 900 COP al mes (`SUBSCRIPTION_PREMIUM_PRICE_IN_CENTS`, por defecto 2 990 000) | ilimitado | `transaction_tracking`, `standard_dashboard`, `insights`, `spending_patterns`, `unlimited_history`, `investment_recommendations`, `investment_plans` |
+| `FREE` | 0 | 3 meses | `transaction_tracking`, `standard_dashboard`, `history_3_months`, `optimization_recommendations` |
+| `PREMIUM` | 29 900 COP al mes (`SUBSCRIPTION_PREMIUM_PRICE_IN_CENTS`, por defecto 2 990 000) | ilimitado | `transaction_tracking`, `standard_dashboard`, `optimization_recommendations`, `insights`, `spending_patterns`, `unlimited_history`, `investment_recommendations`, `investment_plans` |
 
 **`Subscription`** (entidad, `domain/subscription.py`). Máquina de estados:
 

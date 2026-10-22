@@ -49,9 +49,9 @@ class TestPlanes:
         assert (premium["code"], premium["price"], premium["price_in_cents"], premium["currency"]) == (
             "PREMIUM", "29900.00", 2990000, "COP",
         )
-        assert free["benefits"] == ["transaction_tracking", "standard_dashboard", "history_3_months"]
+        assert free["benefits"] == ["transaction_tracking", "standard_dashboard", "history_3_months", "optimization_recommendations"]
         assert premium["benefits"] == [
-            "transaction_tracking", "standard_dashboard", "insights", "spending_patterns",
+            "transaction_tracking", "standard_dashboard", "optimization_recommendations", "insights", "spending_patterns",
             "unlimited_history", "investment_recommendations", "investment_plans",
         ]
 
@@ -60,7 +60,7 @@ class TestCheckout:
     def test_sin_suscripcion_es_free(self, ana):
         body = ana.get(ME).json
         assert (body["plan"], body["premium"], body["status"], body["current_period_end"]) == ("FREE", False, None, None)
-        assert body["benefits"] == ["transaction_tracking", "standard_dashboard", "history_3_months"]
+        assert body["benefits"] == ["transaction_tracking", "standard_dashboard", "history_3_months", "optimization_recommendations"]
 
     def test_aprobado_activa_un_mes(self, ana, adapters):
         response = ana.post(CHECKOUT, {"plan": "PREMIUM"})

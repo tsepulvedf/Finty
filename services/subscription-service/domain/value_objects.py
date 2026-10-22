@@ -42,6 +42,8 @@ class Benefit(StrEnum):
     TRANSACTION_TRACKING = "transaction_tracking"
     STANDARD_DASHBOARD = "standard_dashboard"
     HISTORY_3_MONTHS = "history_3_months"
+    # Gratuitas para todos (INV-06 solo bloquea las de inversion, E2-M6a).
+    OPTIMIZATION_RECOMMENDATIONS = "optimization_recommendations"
     INSIGHTS = "insights"
     SPENDING_PATTERNS = "spending_patterns"
     UNLIMITED_HISTORY = "unlimited_history"

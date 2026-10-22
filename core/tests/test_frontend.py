@@ -289,6 +289,23 @@ class TestCheckout:
         assert "urlWelcome" in fuente
 
 
+class TestBeneficios:
+    """Cada beneficio que publica subscription-service tiene su texto en codes.js."""
+
+    def test_cada_code_de_beneficio_esta_traducido(self):
+        dominio = (RAIZ / "services" / "subscription-service" / "domain" / "value_objects.py").read_text(encoding="utf-8")
+        bloque = dominio[dominio.index("class Benefit("):]
+        bloque = re.split(r"\n(?=class |\S)", bloque[1:], maxsplit=1)[0]
+        codigos = set(re.findall(r'^\s+[A-Z0-9_]+ = "([a-z0-9_]+)"', bloque, re.MULTILINE))
+        codes = (FRONTEND / "static" / "finty" / "js" / "codes.js").read_text(encoding="utf-8")
+        for constante in ("BENEFITS", "BENEFIT_DETAILS"):
+            tabla = codes[codes.index(f"export const {constante} = {{"):]
+            tabla = tabla[:tabla.index("};")]
+            traducidos = set(re.findall(r"^\s+([a-z0-9_]+): gettext\(", tabla, re.MULTILINE))
+            assert "optimization_recommendations" in codigos
+            assert codigos <= traducidos, f"{constante} sin traduccion: {codigos - traducidos}"
+
+
 class TestDashboardYMovimientos:
     """D-29 y D-30 en las pantallas: el navegador presenta lo que calcula la API."""
 

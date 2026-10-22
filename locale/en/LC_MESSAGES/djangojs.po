@@ -186,6 +186,11 @@ msgid "3 meses de historial"
 msgstr "3 months of history"
 
 #: .\frontend\static\finty\js\codes.js
+#| msgid "Recomendaciones de inversión"
+msgid "Recomendaciones para optimizar gastos"
+msgstr "Recommendations to optimize spending"
+
+#: .\frontend\static\finty\js\codes.js
 msgid "Insights sobre tus gastos"
 msgstr "Insights about your spending"
 
@@ -316,6 +321,10 @@ msgstr "Income, expenses and balances for the month."
 #: .\frontend\static\finty\js\codes.js
 msgid "Consulta los últimos 3 meses."
 msgstr "See the last 3 months."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Te sugerimos dónde recortar según tus gastos."
+msgstr "We suggest where to cut back based on your spending."
 
 #: .\frontend\static\finty\js\codes.js
 msgid "Te avisamos cuando una categoría se dispara."

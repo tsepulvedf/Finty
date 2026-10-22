@@ -1390,62 +1390,70 @@ flowchart TB
 ### 9.4 Diagrama de despliegue — Entrega 2
 
 ```mermaid
-flowchart LR
-    U["Navegador"]
+flowchart TB
+    U["Navegador<br/>(y servicio aliado, por asignar)"]
 
-    subgraph AWS["AWS Academy · EC2 · IP elástica"]
-        subgraph DC["Docker Compose · red interna"]
-            NGX["nginx<br/>API Gateway<br/>único puerto publicado"]
-            DJ["django<br/>identity · frontend con gettext<br/>/internal/auth/verify/"]
-            FIN["finance-service<br/>Flask"]
-            CAT["categorization-service<br/>Flask"]
-            ANA["analytics-service<br/>Flask"]
-            ANW["analytics-worker<br/>consume eventos"]
-            ACW["analytics-celery<br/>+ analytics-celery-beat<br/>reporte mensual"]
-            REC["recommendation-service<br/>Flask"]
-            SUB["subscription-service<br/>Flask"]
-            SCW["subscription-worker<br/>+ subscription-beat<br/>correos y vencimiento"]
-            RDS[("redis<br/>base 0: eventos y cachés<br/>base 1: broker de Celery")]
-            PG[("postgresql<br/>finty_identity · finty_finance<br/>finty_analytics · finty_recommendation<br/>finty_subscription")]
+    subgraph AWS["AWS Academy · Learner Lab · región us-east-1"]
+        EIP(["IP elástica 3.95.100.48"])
+        subgraph SG["Grupo de seguridad: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
+            subgraph EC2["Instancia EC2 · Docker Engine + Compose v2"]
+                subgraph NET["Red de Compose finty_default (bridge, DNS interno)"]
+                    NGX["nginx · API Gateway<br/>único puerto publicado: 80<br/>auth_request · limit_req · estáticos con hash"]
+                    DJ["django<br/>identity · frontend · /internal/"]
+                    FIN["finance-service"]
+                    REL["finance-outbox-relay"]
+                    CAT["categorization-service"]
+                    ANA["analytics-service"]
+                    ANW["analytics-worker<br/>consume el stream"]
+                    ACW["analytics-celery<br/>+ analytics-celery-beat"]
+                    REC["recommendation-service"]
+                    SUB["subscription-service"]
+                    SCW["subscription-worker<br/>+ subscription-beat"]
+                    RDS[("redis 7.4 · AOF<br/>base 0: stream finty.finance.events,<br/>cachés finty:entitlements:* y finty:fx:*<br/>base 1: broker de Celery<br/>(colas analytics y subscription)")]
+                    PG[("postgres 18<br/>finty_identity · finty_finance<br/>finty_analytics · finty_recommendation<br/>finty_subscription")]
+                    ONE["Pasos de un solo uso:<br/>db-init, migrate, finance-migrate,<br/>analytics-migrate, recommendation-migrate,<br/>subscription-migrate"]
+                end
+            end
         end
     end
+    TRM["API de la TRM<br/>datos.gov.co"]
 
-    TRM["API de tasas de cambio"]
-    ALLY["Servicio del equipo aliado"]
-
-    U -->|HTTP| NGX
-    NGX -->|auth_request| DJ
-    NGX -->|"frontend, auth, profile"| DJ
-    NGX -->|"accounts, transactions, categories<br/>+ X-User-Id"| FIN
-    NGX -->|"analytics + X-User-Id<br/>public sin auth"| ANA
-    NGX -->|"recommendations, investment-plans,<br/>exchange-rates + X-User-Id"| REC
-    NGX -->|"subscriptions + X-User-Id"| SUB
+    U -->|"HTTP :80"| EIP --> NGX
+    NGX -->|"/ , /api/v1/auth, /api/v1/profile, auth_request"| DJ
+    NGX -->|"accounts · transactions · categories"| FIN
+    NGX -->|"analytics · public"| ANA
+    NGX -->|"recommendations · investment-plans · exchange-rates"| REC
+    NGX -->|subscriptions| SUB
+    FIN -->|"POST /v1/suggestions/"| CAT
+    FIN --> PG
+    REL -->|"lee outbox_event"| PG
+    REL -->|XADD| RDS
+    RDS -->|XREADGROUP| ANW
+    ANW --> PG
+    ANA -->|"encola reportes"| RDS
+    RDS --> ACW
+    ACW --> PG
+    ANA --> PG
     ANA -->|"/internal/entitlements"| SUB
     REC -->|"/internal/entitlements"| SUB
-    FIN -->|HTTP interno| CAT
-    FIN -.->|eventos| RDS
-    RDS -.->|"eventos (grupo analytics)"| ANW
-    REC -->|"HTTP interno + X-User-Id"| ANA
-    REC ---|"caché de tasas"| RDS
-    ANA -.->|"encola el reporte"| RDS
-    RDS -.->|"cola analytics"| ACW
-    SUB -.->|"encola la bienvenida"| RDS
-    RDS -.->|"cola subscription"| SCW
-    SCW -->|"/internal/users/&lt;id&gt;/contact/"| DJ
-    ACW --> PG
-    SCW --> PG
-    DJ --> PG
-    FIN --> PG
-    ANA --> PG
-    ANW --> PG
+    REC -->|"HTTP + X-User-Id"| ANA
     REC --> PG
+    REC -->|"TrmExchangeRateProvider"| TRM
+    SUB -->|"encola la bienvenida"| RDS
+    RDS --> SCW
+    SCW -->|"/internal/users/id/contact/"| DJ
+    SCW --> PG
     SUB --> PG
-    REC -->|"ExchangeRateProvider<br/>TRM de datos.gov.co"| TRM
-    DC -.->|"AllyServiceProvider<br/>servicio dueño por definir"| ALLY
-    ALLY -->|"GET /api/v1/public/spending-summary/"| NGX
+    DJ --> PG
+    ONE --> PG
 ```
 
-Cada servicio solo se conecta a **su** base lógica (ADR-10); sus contenedores de Celery usan la misma imagen y la misma base que el servicio (E2-M7). El bloque `finance` completo (`accounts`, `transactions`, `categories`) apunta a `finance-service` desde E2-M2b, y el monolito ya no tiene la app (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
+- **Contenedores:** son exactamente los de `docker-compose.yml`. Los seis pasos de un solo uso terminan antes de que arranque el servicio que depende de ellos: crean las bases que falten y migran cada esquema.
+- **Puertos:** solo `nginx` publica uno en el host, el 80 (A-17). El grupo de seguridad admite además el 22, para administrar la instancia por SSH.
+- **Red:** todos los contenedores comparten la red por defecto de Compose y se encuentran por nombre (`django`, `finance-service`, …). Nginx los vuelve a resolver si cambian de IP (`resolve` en los upstreams).
+- **Bases:** cada servicio conoce solo la URL de **su** base lógica (ADR-10, A-21). `categorization-service` no tiene base: sus reglas viven en código.
+- **Redis:** la base 0 guarda el stream de eventos y las cachés de derechos y de tasas; la 1 es el broker de Celery (ADR-15). Lo verifica `tests/services/test_compose_celery.py`.
+- **Aliado:** el aliado podría consumir `GET /api/v1/public/spending-summary/`, que sí está implementado. El consumo de un servicio aliado (`AllyServiceProvider`) no está construido, así que no aparece como componente (D-10).
 
 ### 9.5 Mapa de contextos — Entrega 2
 
@@ -1458,20 +1466,31 @@ flowchart LR
     AN["AnalyticsInsightsContext<br/>analytics-service"]
     RC["RecommendationContext<br/>recommendation-service"]
     SB["SubscriptionBillingContext<br/>subscription-service"]
-    BUS[("Redis<br/>eventos de dominio")]
+    BUS[("Redis Streams<br/>finty.finance.events")]
+    TRM["TRM datos.gov.co"]
+    ALLY["Equipo aliado<br/>(por asignar)"]
 
     ID -->|"Customer-Supplier<br/>verifica el Token"| GW
     GW -->|X-User-Id| FD
     GW -->|X-User-Id| AN
     GW -->|X-User-Id| RC
     GW -->|X-User-Id| SB
-    FD -->|"HTTP síncrono<br/>+ respaldo local"| CT
-    FD -.->|publica| BUS
-    BUS -.->|consume| AN
-    BUS -.->|consume| RC
+    FD -->|"HTTP síncrono<br/>+ respaldo local (ACL)"| CT
+    FD -.->|"publica (outbox)"| BUS
+    BUS -.->|"Conformist: consume"| AN
+    RC -->|"Customer: HTTP con degradación"| AN
+    AN -->|"Customer: derechos INV-06"| SB
+    RC -->|"Customer: derechos INV-06"| SB
+    SB -->|"contacto para los correos"| ID
+    RC -->|"Adapter + respaldo"| TRM
+    ALLY -.->|"Open Host Service<br/>/api/v1/public/"| AN
 ```
 
-No hay ninguna flecha de `RecommendationContext` hacia `FinancialDataContext`: la dependencia circular de v1 (D-03) desaparece porque `recommendation` consume eventos en lugar de llamar a `finance`.
+**Relaciones:**
+- No hay ninguna flecha de `RecommendationContext` hacia `FinancialDataContext`: la dependencia circular de v1 (D-03) desaparece porque `recommendation` lee a `analytics` por HTTP en un solo sentido (ADR-15).
+- `analytics` es el único consumidor del stream de eventos de `finance`.
+- `subscription` llama a `identity` solo desde sus tareas, para escribir los correos en el idioma del usuario (E2-M7).
+- El aliado aparece solo como posible consumidor del Open Host Service. El consumo de un servicio aliado no está implementado (D-10).
 
 ### 9.6 Diagrama de secuencia — Autenticación en el Gateway
 
@@ -1670,7 +1689,7 @@ sequenceDiagram
     Note over RL,RD: Si el relay muere entre XADD y COMMIT, el evento se publica otra vez:<br/>entrega al menos una vez, consumidores idempotentes por event_id
 ```
 
-### 9.10 Diagrama de secuencia — Del registro al dashboard (E2-M4b)
+### 9.10 Diagrama de secuencia — Del registro al dashboard: Gateway → finance → categorization → outbox → stream → analytics
 
 ```mermaid
 sequenceDiagram
@@ -1678,6 +1697,7 @@ sequenceDiagram
     actor U as Navegador
     participant NGX as nginx
     participant FIN as finance-service
+    participant CAT as categorization-service
     participant RL as finance-outbox-relay
     participant RD as Redis Stream finty.finance.events
     participant W as analytics-worker
@@ -1686,7 +1706,18 @@ sequenceDiagram
 
     U->>NGX: POST /api/v1/transactions/ (Token)
     NGX->>FIN: auth_request ok → X-User-Id
-    FIN-->>U: 201 (transacción + outbox_event en un COMMIT)
+    FIN->>CAT: POST /v1/suggestions/ (timeout 1 s)
+    alt responde con una categoría del catálogo
+        CAT-->>FIN: {category_name, confidence, source}
+    else timeout, error o fuera de contrato
+        FIN->>FIN: RuleBasedCategorizer local (procedencia rule)
+    end
+    rect rgb(240, 245, 250)
+        Note over FIN: una transacción de finty_finance
+        FIN->>FIN: INSERT transaction, recalcula el saldo (FOR UPDATE)
+        FIN->>FIN: INSERT outbox_event TransactionManuallyAdded
+    end
+    FIN-->>U: 201 (transacción y evento en un solo COMMIT)
 
     RL->>RD: XADD TransactionManuallyAdded
     W->>RD: XREADGROUP analytics >
@@ -1890,6 +1921,82 @@ sequenceDiagram
 
 La bienvenida (`send_premium_welcome`) sigue el mismo camino que el aviso: la encola el checkout después del commit que activa la suscripción (§9.12), con la misma tabla de avisos y el mismo reintento si identity no responde.
 
+
+### 9.15 Diagrama de componentes — API Gateway Nginx (`deploy/nginx/conf.d/finty.conf`)
+
+```mermaid
+flowchart LR
+    C["Cliente"] --> L
+
+    subgraph NGX["nginx :80"]
+        L{"location"}
+        Z1["limit_req finty_auth<br/>6 r/min, ráfaga 10"]
+        Z2["limit_req finty_api<br/>20 r/s, ráfaga 50"]
+        Z3["limit_req finty_public<br/>30 r/min, ráfaga 10"]
+        AR["auth_request<br/>/_gateway/auth/verify<br/>→ X-User-Id, X-Finty-Caller borrado"]
+        ST["/static/ con hash: max-age 1 año, immutable<br/>sin hash: no-cache"]
+        IN["^~ /internal/ → 404"]
+    end
+
+    L -->|"/api/v1/auth/login, register"| Z1 --> Z2
+    L -->|"/api/v1/auth, profile, health"| Z2
+    L -->|"/api/v1/accounts, transactions, categories"| Z2
+    L -->|"/api/v1/analytics"| Z2
+    L -->|"/api/v1/recommendations, investment-plans, exchange-rates"| Z2
+    L -->|"/api/v1/subscriptions"| Z2
+    L -->|"/api/v1/public/"| Z3
+    L -->|"/static/"| ST
+    L -->|"/internal/"| IN
+    L -->|"/ (plantillas), /jsi18n/, /i18n/"| MON
+
+    Z2 -->|"accounts · transactions · categories<br/>analytics · recommendations · subscriptions"| AR
+    Z2 -->|"auth · profile · health"| MON["upstream monolith<br/>django:8000"]
+    AR -->|"verifica el Token"| MON
+    AR -->|"finance_backend"| FIN["finance-service:8000"]
+    AR -->|"analytics_backend"| ANA["analytics-service:8000"]
+    AR -->|"recommendation_backend"| REC["recommendation-service:8000"]
+    AR -->|"subscription_backend"| SUB["subscription-service:8000"]
+    Z3 -->|"analytics_backend, sin X-User-Id"| ANA
+```
+
+**Cómo funciona:**
+- **Autenticación:** cada bloque de un microservicio hace `auth_request` contra Django y reenvía solo el `X-User-Id` que produjo esa verificación (ADR-09). El que traiga el cliente se borra, y también el `X-Finty-Caller` (§10.3).
+- **Respuestas propias:** el 401 (`@gateway_unauthorized`) y el 429 (`@gateway_throttled`) los responde el propio Gateway, con la forma del contrato.
+- **Ruta y cuotas:** cada bloque de un microservicio responde con `X-Finty-Route`. El reparto de cuotas está en D-17.
+
+### 9.16 Strangler — antes y después de la migración de `finance` (ADR-08)
+
+**Antes (Entrega 1 y hasta E2-M2a):** el bloque `finance` vivía en el monolito.
+
+```mermaid
+flowchart LR
+    U["Cliente"] -->|"/api/v1/*"| GW["Gateway de la Etapa 1<br/>config/urls.py"]
+    subgraph MONO["Monolito Django"]
+        GW --> IDN["identity<br/>auth, profile"]
+        GW --> FINM["app finance<br/>accounts, transactions, categories"]
+        FINM -->|"en proceso"| CATM["CategorizerFactory<br/>RuleBased · Mock · AI"]
+    end
+    IDN --> DB1[("PostgreSQL<br/>una sola base")]
+    FINM --> DB1
+```
+
+**Después (desde E2-M2b; la app `finance` se retiró en E2-M3a):** Nginx desvía el bloque completo a `finance-service`. El monolito conserva `identity`, el frontend y la verificación del Token.
+
+```mermaid
+flowchart LR
+    U["Cliente"] --> NGX["Gateway Nginx"]
+    NGX -->|"auth, profile, frontend"| DJ["Django: identity"]
+    NGX -->|"accounts, transactions, categories<br/>auth_request → X-User-Id"| FIN["finance-service (Flask)"]
+    NGX -->|"analytics, recommendations,<br/>subscriptions …"| OTH["analytics · recommendation ·<br/>subscription (Flask)"]
+    FIN -->|"HTTP + respaldo local"| CAT["categorization-service (Flask)"]
+    DJ --> D1[("finty_identity")]
+    FIN --> D2[("finty_finance")]
+    OTH --> D3[("finty_analytics ·<br/>finty_recommendation ·<br/>finty_subscription")]
+```
+
+**Cómo fue la migración:**
+- **Conmutación:** se hizo cambiando la línea `server` del upstream `finance_backend` (§10.3, regla 3). La misma suite de contrato pasó antes y después de conmutar, y después de retirar la app del monolito (A-20, `tests/contract/runs/2026-10-20-*`).
+- **Resultado:** 18 de las 20 clases del dominio quedaron fuera del monolito (§4.4, §9.8).
 ---
 
 ## 10. Estrategia de API Gateway

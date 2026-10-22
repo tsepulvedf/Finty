@@ -1,7 +1,14 @@
 """Casos de uso de subscription-service (anillo medio).
 
-Dependen del puerto `PaymentGateway`, nunca de una pasarela concreta (RULES.md,
-regla 6): la elige `PaymentGatewayFactory` y la inyecta `api/context.py`.
+Dependen de puertos, nunca de implementaciones concretas (RULES.md, regla 6):
+`PaymentGateway` (la elige `PaymentGatewayFactory`), y desde E2-M7
+`NotificationQueue`, `ContactDirectory`, `EmailComposer` y `EmailSender`. Los
+inyecta `api/context.py`.
+
+- `SubscriptionService`: planes, checkout, confirmacion del pago, cancelacion y,
+  desde E2-M7, el vencimiento periodico (`expire_all`).
+- `NotificationService` (E2-M7): la bienvenida y el aviso de vencimiento, cada
+  uno una sola vez por usuario, tipo y periodo.
 """
 import logging
 from contextlib import contextmanager
@@ -10,7 +17,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 
 from domain.exceptions import (
     NoActiveSubscriptionError,
@@ -19,7 +27,14 @@ from domain.exceptions import (
     PlanNotPurchasableError,
     SubscriptionAlreadyActiveError,
 )
-from domain.interfaces import PaymentOutcome, PaymentRequest
+from domain.interfaces import ContactNotFound, ContactUnavailable, PaymentOutcome, PaymentRequest
+from domain.notifications import (
+    DEFAULT_DAYS_BEFORE_EXPIRY,
+    NotificationKind,
+    deserves_welcome,
+    expiring_window,
+    is_expiring,
+)
 from domain.subscription import Entitlement, Payment, Subscription
 from domain.value_objects import (
     CURRENT_STATUSES,
@@ -28,7 +43,7 @@ from domain.value_objects import (
     PlanCode,
     SubscriptionStatus,
 )
-from models import PaymentRecord, SubscriptionRecord
+from models import PaymentRecord, SentNotificationRecord, SubscriptionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +103,12 @@ class CheckoutResult:
 
 
 class SubscriptionService:
-    def __init__(self, session, gateway, plans, clock=utcnow):
+    def __init__(self, session, gateway, plans, clock=utcnow, notifications=None):
         self._session = session
         self._gateway = gateway
         self._plans = plans
         self._clock = clock
+        self._notifications = notifications
 
     # --- Lectura ----------------------------------------------------------------
 
@@ -176,6 +192,7 @@ class SubscriptionService:
         periodo: confirmar dos veces el mismo pago aprobado no regala otro mes.
         """
         now = self._clock()
+        activated = False
         with atomic(self._session):
             payment_record = self._session.get(PaymentRecord, payment_id, with_for_update=True)
             if payment_record is None:
@@ -189,11 +206,28 @@ class SubscriptionService:
                 record = self._session.get(SubscriptionRecord, payment_record.subscription_id, with_for_update=True)
                 subscription = _subscription(record)
                 plan = self._plans[subscription.plan]
-                if subscription.activate(payment, now, plan.period_months):
+                activated = subscription.activate(payment, now, plan.period_months)
+                if activated:
                     _store_subscription(record, subscription)
             else:
                 logger.info("pago %s resuelto como %s: %s", payment.reference, payment.status.value, outcome.detail)
+        if activated:
+            self._announce_activation(payment_record.subscription_id)
         return payment_record
+
+    def _announce_activation(self, subscription_id):
+        """Encola la bienvenida despues del commit (E2-M7).
+
+        Nunca bloquea la activacion: si el broker no responde, la suscripcion ya
+        esta activa y el fallo solo se registra. La tarea consulta a identity, asi
+        que una caida de identity tampoco toca el checkout.
+        """
+        if self._notifications is None:
+            return
+        try:
+            self._notifications.premium_activated(subscription_id)
+        except Exception as exc:  # noqa: BLE001 — el correo es secundario al pago
+            logger.warning("no se pudo encolar la bienvenida de %s (%s)", subscription_id, exc)
 
     # --- Cancelacion ------------------------------------------------------------
 
@@ -208,6 +242,23 @@ class SubscriptionService:
             if subscription.cancel(now):
                 _store_subscription(record, subscription)
         return self.current(user_id)
+
+    # --- Vencimiento (E2-M7) ----------------------------------------------------
+
+    def expire_all(self):
+        """Persiste EXPIRED en toda suscripcion ACTIVE o CANCELED cuyo periodo
+        termino (tarea periodica `expire_subscriptions`). Idempotente: una ya
+        vencida no vuelve a cambiar. Devuelve cuantas vencio."""
+        with atomic(self._session):
+            result = self._session.execute(
+                update(SubscriptionRecord)
+                .where(
+                    SubscriptionRecord.status.in_([s.value for s in GRANTING_STATUSES]),
+                    SubscriptionRecord.current_period_end <= self._clock(),
+                )
+                .values(status=SubscriptionStatus.EXPIRED.value)
+            )
+        return result.rowcount
 
     # --- Apoyo ------------------------------------------------------------------
 
@@ -243,3 +294,89 @@ class SubscriptionService:
             )
             .values(status=SubscriptionStatus.EXPIRED.value)
         )
+
+
+# --- Notificaciones (E2-M7) ------------------------------------------------------
+
+# Errores que pasan solos: la tarea reintenta con espera creciente.
+TRANSIENT_ERRORS = (ContactUnavailable, OperationalError, DBAPIError, ConnectionError, TimeoutError)
+
+SENT = "sent"
+ALREADY_SENT = "already_sent"
+SKIPPED = "skipped"
+NO_CONTACT = "no_contact"
+
+
+class NotificationService:
+    """Bienvenida y aviso de vencimiento, a lo sumo una vez por periodo.
+
+    Cada aviso se registra en `sent_notification` dentro de la misma transaccion
+    en que se envia: el `INSERT ... ON CONFLICT DO NOTHING` sobre la restriccion
+    unica decide si ya salio. Si identity no responde, la transaccion se revierte
+    (no queda registro) y la tarea reintenta despues.
+    """
+
+    def __init__(self, session, contacts, composer, sender, clock=utcnow, days_before=DEFAULT_DAYS_BEFORE_EXPIRY):
+        self._session = session
+        self._contacts = contacts
+        self._composer = composer
+        self._sender = sender
+        self._clock = clock
+        self._days_before = days_before
+
+    def send_premium_welcome(self, subscription_id):
+        record = self._session.get(SubscriptionRecord, subscription_id)
+        if record is None or not deserves_welcome(_subscription(record), self._clock()):
+            self._session.rollback()
+            return SKIPPED
+        return self._notify(NotificationKind.PREMIUM_WELCOME, record)
+
+    def notify_expiring(self):
+        """Avisa a las suscripciones que terminan en los proximos dias. Devuelve
+        cuantos avisos salieron en esta pasada."""
+        now = self._clock()
+        start, end = expiring_window(now, self._days_before)
+        records = self._session.scalars(
+            select(SubscriptionRecord).where(
+                SubscriptionRecord.status.in_([s.value for s in GRANTING_STATUSES]),
+                SubscriptionRecord.current_period_end > start,
+                SubscriptionRecord.current_period_end <= end,
+            )
+        ).all()
+        self._session.rollback()
+        sent = 0
+        for record in records:
+            if is_expiring(_subscription(record), now, self._days_before):
+                sent += self._notify(NotificationKind.SUBSCRIPTION_EXPIRING, record) == SENT
+        return sent
+
+    def _notify(self, kind, record):
+        with atomic(self._session):
+            claimed = self._session.execute(
+                insert(SentNotificationRecord)
+                .values(
+                    id=uuid4(),
+                    user_id=record.user_id,
+                    subscription_id=record.id,
+                    kind=kind.value,
+                    period_end=record.current_period_end,
+                    sent_at=self._clock(),
+                )
+                .on_conflict_do_nothing(constraint="uq_notification_once_per_period")
+                .returning(SentNotificationRecord.id)
+            ).scalar_one_or_none()
+            if claimed is None:
+                return ALREADY_SENT
+            try:
+                contact = self._contacts.contact(record.user_id)
+            except ContactNotFound:
+                # No hay a quien escribirle: queda registrado para no reintentar.
+                logger.warning("sin contacto para %s; el aviso %s no se envia", record.user_id, kind.value)
+                return NO_CONTACT
+            message = self._composer.compose(kind, contact, record.current_period_end)
+            self._sender.send(message)
+            notification = self._session.get(SentNotificationRecord, claimed)
+            notification.recipient = contact.email
+            notification.language = contact.language
+        logger.info("aviso %s enviado a %s", kind.value, record.user_id)
+        return SENT

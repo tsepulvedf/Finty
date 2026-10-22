@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # Imagen de subscription-service (ADR-07, ADR-16). La misma imagen sirve al
-# proceso web (gunicorn) y al paso de migraciones de un solo uso
-# (`alembic upgrade head`).
+# proceso web (gunicorn), al worker y al beat de Celery (E2-M7) y al paso de
+# migraciones de un solo uso (`alembic upgrade head`).
 
 FROM python:3.11-slim
 

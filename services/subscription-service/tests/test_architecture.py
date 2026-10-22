@@ -7,6 +7,8 @@ Replica en el servicio los criterios del monolito (`core/tests/test_architecture
 - Equivalente de A-02: los blueprints no contienen `try` ni aritmetica.
 - Equivalente de A-03: los modelos solo declaran columnas y `__repr__`.
 - Equivalente de A-10: `services.py` no conoce `infra/`, Redis ni urllib.
+- E2-M7: las tareas de Celery (`tasks.py`) son un mecanismo de entrega: cada
+  una solo arma el caso de uso y llama a un metodo publico de `services.py`.
 - Glosario (§12): ningun identificador usa los sinonimos prohibidos de DDD
   Stage 1 (Membership, Billing, Charge; `Plan` a secas como clase).
 
@@ -116,7 +118,7 @@ class TestModelosAnemicos:
 
     def test_se_analizan_todos_los_modelos(self):
         assert {c.name for c in self.model_classes()} == {
-            "SubscriptionRecord", "PaymentRecord",
+            "SubscriptionRecord", "PaymentRecord", "SentNotificationRecord",
         }
 
     def test_solo_declaran_repr(self):
@@ -188,3 +190,61 @@ class TestSinonimosProhibidos:
             if isinstance(n, ast.ClassDef)
         }
         assert "Plan" not in classes and "SubscriptionPlan" in classes
+
+
+class TestTareasSinLogica:
+    """E2-M7 (regla 3): una tarea de Celery recibe el mensaje y llama a un caso
+    de uso de `services.py`; no consulta la base ni toca el dominio."""
+
+    TASKS = SERVICE_ROOT / "tasks.py"
+    FACTORIES = {"notification_service": "NotificationService", "subscription_service": "SubscriptionService"}
+
+    def tasks(self):
+        return [
+            node for node in tree_of(self.TASKS).body
+            if isinstance(node, ast.FunctionDef)
+            and any(isinstance(d, ast.Call) and getattr(d.func, "id", None) == "shared_task" for d in node.decorator_list)
+        ]
+
+    def public_methods(self, class_name):
+        tree = tree_of(SERVICE_ROOT / "services.py")
+        service = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
+        return {n.name for n in service.body if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
+
+    def test_hay_tareas(self):
+        assert {t.name for t in self.tasks()} == {
+            "send_premium_welcome", "notify_expiring_subscriptions", "expire_subscriptions",
+        }
+
+    def test_no_importa_dominio_modelos_base_ni_infra(self):
+        roots = imported_roots(tree_of(self.TASKS))
+        assert not roots & {"domain", "models", "sqlalchemy", "redis", "infra", "psycopg2", "urllib"}
+
+    def test_de_services_solo_toma_la_politica_de_reintentos(self):
+        imported = {
+            alias.name
+            for node in ast.walk(tree_of(self.TASKS))
+            if isinstance(node, ast.ImportFrom) and node.module == "services"
+            for alias in node.names
+        }
+        assert imported == {"TRANSIENT_ERRORS"}
+
+    def test_cada_tarea_es_una_llamada_a_un_caso_de_uso(self):
+        """Cuerpo: `return <servicio>().<metodo publico>(...)`, y nada mas."""
+        for task in self.tasks():
+            body = [n for n in task.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))]
+            assert len(body) == 1 and isinstance(body[0], ast.Return), task.name
+            call = body[0].value
+            assert isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute), task.name
+            factory = call.func.value
+            assert isinstance(factory, ast.Call), task.name
+            service = self.FACTORIES.get(getattr(factory.func, "id", None))
+            assert service, f"{task.name} no arma un caso de uso"
+            assert call.func.attr in self.public_methods(service), f"{task.name} llama a {call.func.attr}"
+
+    def test_sin_aritmetica_ni_control_de_flujo(self):
+        nodes = [
+            n for n in ast.walk(tree_of(self.TASKS))
+            if isinstance(n, (ast.Try, ast.BinOp, ast.For, ast.While, ast.If))
+        ]
+        assert not nodes

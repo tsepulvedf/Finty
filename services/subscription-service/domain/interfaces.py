@@ -36,3 +36,46 @@ class PaymentGateway(ABC):
     @abstractmethod
     def submit(self, request):
         """Envia el pago y devuelve un `PaymentOutcome`."""
+
+
+# --- Notificaciones (E2-M7) -----------------------------------------------------
+
+
+class ContactUnavailable(Exception):
+    """identity no respondio: es transitorio, la tarea reintenta."""
+
+
+class ContactNotFound(Exception):
+    """identity no conoce al usuario (o esta inactivo): no hay a quien escribirle."""
+
+
+class ContactDirectory(ABC):
+    """Datos de contacto de un usuario, que viven en identity (ADR-10)."""
+
+    @abstractmethod
+    def contact(self, user_id):
+        """`Contact`, o `ContactUnavailable` / `ContactNotFound`."""
+
+
+class EmailComposer(ABC):
+    """Arma el correo de una notificacion en el idioma del contacto."""
+
+    @abstractmethod
+    def compose(self, kind, contact, period_end):
+        """`EmailMessage` para `kind` (`NotificationKind`)."""
+
+
+class EmailSender(ABC):
+    """Envia un correo (en esta entrega, a la consola o a un archivo)."""
+
+    @abstractmethod
+    def send(self, message):
+        """Envia `message` (`EmailMessage`)."""
+
+
+class NotificationQueue(ABC):
+    """Cola de las tareas de notificacion (Celery, ADR-15)."""
+
+    @abstractmethod
+    def premium_activated(self, subscription_id):
+        """Encola la bienvenida. Puede fallar si el broker no responde."""

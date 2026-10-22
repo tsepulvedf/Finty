@@ -10,7 +10,7 @@ crear dos: el segundo choca con el indice.
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Uuid, text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SUBSCRIPTION_STATUSES = "'PENDING_PAYMENT', 'ACTIVE', 'CANCELED', 'EXPIRED'"
@@ -77,3 +77,28 @@ class PaymentRecord(Base):
 
     def __repr__(self):
         return f"<PaymentRecord {self.reference} {self.status}>"
+
+
+class SentNotificationRecord(Base):
+    """Aviso ya enviado (E2-M7). La restriccion unica por usuario, tipo y
+    periodo (`period_end`) garantiza que el mismo aviso no salga dos veces,
+    aunque la tarea se entregue o se reintente varias veces."""
+
+    __tablename__ = "sent_notification"
+    __table_args__ = (
+        CheckConstraint("kind IN ('premium_welcome', 'subscription_expiring')", name="ck_notification_kind"),
+        UniqueConstraint("user_id", "kind", "period_end", name="uq_notification_once_per_period"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(Uuid)
+    subscription_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("subscription.id", ondelete="RESTRICT"))
+    kind: Mapped[str] = mapped_column(String(40))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Correo y idioma con que salio; sin contacto (usuario inexistente), vacios.
+    recipient: Mapped[str | None] = mapped_column(String(254))
+    language: Mapped[str | None] = mapped_column(String(2))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    def __repr__(self):
+        return f"<SentNotificationRecord {self.kind} {self.user_id}>"

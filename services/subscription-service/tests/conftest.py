@@ -104,10 +104,18 @@ def session(connection):
 
 @pytest.fixture
 def adapters():
-    """Dobles de los puertos: pasarela y reloj controlable."""
-    from tests.doubles import Clock, FakeGateway
+    """Dobles de los puertos: pasarela, reloj controlable, cola, contactos y correo."""
+    from infra.email_templates import TemplateEmailComposer
+    from tests.doubles import Clock, FakeContacts, FakeGateway, MemoryEmailSender, MemoryNotificationQueue
 
-    return {"gateway": FakeGateway(), "clock": Clock()}
+    return {
+        "gateway": FakeGateway(),
+        "clock": Clock(),
+        "queue": MemoryNotificationQueue(),
+        "contacts": FakeContacts(),
+        "composer": TemplateEmailComposer(),
+        "sender": MemoryEmailSender(),
+    }
 
 
 @pytest.fixture
@@ -118,7 +126,14 @@ def app(connection, adapters):
 
     application = create_app(
         session_factory=lambda: _session_on(connection),
-        adapters={context.GATEWAY_KEY: adapters["gateway"], context.CLOCK_KEY: adapters["clock"]},
+        adapters={
+            context.GATEWAY_KEY: adapters["gateway"],
+            context.CLOCK_KEY: adapters["clock"],
+            context.NOTIFICATION_QUEUE_KEY: adapters["queue"],
+            context.CONTACTS_KEY: adapters["contacts"],
+            context.EMAIL_COMPOSER_KEY: adapters["composer"],
+            context.EMAIL_SENDER_KEY: adapters["sender"],
+        },
     )
     application.testing = True
     return application

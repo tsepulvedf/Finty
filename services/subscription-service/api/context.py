@@ -10,11 +10,15 @@ from flask import current_app, g, request
 from werkzeug.exceptions import MethodNotAllowed
 
 from api.errors import NotAuthenticated
-from services import SubscriptionService
+from services import NotificationService, SubscriptionService
 
 SESSION_FACTORY_KEY = "finty.session_factory"
 GATEWAY_KEY = "finty.payment_gateway"
 CLOCK_KEY = "finty.clock"
+NOTIFICATION_QUEUE_KEY = "finty.notification_queue"
+CONTACTS_KEY = "finty.contacts"
+EMAIL_COMPOSER_KEY = "finty.email_composer"
+EMAIL_SENDER_KEY = "finty.email_sender"
 USER_ID_HEADER = "X-User-Id"
 PUBLIC_ENDPOINTS = {"health", "internal.entitlements"}
 
@@ -54,4 +58,18 @@ def subscription_service():
         current_app.extensions[GATEWAY_KEY],
         current_app.config["SUBSCRIPTION_PLANS"],
         current_app.extensions[CLOCK_KEY],
+        current_app.extensions.get(NOTIFICATION_QUEUE_KEY),
+    )
+
+
+def notification_service():
+    """Casos de uso de los correos (E2-M7), para las tareas de Celery."""
+    extensions = current_app.extensions
+    return NotificationService(
+        db_session(),
+        extensions[CONTACTS_KEY],
+        extensions[EMAIL_COMPOSER_KEY],
+        extensions[EMAIL_SENDER_KEY],
+        extensions[CLOCK_KEY],
+        current_app.config["NOTIFY_DAYS_BEFORE_EXPIRY"],
     )

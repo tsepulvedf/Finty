@@ -4,8 +4,7 @@
  * - Agrega `Authorization: Token <token>`; el token vive en localStorage.
  * - Centraliza los errores:
  *     401 → borra la sesion y lleva al ingreso;
- *     403 premium_required → lleva a la pantalla de planes (o avisa, si la pagina
- *         aun no existe);
+ *     403 premium_required → lleva a la pantalla de planes;
  *     503 entitlements_unavailable → "intenta de nuevo", nunca la invitacion a pagar;
  *     429 → aviso.
  *   Despues lanza `ApiError` para que la pantalla muestre su estado de error.
@@ -92,11 +91,7 @@ function handle(error, options) {
     return;
   }
   if (error.code === "premium_required" && options.premiumRedirect !== false) {
-    if (urls().urlPlans) {
-      window.location.assign(urls().urlPlans);
-    } else {
-      toast(errorMessage(error));
-    }
+    window.location.assign(urls().urlPlans);
     return;
   }
   if (error.code === "entitlements_unavailable" || error.status === 429) {

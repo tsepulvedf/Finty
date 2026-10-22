@@ -362,7 +362,7 @@ async function loadPremiumCard() {
   const link = byId("premium-card-link");
   if (!state.premium) {
     title.textContent = gettext("Con Premium, Finty detecta hallazgos y gastos recurrentes en tus movimientos.");
-    link.textContent = gettext("Incluido en el plan Premium");
+    link.textContent = gettext("Conoce el plan Premium →");
     return;
   }
   try {

@@ -30,6 +30,9 @@ urlpatterns = [
     path("registro/", page("register.html"), name="page-register"),
     path("dashboard/", page("dashboard.html"), name="page-dashboard"),
     path("movimientos/", page("transactions.html"), name="page-transactions"),
+    path("planes/", page("plans.html"), name="page-plans"),
+    path("pago/", page("checkout.html"), name="page-checkout"),
+    path("bienvenida/", page("welcome.html"), name="page-welcome"),
     # Selector ES/EN: `set_language` guarda la eleccion en la cookie de idioma.
     path("i18n/", include("django.conf.urls.i18n")),
     # Textos de JavaScript (`gettext()` en el navegador), del dominio djangojs.

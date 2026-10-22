@@ -12,376 +12,495 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: frontend/templates/finty/_auth_hero.html
-#: frontend/templates/finty/app_base.html
-#: frontend/templates/finty/base.html
+#: .\frontend\templates\finty\_auth_hero.html
+#: .\frontend\templates\finty\app_base.html
+#: .\frontend\templates\finty\base.html
+#: .\frontend\templates\finty\checkout.html
+#: .\frontend\templates\finty\welcome.html
 msgid "Finty"
 msgstr "Finty"
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "Todas tus cuentas, en un solo lugar."
 msgstr "Todas tus cuentas, en un solo lugar."
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "Registra tus movimientos de efectivo, banco y tarjeta de crédito. Finty los clasifica por ti y te muestra en qué se va tu dinero."
 msgstr "Registra tus movimientos de efectivo, banco y tarjeta de crédito. Finty los clasifica por ti y te muestra en qué se va tu dinero."
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "Clasificación automática y explicable"
 msgstr "Clasificación automática y explicable"
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "Saldo de tus cuentas en pesos y dólares"
 msgstr "Saldo de tus cuentas en pesos y dólares"
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "Recomendaciones según tu perfil"
 msgstr "Recomendaciones según tu perfil"
 
-#: frontend/templates/finty/_auth_hero.html
+#: .\frontend\templates\finty\_auth_hero.html
 msgid "© 2026 Finty · Proyecto académico"
 msgstr "© 2026 Finty · Proyecto académico"
 
-#: frontend/templates/finty/_language_switch.html
+#: .\frontend\templates\finty\_language_switch.html
 msgid "Idioma"
 msgstr "Idioma"
 
-#: frontend/templates/finty/_language_switch.html
+#: .\frontend\templates\finty\_language_switch.html
 msgid "Español"
 msgstr "Español"
 
-#: frontend/templates/finty/_language_switch.html
+#: .\frontend\templates\finty\_language_switch.html
 msgid "Inglés"
 msgstr "Inglés"
 
-#: frontend/templates/finty/app_base.html
+#: .\frontend\templates\finty\app_base.html
 msgid "Saltar al contenido"
 msgstr "Saltar al contenido"
 
-#: frontend/templates/finty/app_base.html
+#: .\frontend\templates\finty\app_base.html
 msgid "Principal"
 msgstr "Principal"
 
-#: frontend/templates/finty/app_base.html
+#: .\frontend\templates\finty\app_base.html
 msgid "Dashboard"
 msgstr "Dashboard"
 
-#: frontend/templates/finty/app_base.html
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\app_base.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Movimientos"
 msgstr "Movimientos"
 
-#: frontend/templates/finty/app_base.html
+#: .\frontend\templates\finty\app_base.html
 msgid "Menú de la cuenta"
 msgstr "Menú de la cuenta"
 
-#: frontend/templates/finty/app_base.html
+#: .\frontend\templates\finty\app_base.html
 msgid "Cerrar sesión"
 msgstr "Cerrar sesión"
 
-#: frontend/templates/finty/dashboard.html
-msgid "Finty · Dashboard"
-msgstr "Finty · Dashboard"
+#: .\frontend\templates\finty\checkout.html
+msgid "Finty · Pasar a Premium (simulación)"
+msgstr "Finty · Pasar a Premium (simulación)"
 
-#: frontend/templates/finty/dashboard.html
-msgid "Tu resumen"
-msgstr "Tu resumen"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Período"
-msgstr "Período"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Mes anterior"
-msgstr "Mes anterior"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Mes siguiente"
-msgstr "Mes siguiente"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Mostrar en"
-msgstr "Mostrar en"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Indicadores del período"
-msgstr "Indicadores del período"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Ingresos y gastos"
-msgstr "Ingresos y gastos"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Ingresos"
-msgstr "Ingresos"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Gastos"
-msgstr "Gastos"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Últimos movimientos"
-msgstr "Últimos movimientos"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Ver todos"
-msgstr "Ver todos"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Tus cuentas"
-msgstr "Tus cuentas"
-
-#: frontend/templates/finty/dashboard.html
-msgid "+ Nueva cuenta"
-msgstr "+ Nueva cuenta"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Gastos por categoría"
-msgstr "Gastos por categoría"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Premium"
-msgstr "Premium"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Nueva cuenta"
-msgstr "Nueva cuenta"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Cerrar"
-msgstr "Cerrar"
-
-#: frontend/templates/finty/dashboard.html
-#: frontend/templates/finty/register.html
-msgid "Nombre"
-msgstr "Nombre"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Por ejemplo, Bancolombia Ahorros"
-msgstr "Por ejemplo, Bancolombia Ahorros"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Tipo"
-msgstr "Tipo"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Banco"
-msgstr "Banco"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Efectivo"
-msgstr "Efectivo"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Crédito"
-msgstr "Crédito"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Moneda"
-msgstr "Moneda"
-
-#: frontend/templates/finty/dashboard.html
-msgid "Saldo inicial"
-msgstr "Saldo inicial"
-
-#: frontend/templates/finty/dashboard.html
-msgid "El saldo con el que abres la cuenta. No cambia después."
-msgstr "El saldo con el que abres la cuenta. No cambia después."
-
-#: frontend/templates/finty/dashboard.html
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\checkout.html
+#: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Cancelar"
 msgstr "Cancelar"
 
-#: frontend/templates/finty/dashboard.html
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\checkout.html
+msgid "Modo demostración: no se realiza ningún cobro."
+msgstr "Modo demostración: no se realiza ningún cobro."
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Este formulario es una simulación y sus datos no se envían ni se guardan. No escribas los datos de una tarjeta real."
+msgstr "Este formulario es una simulación y sus datos no se envían ni se guardan. No escribas los datos de una tarjeta real."
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Datos de pago"
+msgstr "Datos de pago"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Completa el formulario para simular la suscripción."
+msgstr "Completa el formulario para simular la suscripción."
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Número de tarjeta"
+msgstr "Número de tarjeta"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Nombre en la tarjeta"
+msgstr "Nombre en la tarjeta"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Como aparece en la tarjeta"
+msgstr "Como aparece en la tarjeta"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Vencimiento"
+msgstr "Vencimiento"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "MM/AA"
+msgstr "MM/AA"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "CVC"
+msgstr "CVC"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Continuar"
+msgstr "Continuar"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Finty solo recibe el plan elegido, nunca los datos de la tarjeta."
+msgstr "Finty solo recibe el plan elegido, nunca los datos de la tarjeta."
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Resumen"
+msgstr "Resumen"
+
+#: .\frontend\templates\finty\checkout.html
+msgid "Puedes cancelar cuando quieras desde Ajustes y conservas el acceso hasta que termine el período pagado."
+msgstr "Puedes cancelar cuando quieras desde Ajustes y conservas el acceso hasta que termine el período pagado."
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Finty · Dashboard"
+msgstr "Finty · Dashboard"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Tu resumen"
+msgstr "Tu resumen"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Período"
+msgstr "Período"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Mes anterior"
+msgstr "Mes anterior"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Mes siguiente"
+msgstr "Mes siguiente"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Mostrar en"
+msgstr "Mostrar en"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Indicadores del período"
+msgstr "Indicadores del período"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Ingresos y gastos"
+msgstr "Ingresos y gastos"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Ingresos"
+msgstr "Ingresos"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Gastos"
+msgstr "Gastos"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Últimos movimientos"
+msgstr "Últimos movimientos"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Ver todos"
+msgstr "Ver todos"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Tus cuentas"
+msgstr "Tus cuentas"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "+ Nueva cuenta"
+msgstr "+ Nueva cuenta"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Gastos por categoría"
+msgstr "Gastos por categoría"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Premium"
+msgstr "Premium"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Nueva cuenta"
+msgstr "Nueva cuenta"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Cerrar"
+msgstr "Cerrar"
+
+#: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\register.html
+msgid "Nombre"
+msgstr "Nombre"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Por ejemplo, Bancolombia Ahorros"
+msgstr "Por ejemplo, Bancolombia Ahorros"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Tipo"
+msgstr "Tipo"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Banco"
+msgstr "Banco"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Efectivo"
+msgstr "Efectivo"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Crédito"
+msgstr "Crédito"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Moneda"
+msgstr "Moneda"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "Saldo inicial"
+msgstr "Saldo inicial"
+
+#: .\frontend\templates\finty\dashboard.html
+msgid "El saldo con el que abres la cuenta. No cambia después."
+msgstr "El saldo con el que abres la cuenta. No cambia después."
+
+#: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\register.html
 msgid "Crear cuenta"
 msgstr "Crear cuenta"
 
-#: frontend/templates/finty/login.html
+#: .\frontend\templates\finty\login.html
 msgid "Finty · Ingreso"
 msgstr "Finty · Ingreso"
 
-#: frontend/templates/finty/login.html
+#: .\frontend\templates\finty\login.html
 msgid "Ingresa a tu cuenta"
 msgstr "Ingresa a tu cuenta"
 
-#: frontend/templates/finty/login.html
+#: .\frontend\templates\finty\login.html
 msgid "Bienvenido de nuevo. Usa el correo con el que te registraste."
 msgstr "Bienvenido de nuevo. Usa el correo con el que te registraste."
 
-#: frontend/templates/finty/login.html
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\login.html
+#: .\frontend\templates\finty\register.html
 msgid "Correo electrónico"
 msgstr "Correo electrónico"
 
-#: frontend/templates/finty/login.html
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\login.html
+#: .\frontend\templates\finty\register.html
 msgid "tu@correo.com"
 msgstr "tu@correo.com"
 
-#: frontend/templates/finty/login.html
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\login.html
+#: .\frontend\templates\finty\register.html
 msgid "Contraseña"
 msgstr "Contraseña"
 
-#: frontend/templates/finty/login.html
+#: .\frontend\templates\finty\login.html
 msgid "Ingresar"
 msgstr "Ingresar"
 
-#: frontend/templates/finty/login.html
+#: .\frontend\templates\finty\login.html
 msgid "¿Aún no tienes cuenta?"
 msgstr "¿Aún no tienes cuenta?"
 
-#: frontend/templates/finty/login.html
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\login.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Crear una cuenta"
 msgstr "Crear una cuenta"
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\plans.html
+msgid "Finty · Planes"
+msgstr "Finty · Planes"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Elige cómo quieres usar Finty"
+msgstr "Elige cómo quieres usar Finty"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Registrar tus movimientos es gratis siempre. Premium agrega el análisis y las recomendaciones."
+msgstr "Registrar tus movimientos es gratis siempre. Premium agrega el análisis y las recomendaciones."
+
+#: .\frontend\templates\finty\plans.html
+msgid "Planes disponibles"
+msgstr "Planes disponibles"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Cómo funciona la suscripción"
+msgstr "Cómo funciona la suscripción"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Sin renovación automática"
+msgstr "Sin renovación automática"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Cada período se paga por adelantado. Para seguir en Premium, renuevas tú."
+msgstr "Cada período se paga por adelantado. Para seguir en Premium, renuevas tú."
+
+#: .\frontend\templates\finty\plans.html
+msgid "Cancela cuando quieras"
+msgstr "Cancela cuando quieras"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Conservas el acceso premium hasta que termine el período pagado."
+msgstr "Conservas el acceso premium hasta que termine el período pagado."
+
+#: .\frontend\templates\finty\plans.html
+msgid "Tus datos siguen siendo tuyos"
+msgstr "Tus datos siguen siendo tuyos"
+
+#: .\frontend\templates\finty\plans.html
+msgid "Si vuelves a Free, no pierdes ningún movimiento registrado."
+msgstr "Si vuelves a Free, no pierdes ningún movimiento registrado."
+
+#: .\frontend\templates\finty\register.html
 msgid "Finty · Registro"
 msgstr "Finty · Registro"
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\register.html
 msgid "Crea tu cuenta"
 msgstr "Crea tu cuenta"
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\register.html
 msgid "Empieza a registrar tus movimientos en un minuto."
 msgstr "Empieza a registrar tus movimientos en un minuto."
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\register.html
 msgid "Al menos 8 caracteres, que no sean solo números, ni una contraseña común, ni parecidos a tu nombre o correo."
 msgstr "Al menos 8 caracteres, que no sean solo números, ni una contraseña común, ni parecidos a tu nombre o correo."
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\register.html
 msgid "¿Ya tienes cuenta?"
 msgstr "¿Ya tienes cuenta?"
 
-#: frontend/templates/finty/register.html
+#: .\frontend\templates\finty\register.html
 msgid "Ingresa"
 msgstr "Ingresa"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Finty · Movimientos"
 msgstr "Finty · Movimientos"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Lista de movimientos"
 msgstr "Lista de movimientos"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Filtros"
 msgstr "Filtros"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Cuenta"
 msgstr "Cuenta"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Todas"
 msgstr "Todas"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Categoría"
 msgstr "Categoría"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Desde"
 msgstr "Desde"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Hasta"
 msgstr "Hasta"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Anterior"
 msgstr "Anterior"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Siguiente"
 msgstr "Siguiente"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Registrar movimiento"
 msgstr "Registrar movimiento"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Crea tu primera cuenta"
 msgstr "Crea tu primera cuenta"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Para registrar un movimiento necesitas al menos una cuenta: efectivo, banco o tarjeta de crédito."
 msgstr "Para registrar un movimiento necesitas al menos una cuenta: efectivo, banco o tarjeta de crédito."
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Tipo de movimiento"
 msgstr "Tipo de movimiento"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Gasto"
 msgstr "Gasto"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Ingreso"
 msgstr "Ingreso"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Monto"
 msgstr "Monto"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Fecha"
 msgstr "Fecha"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Descripción"
 msgstr "Descripción"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Automática (recomendado)"
 msgstr "Automática (recomendado)"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Finty clasifica el movimiento por su descripción y te dice cómo lo decidió. Puedes cambiar la categoría cuando quieras."
 msgstr "Finty clasifica el movimiento por su descripción y te dice cómo lo decidió. Puedes cambiar la categoría cuando quieras."
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Guardar movimiento"
 msgstr "Guardar movimiento"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Movimiento seleccionado"
 msgstr "Movimiento seleccionado"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Ninguno"
 msgstr "Ninguno"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Elige un movimiento de la lista para ver cómo se clasificó, cambiar su categoría o eliminarlo."
 msgstr "Elige un movimiento de la lista para ver cómo se clasificó, cambiar su categoría o eliminarlo."
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Clasificó"
 msgstr "Clasificó"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Cambiar categoría"
 msgstr "Cambiar categoría"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Recategorizar"
 msgstr "Recategorizar"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Eliminar"
 msgstr "Eliminar"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "¿Eliminar este movimiento?"
 msgstr "¿Eliminar este movimiento?"
 
-#: frontend/templates/finty/transactions.html
+#: .\frontend\templates\finty\transactions.html
 msgid "El saldo de la cuenta se recalcula sin él. Esta acción no se puede deshacer."
 msgstr "El saldo de la cuenta se recalcula sin él. Esta acción no se puede deshacer."
+
+#: .\frontend\templates\finty\welcome.html
+msgid "Finty · Bienvenido a Premium"
+msgstr "Finty · Bienvenido a Premium"
+
+#: .\frontend\templates\finty\welcome.html
+msgid "Ir al dashboard"
+msgstr "Ir al dashboard"
+
+#: .\frontend\templates\finty\welcome.html
+msgid "Pago simulado · modo demostración, no se realizó ningún cobro."
+msgstr "Pago simulado · modo demostración, no se realizó ningún cobro."

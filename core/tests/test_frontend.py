@@ -24,7 +24,17 @@ PLANTILLAS = sorted((FRONTEND / "templates" / "finty").glob("*.html"))
 JAVASCRIPT = sorted((FRONTEND / "static" / "finty" / "js").rglob("*.js"))
 LOCALE = RAIZ / "locale"
 
-PAGINAS = ["/", "/registro/", "/dashboard/", "/movimientos/"]
+# URL de cada pagina y el modulo de JavaScript que carga.
+MODULOS = {
+    "/": "login",
+    "/registro/": "register",
+    "/dashboard/": "dashboard",
+    "/movimientos/": "transactions",
+    "/planes/": "plans",
+    "/pago/": "checkout",
+    "/bienvenida/": "welcome",
+}
+PAGINAS = list(MODULOS)
 IDIOMAS = ["es", "en"]
 COOKIE_IDIOMA = "django_language"
 
@@ -55,7 +65,7 @@ class TestPaginas:
         assert '<html lang="es">' in html
 
     def test_cada_pagina_carga_su_modulo(self, client):
-        for url, modulo in zip(PAGINAS, ["login", "register", "dashboard", "transactions"]):
+        for url, modulo in MODULOS.items():
             html = client.get(url).content.decode("utf-8")
             assert f"finty/js/pages/{modulo}.js" in html
             assert "/jsi18n/" in html
@@ -67,6 +77,7 @@ class TestPaginas:
         for atributo, ruta in [
             ("data-url-login", "/"), ("data-url-register", "/registro/"),
             ("data-url-dashboard", "/dashboard/"), ("data-url-transactions", "/movimientos/"),
+            ("data-url-plans", "/planes/"), ("data-url-checkout", "/pago/"), ("data-url-welcome", "/bienvenida/"),
         ]:
             assert f'{atributo}="{ruta}"' in html
 
@@ -144,6 +155,118 @@ class TestFrontera:
         assert not (FRONTEND / "app.html").exists()
 
 
+class TestNavegacionPremium:
+    """El indicador de plan y la tarjeta premium enlazan a Planes; un 403
+    premium_required tambien lleva alli (INV-06, handoff §8)."""
+
+    def test_el_indicador_de_plan_enlaza_a_planes(self, client):
+        html = client.get("/dashboard/").content.decode("utf-8")
+        assert re.search(r'<a class="plan-chip" id="plan-chip" href="/planes/"', html)
+
+    def test_la_tarjeta_premium_del_dashboard_enlaza_a_planes(self, client):
+        html = client.get("/dashboard/").content.decode("utf-8")
+        assert '<a class="promo" id="premium-card" href="/planes/">' in html
+
+    def test_un_403_premium_required_lleva_a_planes(self):
+        api = (FRONTEND / "static" / "finty" / "js" / "api.js").read_text(encoding="utf-8")
+        bloque = api[api.index('error.code === "premium_required"'):]
+        bloque = bloque[:bloque.index("return;")]
+        assert "window.location.assign(urls().urlPlans)" in bloque
+
+    def test_un_503_entitlements_unavailable_avisa_sin_invitar_a_pagar(self):
+        api = (FRONTEND / "static" / "finty" / "js" / "api.js").read_text(encoding="utf-8")
+        assert 'error.code === "entitlements_unavailable"' in api
+        assert "Intenta de nuevo" in api_texto_de_error("entitlements_unavailable")
+
+
+def api_texto_de_error(code):
+    codes = (FRONTEND / "static" / "finty" / "js" / "codes.js").read_text(encoding="utf-8")
+    return re.search(rf'{code}: gettext\("([^"]*)"\)', codes).group(1)
+
+
+def problemas_del_cuerpo(fuente):
+    """Lo que hay de mas en los cuerpos que arma `fuente`; vacio si cada uno es `{plan: ...}`."""
+    cuerpos = re.findall(r"\bbody\s*:\s*(\{[^{}]*\}|[^,}\s]+)", fuente)
+    if not cuerpos:
+        return ["no envia ningun cuerpo"]
+    problemas = []
+    for cuerpo in cuerpos:
+        if not cuerpo.startswith("{"):
+            problemas.append(f"no es un literal: {cuerpo}")
+            continue
+        interior = cuerpo[1:-1]
+        claves = re.findall(r"([\w$]+)\s*:", interior)
+        if claves != ["plan"] or "..." in interior:
+            problemas.append(f"lleva algo mas que plan: {cuerpo}")
+        elif re.search(r"\bvalue\b|card", interior, re.IGNORECASE):
+            problemas.append(f"el plan sale del formulario: {cuerpo}")
+    return problemas
+
+
+class TestCheckout:
+    """Checkout simulado (ADR-14, handoff §8): los datos de la tarjeta nunca
+    salen del navegador. Se inspecciona el codigo, que es lo que se entrega."""
+
+    JS = FRONTEND / "static" / "finty" / "js" / "pages" / "checkout.js"
+    PLANTILLA = FRONTEND / "templates" / "finty" / "checkout.html"
+
+    def fuente(self):
+        return self.JS.read_text(encoding="utf-8")
+
+    def test_la_unica_peticion_que_escribe_es_el_checkout(self):
+        llamadas = re.findall(r"\bapi\(\s*\"([^\"]+)\"\s*(,\s*\{[^}]*\})?", self.fuente())
+        con_metodo = [ruta for ruta, opciones in llamadas if "method" in opciones]
+        assert con_metodo == ["/subscriptions/checkout/"]
+
+    def test_el_cuerpo_del_checkout_solo_lleva_el_plan(self):
+        """Falla si el cuerpo arma cualquier campo ademas de `plan`."""
+        assert problemas_del_cuerpo(self.fuente()) == []
+
+    @pytest.mark.parametrize("fuente", [
+        'api("/subscriptions/checkout/", { method: "POST", body: { plan: plan.code, card_number: n } })',
+        'api("/subscriptions/checkout/", { method: "POST", body: { ...card, plan: "PREMIUM" } })',
+        'api("/subscriptions/checkout/", { method: "POST", body: payload })',
+        'api("/subscriptions/checkout/", { method: "POST", body: { plan: field("number").value } })',
+        'api("/subscriptions/checkout/", { method: "POST" })',
+    ])
+    def test_el_detector_rechaza_un_cuerpo_con_algo_mas(self, fuente):
+        assert problemas_del_cuerpo(fuente)
+
+    @pytest.mark.parametrize("prohibido", [
+        "fetch(", "XMLHttpRequest", "sendBeacon", "FormData", "localStorage", "sessionStorage",
+        "console.", "JSON.stringify", "document.cookie", "indexedDB",
+    ])
+    def test_no_envia_guarda_ni_registra_por_otra_via(self, prohibido):
+        assert prohibido not in self.fuente()
+
+    def test_ningun_javascript_escribe_en_la_consola(self):
+        con_consola = [p.name for p in JAVASCRIPT if "console." in p.read_text(encoding="utf-8")]
+        assert not con_consola
+
+    def test_los_campos_de_la_tarjeta_no_tienen_name_y_no_autocompletan(self):
+        html = self.PLANTILLA.read_text(encoding="utf-8")
+        formulario = re.search(r"<form[^>]*>", html).group(0)
+        assert 'autocomplete="off"' in formulario
+        campos = re.findall(r'<input[^>]*id="card-[^"]*"[^>]*>', html)
+        assert len(campos) == 4
+        for campo in campos:
+            assert 'autocomplete="off"' in campo
+            assert " name=" not in campo, campo
+
+    def test_muestra_el_aviso_de_modo_demostracion(self, client):
+        """El aviso esta en la pagina y traducido (los .mo se compilan en el build)."""
+        aviso = "Modo demostración: no se realiza ningún cobro."
+        _, html = html_de(client, "/pago/", "es")
+        assert aviso in html
+        catalogo = entradas_po(LOCALE / "en" / "LC_MESSAGES" / "django.po")
+        assert catalogo[aviso]["msgstr"] == ["Demo mode: no charge is made."]
+
+    def test_con_el_pago_aprobado_lleva_a_la_bienvenida(self):
+        fuente = self.fuente()
+        assert 'result.payment.status === "APPROVED"' in fuente
+        assert "urlWelcome" in fuente
+
+
 # --- A-23: cero textos quemados ------------------------------------------------------
 
 # Codigos que se leen igual en todos los idiomas: idioma y moneda.
@@ -152,7 +275,8 @@ ATRIBUTOS_VISIBLES = {"aria-label", "placeholder", "title", "alt", "label"}
 # Una letra de cualquier alfabeto; deja fuera simbolos como ×, ‹ o ·.
 LETRA = re.compile(r"[^\W\d_]")
 
-COMENTARIO = re.compile(r"\{#.*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.DOTALL)
+# `{# #}` es de una sola linea en Django: uno que abarca varias se pinta como texto.
+COMENTARIO = re.compile(r"\{#[^\n]*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.DOTALL)
 TRADUCCION = re.compile(
     r"\{%\s*translate\b.*?%\}|\{%\s*blocktranslate\b.*?%\}.*?\{%\s*endblocktranslate\s*%\}",
     re.DOTALL,
@@ -203,6 +327,7 @@ class TestA23SinTextosQuemados:
     def test_hay_plantillas_que_revisar(self):
         assert {p.name for p in PLANTILLAS} >= {
             "base.html", "app_base.html", "login.html", "register.html", "dashboard.html", "transactions.html",
+            "plans.html", "checkout.html", "welcome.html",
         }
 
     @pytest.mark.parametrize("plantilla", PLANTILLAS, ids=lambda p: p.name)
@@ -219,6 +344,8 @@ class TestA23SinTextosQuemados:
         ('<input placeholder="{% translate \'Buscar\' %}">', []),
         ("<option>COP</option><script>const x = 'Hola';</script>", []),
         ("<span>{# comentario #}</span>", []),
+        ("<span>{% comment %}\nvarias\nlineas\n{% endcomment %}</span>", []),
+        ("<span>{#\nvarias lineas\n#}</span>", ["{#\nvarias lineas\n#}"]),
     ])
     def test_el_detector_distingue_lo_traducido(self, fragmento, esperado):
         assert textos_sin_traducir(fragmento) == esperado

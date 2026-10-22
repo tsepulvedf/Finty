@@ -1,0 +1,26 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Planes" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head__titles">
+    <h1 class="page-title">{% translate "Elige cómo quieres usar Finty" %}</h1>
+    <p class="lead">{% translate "Registrar tus movimientos es gratis siempre. Premium agrega el análisis y las recomendaciones." %}</p>
+  </div>
+</div>
+
+{# Destino del 403 premium_required (INV-06): lo pone js/api.js. #}
+<div id="plans-notice"></div>
+
+<section aria-label="{% translate 'Planes disponibles' %}" id="pricing" class="pricing" aria-busy="true">
+  {% for i in "12" %}<div class="price-card"><span class="skeleton skeleton--title"></span>{% for j in "1234" %}<span class="skeleton skeleton--text skeleton--full"></span>{% endfor %}</div>{% endfor %}
+</section>
+
+<section class="info-cards" aria-label="{% translate 'Cómo funciona la suscripción' %}">
+  <div class="info-card"><h3>{% translate "Sin renovación automática" %}</h3><p>{% translate "Cada período se paga por adelantado. Para seguir en Premium, renuevas tú." %}</p></div>
+  <div class="info-card"><h3>{% translate "Cancela cuando quieras" %}</h3><p>{% translate "Conservas el acceso premium hasta que termine el período pagado." %}</p></div>
+  <div class="info-card"><h3>{% translate "Tus datos siguen siendo tuyos" %}</h3><p>{% translate "Si vuelves a Free, no pierdes ningún movimiento registrado." %}</p></div>
+</section>
+
+<template id="check-icon">{% include "finty/_check.html" %}</template>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/plans.js' %}"></script>{% endblock %}

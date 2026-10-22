@@ -1,0 +1,28 @@
+{% extends "finty/base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Bienvenido a Premium" %}{% endblock %}
+{% block body %}
+<div class="welcome">
+  <header class="welcome__header">
+    <span class="brand brand--light">{% include "finty/_logo.html" %}{% translate "Finty" %}</span>
+  </header>
+  <main class="welcome__main" id="contenido" tabindex="-1">
+    <div class="welcome__badge" aria-hidden="true">
+      <svg width="48" height="48" viewBox="0 0 24 24" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#3D2900" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </div>
+    <div class="stack" aria-live="polite">
+      <h1 class="welcome__title" id="welcome-title"><span class="skeleton skeleton--title"></span></h1>
+      <p class="welcome__lead" id="welcome-lead"></p>
+    </div>
+    {# Beneficios desbloqueados: GET /api/v1/subscriptions/plans/, traducidos por code. #}
+    <ul class="benefits" id="benefits" aria-busy="true">
+      {% for i in "12345" %}<li class="benefit"><span class="skeleton skeleton--text skeleton--full"></span></li>{% endfor %}
+    </ul>
+    <div class="btn-row">
+      <a class="btn btn--premium btn--lg" id="welcome-primary" href="{% url 'page-dashboard' %}">{% translate "Ir al dashboard" %}</a>
+    </div>
+    <p class="welcome__note">{% translate "Pago simulado · modo demostración, no se realizó ningún cobro." %}</p>
+  </main>
+</div>
+<template id="benefit-icon">{% include "finty/_check.html" %}</template>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/welcome.js' %}"></script>{% endblock %}

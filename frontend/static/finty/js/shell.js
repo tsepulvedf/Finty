@@ -2,7 +2,7 @@
  * Cabecera comun de las pantallas autenticadas (app_base.html).
  *
  * - Sin token, lleva al ingreso antes de pedir nada.
- * - Indicador de plan: GET /api/v1/subscriptions/me/.
+ * - Indicador de plan: GET /api/v1/subscriptions/me/; enlaza a Planes.
  * - Avatar con las iniciales del perfil y el menu para cerrar sesion.
  * - En movil la navegacion es una fila que se desplaza: la seccion activa se
  *   deja a la vista al cargar.
@@ -48,10 +48,10 @@ function renderPlan(subscription) {
   const chip = byId("plan-chip");
   if (subscription.premium) {
     chip.textContent = PLANS.PREMIUM;
-    chip.classList.add("is-premium");
+    chip.classList.add("plan-chip--premium");
   } else {
     chip.textContent = gettext("Plan Free · Mejorar");
-    chip.classList.remove("is-premium");
+    chip.classList.remove("plan-chip--premium");
   }
 }
 
@@ -62,14 +62,22 @@ function revealActiveSection() {
   }
 }
 
+/** Sin token, al ingreso. Para las paginas sin cabecera (checkout, bienvenida). */
+export function requireSession() {
+  if (!token()) {
+    goToLogin();
+    return false;
+  }
+  return true;
+}
+
 /**
  * Prepara la cabecera. Devuelve `{profile, subscription}` para la pagina; la
  * suscripcion puede ser `null` si subscription-service no responde: la pagina
  * sigue funcionando con lo gratuito (INV-06).
  */
 export async function startShell() {
-  if (!token()) {
-    goToLogin();
+  if (!requireSession()) {
     return new Promise(() => {});
   }
   bindMenu();

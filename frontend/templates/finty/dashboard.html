@@ -73,11 +73,11 @@
       <div id="categories" class="skeleton-stack">{% for i in "1234" %}<span class="skeleton skeleton--text skeleton--full"></span>{% endfor %}</div>
     </section>
 
-    <div class="promo" id="premium-card">
+    <a class="promo" id="premium-card" href="{% url 'page-plans' %}">
       <span class="badge-premium">{% translate "Premium" %}</span>
       <span class="promo__title" id="premium-card-title"><span class="skeleton skeleton--text"></span></span>
       <span class="promo__link" id="premium-card-link"></span>
-    </div>
+    </a>
   </aside>
 </div>
 

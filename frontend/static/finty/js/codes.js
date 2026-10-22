@@ -84,6 +84,26 @@ export const BENEFITS = {
   investment_plans: gettext("Planes de inversión"),
 };
 
+/** Descripcion corta de cada beneficio, para la bienvenida. */
+export const BENEFIT_DETAILS = {
+  transaction_tracking: gettext("Registra efectivo, banco y tarjeta."),
+  standard_dashboard: gettext("Ingresos, gastos y saldos del mes."),
+  history_3_months: gettext("Consulta los últimos 3 meses."),
+  insights: gettext("Te avisamos cuando una categoría se dispara."),
+  spending_patterns: gettext("Ves lo que pagas todos los meses."),
+  unlimited_history: gettext("Consulta cualquier mes, sin límite."),
+  investment_recommendations: gettext("Según tu perfil y tu excedente mensual."),
+  investment_plans: gettext("Guarda metas con su proyección."),
+};
+
+/** Estados de un pago simulado. */
+export const PAYMENT_STATUSES = {
+  APPROVED: gettext("Aprobado"),
+  DECLINED: gettext("Rechazado"),
+  ERROR: gettext("Con error"),
+  PENDING: gettext("Pendiente"),
+};
+
 export const ACCOUNT_TYPES = {
   bank: gettext("Banco"),
   cash: gettext("Efectivo"),

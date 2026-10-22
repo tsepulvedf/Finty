@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
 
-import { balance, money, signedMoney } from "../../static/finty/js/format.js";
+import { balance, currencyCode, money, signedMoney } from "../../static/finty/js/format.js";
 
 const MINUS = "−";
 
@@ -41,6 +41,16 @@ describe("signedMoney: el cero no lleva signo", () => {
     assert.equal(signedMoney("-38000.00", "COP"), `${MINUS} $ 38.000`);
     assert.equal(signedMoney("38000.00", "COP", "expense"), `${MINUS} $ 38.000`);
     assert.equal(signedMoney("0.01", "USD", "income").startsWith("+ "), true);
+  });
+});
+
+describe("currencyCode: el codigo solo cuando el simbolo no lo dice", () => {
+  test("en espanol el peso se aclara con COP; en ingles ya lo muestra money()", () => {
+    inLanguage("es");
+    assert.equal(currencyCode("29900", "COP"), "COP");
+    inLanguage("en");
+    assert.equal(currencyCode("29900", "COP"), "");
+    assert.equal(currencyCode("10", "USD"), "USD");
   });
 });
 

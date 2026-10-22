@@ -1,0 +1,69 @@
+{% extends "finty/base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Pasar a Premium (simulación)" %}{% endblock %}
+{% block body %}
+<header class="flow-header">
+  <div class="flow-header__inner">
+    <a class="brand" href="{% url 'page-dashboard' %}">{% include "finty/_logo.html" with dark=True %}{% translate "Finty" %}</a>
+    <div class="header-tools">
+      {% include "finty/_language_switch.html" %}
+      <a class="btn btn--plain btn--small" href="{% url 'page-plans' %}">{% translate "Cancelar" %}</a>
+    </div>
+  </div>
+</header>
+<div class="demo-banner" role="note">
+  <div class="demo-banner__inner">
+    {% include "finty/_alert_icon.html" %}
+    <p><strong>{% translate "Modo demostración: no se realiza ningún cobro." %}</strong> {% translate "Este formulario es una simulación y sus datos no se envían ni se guardan. No escribas los datos de una tarjeta real." %}</p>
+  </div>
+</div>
+<main class="flow" id="contenido" tabindex="-1">
+  {% comment %}
+    Checkout simulado (ADR-14, handoff §8). Los campos de la tarjeta no tienen
+    `name`: no forman parte de ningun envio. Su formato se valida solo en el
+    navegador, y "Continuar" envia unicamente {plan}.
+  {% endcomment %}
+  <form class="flow__main" id="checkout-form" autocomplete="off" novalidate aria-labelledby="checkout-title">
+    <div class="page-head__titles">
+      <h1 class="page-title" id="checkout-title">{% translate "Datos de pago" %}</h1>
+      <p class="page-subtitle">{% translate "Completa el formulario para simular la suscripción." %}</p>
+    </div>
+    <div class="field">
+      <label for="card-number">{% translate "Número de tarjeta" %}</label>
+      <input class="input input--card" id="card-number" type="text" inputmode="numeric" autocomplete="off" maxlength="23" placeholder="0000 0000 0000 0000" aria-describedby="card-number-error">
+      <span class="field__error" id="card-number-error" hidden></span>
+    </div>
+    <div class="field">
+      <label for="card-name">{% translate "Nombre en la tarjeta" %}</label>
+      <input class="input input--card" id="card-name" type="text" autocomplete="off" maxlength="60" placeholder="{% translate 'Como aparece en la tarjeta' %}" aria-describedby="card-name-error">
+      <span class="field__error" id="card-name-error" hidden></span>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="card-expiry">{% translate "Vencimiento" %}</label>
+        <input class="input input--card" id="card-expiry" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="{% translate 'MM/AA' %}" aria-describedby="card-expiry-error">
+        <span class="field__error" id="card-expiry-error" hidden></span>
+      </div>
+      <div class="field">
+        <label for="card-cvc">{% translate "CVC" %}</label>
+        <input class="input input--card" id="card-cvc" type="text" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="123" aria-describedby="card-cvc-error">
+        <span class="field__error" id="card-cvc-error" hidden></span>
+      </div>
+    </div>
+    <div class="notice notice--error" id="checkout-error" role="alert" hidden>
+      {% include "finty/_alert_icon.html" %}<span id="checkout-error-text"></span>
+    </div>
+    <button type="submit" class="btn btn--primary btn--block" id="checkout-submit" disabled>{% translate "Continuar" %}</button>
+    <p class="secure-note">{% translate "Finty solo recibe el plan elegido, nunca los datos de la tarjeta." %}</p>
+  </form>
+  <aside class="flow__side">
+    <section class="card" aria-labelledby="summary-title">
+      <h2 class="card__title" id="summary-title">{% translate "Resumen" %}</h2>
+      <div id="summary" class="stack" aria-busy="true">
+        {% for i in "1234" %}<span class="skeleton skeleton--text skeleton--full"></span>{% endfor %}
+      </div>
+    </section>
+    <p class="fine-print">{% translate "Puedes cancelar cuando quieras desde Ajustes y conservas el acceso hasta que termine el período pagado." %}</p>
+  </aside>
+</main>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/checkout.js' %}"></script>{% endblock %}

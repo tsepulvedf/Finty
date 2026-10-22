@@ -41,6 +41,14 @@ export function signedMoney(amount, currency, type) {
   return (negative ? MINUS : "+") + " " + money(amount, currency);
 }
 
+/**
+ * Codigo de la moneda solo si `money()` no lo muestra ya: en espanol el peso es
+ * `$ 29.900` y se aclara con `COP`; en ingles ya sale como `COP 29,900`.
+ */
+export function currencyCode(amount, currency) {
+  return money(amount, currency).includes(currency) ? "" : currency;
+}
+
 /** Saldo: negativo con el signo menos tipografico, positivo sin signo. */
 export function balance(amount, currency) {
   return (Number(amount) < 0 ? MINUS + " " : "") + money(amount, currency);

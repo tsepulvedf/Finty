@@ -4,7 +4,8 @@
  * Un solo modulo: el backend responde con codigos estables (errores de dominio,
  * beneficios, insights, recomendaciones, avisos, procedencias) y aqui se
  * convierten en texto con gettext(). Por eso los servicios Flask no necesitan
- * Flask-Babel. Los 401 y 429 del Gateway se traducen por codigo de estado.
+ * Flask-Babel. Los 401 y 429 del Gateway se traducen por codigo de estado; su
+ * 503 (un servicio que no responde) trae el code `service_unavailable`.
  *
  * Los nombres de categoria son datos del catalogo de finance (en espanol); se
  * traducen por nombre con el mismo criterio y, si aparece uno nuevo, se muestra
@@ -51,6 +52,8 @@ const ERRORS = {
   invalid_monthly_contribution: gettext("El aporte mensual debe ser mayor que cero."),
   invalid_horizon: gettext("El horizonte del plan está fuera del rango permitido."),
   investment_plan_not_found: gettext("No encontramos ese plan de inversión."),
+  // Gateway (E2-M9c)
+  service_unavailable: gettext("El servicio no está disponible en este momento. Intenta de nuevo en unos minutos."),
 };
 
 const STATUSES = {

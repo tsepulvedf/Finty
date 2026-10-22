@@ -6,6 +6,8 @@
  *     401 → borra la sesion y lleva al ingreso;
  *     403 premium_required → lleva a la pantalla de planes;
  *     503 entitlements_unavailable → "intenta de nuevo", nunca la invitacion a pagar;
+ *     503 service_unavailable (el Gateway: el servicio no responde) → su texto,
+ *       que la pantalla muestra en su estado de error;
  *     429 → aviso.
  *   Despues lanza `ApiError` para que la pantalla muestre su estado de error.
  * - `displayCurrency()` da el `preferred_currency` del perfil, que se envia como
@@ -26,7 +28,9 @@ export class ApiError extends Error {
     super(`HTTP ${status}`);
     this.status = status;
     this.body = body || null;
-    this.code = body && body.error ? body.error.code : null;
+    // Los errores de dominio traen `{"error": {"code"}}`; el 503 del Gateway,
+    // `{"detail", "code"}` (la forma de sus 401 y 429).
+    this.code = body && body.error ? body.error.code : (body && body.code) || null;
     // Un 400 de validacion trae `{"campo": ["mensaje"]}`.
     this.fields = status === 400 && body && !body.error && !body.detail ? body : null;
   }

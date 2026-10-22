@@ -201,6 +201,17 @@ class TestNavegacionPremium:
         assert "Intenta de nuevo" in api_texto_de_error("entitlements_unavailable")
 
 
+class TestErroresDelGateway:
+    """E2-M9c: el 503 del Gateway trae `code` en el nivel superior del JSON."""
+
+    def test_api_lee_el_code_del_gateway(self):
+        api = (FRONTEND / "static" / "finty" / "js" / "api.js").read_text(encoding="utf-8")
+        assert "(body && body.code) || null" in api
+
+    def test_service_unavailable_tiene_su_texto(self):
+        assert "Intenta de nuevo" in api_texto_de_error("service_unavailable")
+
+
 def api_texto_de_error(code):
     codes = (FRONTEND / "static" / "finty" / "js" / "codes.js").read_text(encoding="utf-8")
     return re.search(rf'{code}: gettext\("([^"]*)"\)', codes).group(1)

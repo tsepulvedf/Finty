@@ -15,3 +15,14 @@ def _reset_throttle_cache():
     cache.clear()
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _static_sin_manifiesto(settings):
+    """Los tests no corren `collectstatic`: sin `staticfiles.json`, el almacen
+    con hash no podria resolver `{% static %}`. Se usa el almacen simple; el
+    de produccion lo cubre `core/tests/test_static_files.py`."""
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }

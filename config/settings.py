@@ -183,5 +183,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # el propio proyecto (sin CDN: la sustentacion puede no tener red).
 STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
 
+# Nombres con hash (`config/storage.py`): un despliegue nuevo nunca sirve
+# JavaScript o CSS viejo desde la cache del navegador ni de Nginx. Con DEBUG,
+# `{% static %}` usa el nombre sin hash y no hace falta `collectstatic`.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "config.storage.FintyStaticFilesStorage"},
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

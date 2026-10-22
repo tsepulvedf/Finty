@@ -192,6 +192,14 @@ export const BENEFIT_DETAILS = {
   investment_plans: gettext("Guarda metas con su proyección."),
 };
 
+/** Estados de la suscripcion (§6.7). */
+export const SUBSCRIPTION_STATUSES = {
+  PENDING_PAYMENT: gettext("Pago pendiente"),
+  ACTIVE: gettext("Activa"),
+  CANCELED: gettext("Cancelada"),
+  EXPIRED: gettext("Vencida"),
+};
+
 /** Estados de un pago simulado. */
 export const PAYMENT_STATUSES = {
   APPROVED: gettext("Aprobado"),

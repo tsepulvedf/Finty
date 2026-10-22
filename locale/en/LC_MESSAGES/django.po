@@ -45,14 +45,17 @@ msgid "© 2026 Finty · Proyecto académico"
 msgstr "© 2026 Finty · Academic project"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Idioma"
 msgstr "Language"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Español"
 msgstr "Spanish"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Inglés"
 msgstr "English"
 
@@ -83,12 +86,8 @@ msgid "Inversiones"
 msgstr "Investments"
 
 #: .\frontend\templates\finty\app_base.html
-msgid "Menú de la cuenta"
-msgstr "Account menu"
-
-#: .\frontend\templates\finty\app_base.html
-msgid "Cerrar sesión"
-msgstr "Log out"
+msgid "Ajustes de la cuenta"
+msgstr "Account settings"
 
 #: .\frontend\templates\finty\checkout.html
 msgid "Finty · Pasar a Premium (simulación)"
@@ -396,6 +395,7 @@ msgstr "Welcome back. Use the email you signed up with."
 
 #: .\frontend\templates\finty\login.html
 #: .\frontend\templates\finty\register.html
+#: .\frontend\templates\finty\settings.html
 msgid "Correo electrónico"
 msgstr "Email"
 
@@ -617,6 +617,74 @@ msgstr "Save profile"
 #: .\frontend\templates\finty\risk_profile.html
 msgid "Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera."
 msgstr "Your profile is only used to suggest instrument types. It is not financial advice."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Finty · Ajustes"
+msgstr "Finty · Settings"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Ajustes"
+msgstr "Settings"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Perfil"
+msgstr "Profile"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Nombre visible"
+msgstr "Display name"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Moneda preferida"
+msgstr "Preferred currency"
+
+#: .\frontend\templates\finty\settings.html
+msgid "COP · Peso colombiano"
+msgstr "COP · Colombian peso"
+
+#: .\frontend\templates\finty\settings.html
+msgid "USD · Dólar"
+msgstr "USD · US dollar"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Se usa para mostrar cifras convertidas. Tus montos guardados no cambian."
+msgstr "It's used to show converted figures. Your saved amounts don't change."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Guardar cambios"
+msgstr "Save changes"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cambios guardados"
+msgstr "Changes saved"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Suscripción"
+msgstr "Subscription"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Sesión"
+msgstr "Session"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cierra la sesión en este navegador."
+msgstr "Log out of this browser."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cerrar sesión"
+msgstr "Log out"
+
+#: .\frontend\templates\finty\settings.html
+msgid "¿Cancelar la suscripción?"
+msgstr "Cancel the subscription?"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Conservar Premium"
+msgstr "Keep Premium"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cancelar suscripción"
+msgstr "Cancel subscription"
 
 #: .\frontend\templates\finty\transactions.html
 msgid "Finty · Movimientos"

@@ -36,6 +36,7 @@ MODULOS = {
     "/planes/": "plans",
     "/pago/": "checkout",
     "/bienvenida/": "welcome",
+    "/ajustes/": "settings",
 }
 PAGINAS = list(MODULOS)
 IDIOMAS = ["es", "en"]
@@ -82,6 +83,7 @@ class TestPaginas:
             ("data-url-dashboard", "/dashboard/"), ("data-url-transactions", "/movimientos/"),
             ("data-url-insights", "/insights/"), ("data-url-investments", "/inversiones/"),
             ("data-url-risk-profile", "/perfil-de-riesgo/"), ("data-url-plans", "/planes/"), ("data-url-checkout", "/pago/"), ("data-url-welcome", "/bienvenida/"),
+            ("data-url-settings", "/ajustes/"),
         ]:
             assert f'{atributo}="{ruta}"' in html
 
@@ -173,6 +175,17 @@ class TestNavegacionPremium:
     def test_la_tarjeta_premium_del_dashboard_enlaza_a_planes(self, client):
         html = client.get("/dashboard/").content.decode("utf-8")
         assert '<a class="promo" id="premium-card" href="/planes/">' in html
+
+    def test_el_avatar_lleva_a_ajustes_y_cerrar_sesion_vive_alli(self, client):
+        cabecera = client.get("/dashboard/").content.decode("utf-8")
+        assert '<a class="avatar" id="avatar" href="/ajustes/">' in cabecera
+        assert 'id="logout"' not in cabecera
+        assert 'id="logout"' in client.get("/ajustes/").content.decode("utf-8")
+
+    def test_la_navegacion_tiene_las_cuatro_secciones(self, client):
+        html = client.get("/dashboard/").content.decode("utf-8")
+        nav = html[html.index('<nav class="nav"'):html.index("</nav>")]
+        assert re.findall(r'href="([^"]+)"', nav) == ["/dashboard/", "/movimientos/", "/insights/", "/inversiones/"]
 
     def test_un_403_premium_required_lleva_a_planes(self):
         api = (FRONTEND / "static" / "finty" / "js" / "api.js").read_text(encoding="utf-8")
@@ -335,7 +348,7 @@ class TestA23SinTextosQuemados:
         assert {p.name for p in PLANTILLAS} >= {
             "base.html", "app_base.html", "login.html", "register.html", "dashboard.html", "transactions.html",
             "plans.html", "checkout.html", "welcome.html", "insights.html",
-            "investments.html", "risk_profile.html",
+            "investments.html", "risk_profile.html", "settings.html",
         }
 
     @pytest.mark.parametrize("plantilla", PLANTILLAS, ids=lambda p: p.name)

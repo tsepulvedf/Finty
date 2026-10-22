@@ -1,0 +1,89 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Ajustes" %}{% endblock %}
+{% block content %}{% get_current_language as LANG %}
+<div class="narrow">
+<h1 class="page-title">{% translate "Ajustes" %}</h1>
+
+<form class="card form" id="profile-form" novalidate aria-labelledby="profile-title">
+  <h2 class="card__title" id="profile-title">{% translate "Perfil" %}</h2>
+  <div class="field-row">
+    <div class="field">
+      <label for="profile-display_name">{% translate "Nombre visible" %}</label>
+      <input class="input" id="profile-display_name" name="display_name" type="text" maxlength="120" required autocomplete="name" aria-describedby="profile-display_name-error">
+      <span class="field__error" id="profile-display_name-error" hidden></span>
+    </div>
+    <div class="field">
+      <label for="profile-email">{% translate "Correo electrónico" %}</label>
+      <input class="input" id="profile-email" type="email" readonly>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label for="profile-preferred_currency">{% translate "Moneda preferida" %}</label>
+      <select class="select" id="profile-preferred_currency" name="preferred_currency" aria-describedby="currency-help profile-preferred_currency-error">
+        <option value="COP">{% translate "COP · Peso colombiano" %}</option>
+        <option value="USD">{% translate "USD · Dólar" %}</option>
+      </select>
+      <span class="field__help" id="currency-help">{% translate "Se usa para mostrar cifras convertidas. Tus montos guardados no cambian." %}</span>
+      <span class="field__error" id="profile-preferred_currency-error" hidden></span>
+    </div>
+    <div class="field">
+      <label for="profile-language">{% translate "Idioma" %}</label>
+      <select class="select" id="profile-language" data-current="{{ LANG }}">
+        <option value="es" lang="es"{% if LANG == 'es' %} selected{% endif %}>{% translate "Español" %}</option>
+        <option value="en" lang="en"{% if LANG == 'en' %} selected{% endif %}>{% translate "Inglés" %}</option>
+      </select>
+    </div>
+  </div>
+  <div class="notice notice--error" id="profile-error" role="alert" hidden>
+    {% include "finty/_alert_icon.html" %}<span id="profile-error-text"></span>
+  </div>
+  <div class="btn-row btn-row--start">
+    <button type="submit" class="btn btn--primary" id="profile-submit" disabled>{% translate "Guardar cambios" %}</button>
+    <span class="saved" id="profile-saved" role="status" hidden>{% include "finty/_check.html" %}{% translate "Cambios guardados" %}</span>
+  </div>
+</form>
+
+{# El idioma lo guarda `set_language` de Django en su cookie, como el selector ES/EN. #}
+<form id="language-form" action="{% url 'set_language' %}" method="post" hidden>
+  {% csrf_token %}
+  <input type="hidden" name="next" id="language-next" value="{{ request.get_full_path }}">
+  <input type="hidden" name="language" id="language-value">
+</form>
+
+<section class="card" aria-labelledby="subscription-title">
+  <div class="card__head">
+    <h2 class="card__title" id="subscription-title">{% translate "Suscripción" %}</h2>
+    <span class="status-chip" id="subscription-status" hidden></span>
+  </div>
+  <div id="subscription" class="stack" aria-busy="true">
+    <span class="skeleton skeleton--text skeleton--full"></span><span class="skeleton skeleton--text"></span>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="session-title">
+  <div class="session-row">
+    <div class="stack-tight">
+      <h2 class="card__title" id="session-title">{% translate "Sesión" %}</h2>
+      <p>{% translate "Cierra la sesión en este navegador." %}</p>
+    </div>
+    <button type="button" class="btn btn--plain" id="logout">{% translate "Cerrar sesión" %}</button>
+  </div>
+</section>
+</div>
+
+<dialog class="dialog" id="cancel-dialog" aria-labelledby="cancel-dialog-title" aria-describedby="cancel-dialog-text">
+  <div class="dialog__body">
+    <h2 class="dialog__title" id="cancel-dialog-title">{% translate "¿Cancelar la suscripción?" %}</h2>
+    <p class="state__text" id="cancel-dialog-text"></p>
+    <div class="notice notice--error" id="cancel-error" role="alert" hidden>
+      {% include "finty/_alert_icon.html" %}<span id="cancel-error-text"></span>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn--plain" id="cancel-keep">{% translate "Conservar Premium" %}</button>
+      <button type="button" class="btn btn--danger-solid" id="cancel-confirm">{% translate "Cancelar suscripción" %}</button>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/settings.js' %}"></script>{% endblock %}

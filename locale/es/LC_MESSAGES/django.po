@@ -45,14 +45,17 @@ msgid "© 2026 Finty · Proyecto académico"
 msgstr "© 2026 Finty · Proyecto académico"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Idioma"
 msgstr "Idioma"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Español"
 msgstr "Español"
 
 #: .\frontend\templates\finty\_language_switch.html
+#: .\frontend\templates\finty\settings.html
 msgid "Inglés"
 msgstr "Inglés"
 
@@ -83,12 +86,8 @@ msgid "Inversiones"
 msgstr "Inversiones"
 
 #: .\frontend\templates\finty\app_base.html
-msgid "Menú de la cuenta"
-msgstr "Menú de la cuenta"
-
-#: .\frontend\templates\finty\app_base.html
-msgid "Cerrar sesión"
-msgstr "Cerrar sesión"
+msgid "Ajustes de la cuenta"
+msgstr "Ajustes de la cuenta"
 
 #: .\frontend\templates\finty\checkout.html
 msgid "Finty · Pasar a Premium (simulación)"
@@ -396,6 +395,7 @@ msgstr "Bienvenido de nuevo. Usa el correo con el que te registraste."
 
 #: .\frontend\templates\finty\login.html
 #: .\frontend\templates\finty\register.html
+#: .\frontend\templates\finty\settings.html
 msgid "Correo electrónico"
 msgstr "Correo electrónico"
 
@@ -531,7 +531,6 @@ msgid "Pregunta 2 de 5"
 msgstr "Pregunta 2 de 5"
 
 #: .\frontend\templates\finty\risk_profile.html
-#| msgid "Si tu inversión cae un 10 %% en un mes, ¿qué haces?"
 msgid "Si tu inversión cae un 10 por ciento en un mes, ¿qué haces?"
 msgstr "Si tu inversión cae un 10 por ciento en un mes, ¿qué haces?"
 
@@ -618,6 +617,74 @@ msgstr "Guardar perfil"
 #: .\frontend\templates\finty\risk_profile.html
 msgid "Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera."
 msgstr "Tu perfil solo se usa para sugerir tipos de instrumento. No es una asesoría financiera."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Finty · Ajustes"
+msgstr "Finty · Ajustes"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Ajustes"
+msgstr "Ajustes"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Perfil"
+msgstr "Perfil"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Nombre visible"
+msgstr "Nombre visible"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Moneda preferida"
+msgstr "Moneda preferida"
+
+#: .\frontend\templates\finty\settings.html
+msgid "COP · Peso colombiano"
+msgstr "COP · Peso colombiano"
+
+#: .\frontend\templates\finty\settings.html
+msgid "USD · Dólar"
+msgstr "USD · Dólar"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Se usa para mostrar cifras convertidas. Tus montos guardados no cambian."
+msgstr "Se usa para mostrar cifras convertidas. Tus montos guardados no cambian."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Guardar cambios"
+msgstr "Guardar cambios"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cambios guardados"
+msgstr "Cambios guardados"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Suscripción"
+msgstr "Suscripción"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Sesión"
+msgstr "Sesión"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cierra la sesión en este navegador."
+msgstr "Cierra la sesión en este navegador."
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cerrar sesión"
+msgstr "Cerrar sesión"
+
+#: .\frontend\templates\finty\settings.html
+msgid "¿Cancelar la suscripción?"
+msgstr "¿Cancelar la suscripción?"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Conservar Premium"
+msgstr "Conservar Premium"
+
+#: .\frontend\templates\finty\settings.html
+msgid "Cancelar suscripción"
+msgstr "Cancelar suscripción"
 
 #: .\frontend\templates\finty\transactions.html
 msgid "Finty · Movimientos"

@@ -52,6 +52,21 @@ export function saveSession(newToken) {
   }
 }
 
+/** Cierra la sesion en este navegador y vuelve al ingreso. */
+export function logout() {
+  clearSession();
+  window.location.assign(urls().urlLogin);
+}
+
+/** Olvida el perfil guardado en la pestaña (tras cambiarlo en Ajustes). */
+export function forgetProfile() {
+  try {
+    window.sessionStorage.removeItem(PROFILE_KEY);
+  } catch (error) {
+    /* sin sessionStorage no hay nada que olvidar */
+  }
+}
+
 export function clearSession() {
   const store = storage();
   if (store) {

@@ -13,18 +13,12 @@
       <a href="{% url 'page-investments' %}"{% if request.resolver_match.url_name == 'page-investments' or request.resolver_match.url_name == 'page-risk-profile' %} aria-current="page"{% endif %}>{% translate "Inversiones" %}</a>
     </nav>
     <div class="header-tools">
-      {# Indicador de plan: lo llena shell.js con GET /api/v1/subscriptions/me/; enlaza a Planes. #}
+      {# Indicador de plan: lo llena shell.js con GET /api/v1/subscriptions/me/. Free enlaza a Planes; Premium, a Ajustes. #}
       <a class="plan-chip" id="plan-chip" href="{% url 'page-plans' %}" aria-live="polite"></a>
       {% include "finty/_language_switch.html" %}
-      <div class="account-menu">
-        <button type="button" class="avatar" id="avatar" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu">
-          <span id="avatar-initials" aria-hidden="true"></span><span class="visually-hidden">{% translate "Menú de la cuenta" %}</span>
-        </button>
-        <ul class="menu" id="account-menu" hidden>
-          <li class="menu__email" id="account-email"></li>
-          <li><button type="button" id="logout">{% translate "Cerrar sesión" %}</button></li>
-        </ul>
-      </div>
+      <a class="avatar" id="avatar" href="{% url 'page-settings' %}">
+        <span id="avatar-initials" aria-hidden="true"></span><span class="visually-hidden">{% translate "Ajustes de la cuenta" %}</span>
+      </a>
     </div>
   </div>
 </header>

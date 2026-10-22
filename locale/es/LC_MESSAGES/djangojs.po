@@ -338,6 +338,22 @@ msgid "Guarda metas con su proyección."
 msgstr "Guarda metas con su proyección."
 
 #: .\frontend\static\finty\js\codes.js
+msgid "Pago pendiente"
+msgstr "Pago pendiente"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Activa"
+msgstr "Activa"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Cancelada"
+msgstr "Cancelada"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Vencida"
+msgstr "Vencida"
+
+#: .\frontend\static\finty\js\codes.js
 msgid "Aprobado"
 msgstr "Aprobado"
 
@@ -388,6 +404,7 @@ msgstr "Automática · simulada"
 
 #: .\frontend\static\finty\js\codes.js
 #: .\frontend\static\finty\js\pages\checkout.js
+#: .\frontend\static\finty\js\pages\settings.js
 msgid "Manual"
 msgstr "Manual"
 
@@ -553,6 +570,7 @@ msgid "Período"
 msgstr "Período"
 
 #: .\frontend\static\finty\js\pages\checkout.js
+#: .\frontend\static\finty\js\pages\settings.js
 msgid "Renovación"
 msgstr "Renovación"
 
@@ -725,6 +743,7 @@ msgstr "Ver los insights →"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
 #: .\frontend\static\finty\js\pages\register.js
+#: .\frontend\static\finty\js\pages\settings.js
 #: .\frontend\static\finty\js\pages\transactions.js
 msgid "Este campo es obligatorio."
 msgstr "Este campo es obligatorio."
@@ -960,6 +979,48 @@ msgstr "Responde las cinco preguntas antes de guardar."
 #: .\frontend\static\finty\js\pages\risk_profile.js
 msgid "Perfil guardado."
 msgstr "Perfil guardado."
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "%(plan)s · %(price)s al mes"
+msgid_plural "%(plan)s · %(price)s cada %(count)s meses"
+msgstr[0] "%(plan)s · %(price)s al mes"
+msgstr[1] "%(plan)s · %(price)s cada %(count)s meses"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Plan"
+msgstr "Plan"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Con Premium ves tus insights, tus gastos recurrentes, todo tu historial y recomendaciones de inversión."
+msgstr "Con Premium ves tus insights, tus gastos recurrentes, todo tu historial y recomendaciones de inversión."
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Ver planes"
+msgstr "Ver planes"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Acceso premium hasta"
+msgstr "Acceso premium hasta"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Activa hasta"
+msgstr "Activa hasta"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Cancelaste tu suscripción. Conservas las funciones premium hasta el %(date)s; después vuelves al plan Free sin perder tus datos."
+msgstr "Cancelaste tu suscripción. Conservas las funciones premium hasta el %(date)s; después vuelves al plan Free sin perder tus datos."
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Si cancelas, conservas las funciones premium hasta el %(date)s. Después vuelves al plan Free sin perder tus datos."
+msgstr "Si cancelas, conservas las funciones premium hasta el %(date)s. Después vuelves al plan Free sin perder tus datos."
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Cancelar suscripción"
+msgstr "Cancelar suscripción"
+
+#: .\frontend\static\finty\js\pages\settings.js
+msgid "Conservas las funciones premium hasta el %(date)s. No se hace ningún reembolso: es un pago simulado."
+msgstr "Conservas las funciones premium hasta el %(date)s. No se hace ningún reembolso: es un pago simulado."
 
 #: .\frontend\static\finty\js\pages\transactions.js
 msgid "todas las cuentas"

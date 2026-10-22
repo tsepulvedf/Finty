@@ -4,17 +4,17 @@ Mapea cada criterio del **Anexo A** de [`ARCHITECTURE.md`](ARCHITECTURE.md) al t
 
 **Desde E2-M3a** el contexto `finance` ya no vive en el monolito: lo sirve `services/finance-service/` (ADR-08). **Desde E2-M3b** la categorización (los categorizadores y `CategorizerFactory`) vive en `services/categorization-service/`, y `finance-service` la consume por HTTP con un respaldo local. Por eso los criterios de la Entrega 1 que hablaban de cuentas, transacciones, categorización y balance se verifican ahora en la suite de ese servicio. En el monolito quedan `core` e `identity`. El criterio autoritativo de capas sigue siendo el análisis del AST (A-15 en el monolito, A-16 en el servicio); un `grep` es solo una comprobación rápida.
 
-Estado a la fecha de este documento (2026-10-20):
+Estado a la fecha de este documento (2026-10-22):
 
 | Suite | Tests | Cómo se corre |
 |---|---|---|
-| Monolito (`core`, `identity`, frontend) | **232**, todos en verde | `pytest` en la raíz |
-| `finance-service` | **731**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
+| Monolito (`core`, `identity`, frontend) | **348**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
+| `finance-service` | **744**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **172**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `analytics-service` | **184**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
 | `subscription-service` | **94**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **153**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| Contrato de caja negra (A-20) | **159**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **8** | `pytest` en `tests/services/` |
 
 En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
@@ -52,7 +52,7 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | **A-20** | `tests/contract/` — mismo resultado antes y después de conmutar, y tras retirar `finance` del monolito (`tests/contract/runs/`) | ✅ |
 | **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker`, `services/recommendation-service/.env.docker` y `services/subscription-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido). Tasas: `rs/test_exchange_rate_service.py::TestCadenaDeDegradacion` y `rs/test_adapters.py::TestTrmExchangeRateProvider`; por el Gateway, `live` → `cached` → `fallback` en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt` | ✅ (categorización y tasas) |
-| **A-23** | Primer tramo: `core/tests/test_frontend.py::TestA23SinTextosQuemados` (ningún texto visible fuera de `{% translate %}` en las plantillas de E2-M8a) y `TestCatalogos` (catálogos `es` y `en` completos, sin `fuzzy`, con cada texto de plantillas y JavaScript) | ✅ plantillas del núcleo; resto en E2-M8b |
+| **A-23** | `core/tests/test_frontend.py::TestA23SinTextosQuemados` (ningún texto visible fuera de `{% translate %}` en todas las plantillas), `core/tests/test_frontend_a23_js.py` (ningún texto visible con literales en el JavaScript) y `TestCatalogos` (catálogos `es` y `en` completos, sin entradas vacías ni `fuzzy`) | ✅ |
 | **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
 | **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
 | **A-26** | `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato`, `as/api/test_api.py::TestResumenPublico` | ✅ |
@@ -120,6 +120,26 @@ Sale con código 1 si quedan balances desviados (INV-07), así que se puede enca
 
 ---
 
+## Frontend (E2-M8b)
+
+| Requisito | Test | Estado |
+|---|---|---|
+| Checkout: el cuerpo solo lleva `{plan}`, sin consola ni almacenamiento, campos sin `name` y `autocomplete="off"` | `core/tests/test_frontend.py::TestCheckout` | ✅ |
+| 403 `premium_required` → Planes; 503 → "intenta de nuevo"; avatar → Ajustes; cuatro secciones | `core/tests/test_frontend.py::TestNavegacionPremium` | ✅ |
+| Búsqueda y tipo en Movimientos; comparaciones y saldo por moneda en el dashboard; sin barras en cero | `core/tests/test_frontend.py::TestDashboardYMovimientos` | ✅ |
+| Monto en cero sin signo | `frontend/tests/js/format.test.mjs` (vía `core/tests/test_frontend_js.py`) | ✅ |
+| Estáticos con hash y `import` reescritos | `core/tests/test_static_files.py` | ✅ |
+
+Por el Gateway, con el stack arriba:
+
+```bash
+H=$(curl -s http://localhost/dashboard/ | grep -o '/static/finty/js/pages/dashboard[^"]*')
+curl -sI "http://localhost$H" | grep -i cache-control          # public, max-age=31536000, immutable
+curl -sI http://localhost/static/finty/js/pages/dashboard.js | grep -i cache-control   # no-cache
+```
+
+---
+
 ## Comprobaciones rápidas con `grep`
 
 Complementarias, **no autoritativas**: el criterio es el AST.
@@ -135,4 +155,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M8a)*
+*Finty · Guía de verificación · Entrega 2 (E2-M8b)*

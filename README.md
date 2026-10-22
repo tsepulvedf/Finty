@@ -139,7 +139,7 @@ docker compose down -v                                        # detener y BORRAR
 
 ## Frontend
 
-Django sirve las pantallas en `http://localhost/`: ingreso (`/`), registro (`/registro/`), dashboard (`/dashboard/`) y movimientos (`/movimientos/`). Las plantillas (`frontend/templates/finty/`) no reciben datos de negocio: su JavaScript (`frontend/static/finty/js/`) pide todo a `/api/v1/` desde el navegador. El diseño de referencia está en `docs/design/`.
+Django sirve las pantallas en `http://localhost/`: ingreso (`/`), registro (`/registro/`), dashboard (`/dashboard/`), movimientos (`/movimientos/`), insights (`/insights/`), inversiones (`/inversiones/`), perfil de riesgo (`/perfil-de-riesgo/`), planes (`/planes/`), checkout simulado (`/pago/`), bienvenida (`/bienvenida/`) y ajustes (`/ajustes/`). Las plantillas (`frontend/templates/finty/`) no reciben datos de negocio: su JavaScript (`frontend/static/finty/js/`) pide todo a `/api/v1/` desde el navegador. El diseño de referencia está en `docs/design/`.
 
 - **Idiomas:** español e inglés, con el selector ES/EN de la cabecera. La elección queda en la cookie `django_language`.
 - **Traducciones:** `locale/{es,en}/LC_MESSAGES/` (`django.po` para plantillas, `djangojs.po` para JavaScript). En Docker los `.mo` se compilan solos; fuera de Docker:
@@ -151,6 +151,9 @@ python manage.py compilemessages    # requiere GNU gettext (msgfmt)
 ```
 
 - **Sin red externa:** la tipografía Manrope se sirve desde `frontend/static/finty/fonts/` (licencia OFL-1.1); la página no carga nada de otro origen.
+- **Checkout simulado:** el formulario de tarjeta es una demostración; solo se envía `{"plan": "PREMIUM"}` y ningún dato de la tarjeta sale del navegador.
+- **Estáticos con hash:** `collectstatic` usa `ManifestStaticFilesStorage` (`config/storage.py`) y Nginx guarda un año los archivos con hash. Un despliegue nuevo no necesita recarga forzada. Fuera de Docker, con `DEBUG=True`, `{% static %}` usa los nombres sin hash.
+- **Tests de JavaScript:** `node --test frontend/tests/js/format.test.mjs` (los corre `pytest` si Node está instalado).
 
 ## Eventos de dominio
 

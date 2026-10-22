@@ -13,7 +13,7 @@ Estado a la fecha de este documento (2026-10-22, E2-M7):
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
 | `analytics-service` | **260**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
-| `subscription-service` | **149**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
+| `subscription-service` | **155**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
 | Contrato de caja negra (A-20) | **172**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **18** (incluye la convención de Celery en Compose, que se omite sin Docker) | `pytest` en `tests/services/` |
 
@@ -135,6 +135,20 @@ Sale con código 1 si quedan balances desviados (INV-07), así que se puede enca
 docker compose stop analytics-celery     # el reporte queda PENDING
 docker compose start analytics-celery    # y se completa
 docker compose logs subscription-worker | grep -A12 "\[correo\]"
+```
+
+---
+
+## Auditoría de UI/UX (E2-M9a)
+
+| Requisito | Evidencia | Estado |
+|---|---|---|
+| Lighthouse con accesibilidad de 90 o más en todas las páginas | `docs/ux-audit/despues.json`: **100** en las 80 combinaciones (11 páginas, es/en, 1440/390 px, Free y Premium) | ✅ |
+| Sin hallazgos serios ni críticos de axe-core | `docs/ux-audit/despues.json`: ninguna violación de ningún nivel (antes: 2 serias) | ✅ |
+| Hallazgos heurísticos de severidad 3 y 4 corregidos | `docs/UX-AUDIT.md` §3: H-01 a H-04 corregidos; los menores, documentados | ✅ |
+
+```bash
+cd tools/ux-audit && npm install && node audit.mjs despues    # con el stack arriba
 ```
 
 ---

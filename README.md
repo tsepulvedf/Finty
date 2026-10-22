@@ -448,6 +448,7 @@ El detalle del corte y su justificación están en la §4 de [`docs/ARCHITECTURE
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisiones arquitectónicas, modelo de dominio, patrones creacionales, catálogo de invariantes, diagramas y glosario. Es la fuente única de verdad.
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — cada criterio de aceptación mapeado al test que lo demuestra y al comando que lo ejecuta.
+- [`docs/UX-AUDIT.md`](docs/UX-AUDIT.md) — auditoría de UI/UX: Lighthouse y axe-core antes y después, evaluación heurística con Nielsen y los recorridos de tarea. Se repite con `tools/ux-audit` (`npm install && node audit.mjs <etiqueta>`, contra el stack en Docker).
 - `RULES.md` — reglas de trabajo sobre el código.
 
 ## Licencia y autoría

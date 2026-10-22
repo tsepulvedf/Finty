@@ -1,11 +1,12 @@
 # Finty — Documentación Consolidada de Arquitectura y Dominio
 
-**Versión:** 3.1
+**Versión:** 3.2
 **Fecha:** 2026-10-22
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
 **Cambios de v2.1:** correcciones derivadas de la implementación de los módulos de la Entrega 1 (ver §0, filas C-11 a C-19)
 **Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-33, y ADR-07 a ADR-16)
 **Cambios de v3.1 (cierre de la Entrega 2, E2-M9b):** el documento describe lo construido. El consumo del equipo aliado queda marcado como no implementado, los diagramas son los finales (despliegue en AWS, Gateway, Strangler) y las deudas de §13 se revisaron una por una (ver §0, filas C-34 a C-40)
+**Cambios de v3.2 (correcciones de cierre, E2-M9c):** el Gateway resuelve los backends en tiempo de ejecución y responde 503 en JSON cuando un servicio no responde, la recuperación de reportes corre cada minuto y el despliegue en EC2 registra la instancia real (ver §0, filas C-41 a C-44)
 **Alcance:** Documento único de referencia para la implementación del monolito Django + DRF y de los microservicios Flask de la Entrega 2
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -43,7 +44,7 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-20 | Versión de Python | 3.12 | **3.11** (imágenes `python:3.11-slim`) | Es la versión real del entorno y la que declara el README |
 | C-21 | Unidades de despliegue | Monolito Django único | **Monolito Django (`identity` + frontend + verificación de auth) y cinco microservicios Flask** | Bono de migración >70% (ADR-07) |
 | C-22 | Contextos `analytics`, `recommendation`, `subscription` | Diferidos como apps Django | **Nacen directamente como servicios Flask**; nunca existen como apps Django | Evitar construirlos dos veces (ADR-07) |
-| C-23 | Strangler Pattern | `/api/v2/` al microservicio mientras `/api/v1/` sigue en el monolito | **Conmutación en Nginx, sobre el mismo `/api/v1/`, del bloque `finance` completo y de una vez** (upstream `finance_backend`); `/api/v2/` reservado para cambios incompatibles del contrato | El cliente no cambia al migrar (ADR-08) |
+| C-23 | Strangler Pattern | `/api/v2/` al microservicio mientras `/api/v1/` sigue en el monolito | **Conmutación en Nginx, sobre el mismo `/api/v1/`, del bloque `finance` completo y de una vez** (la línea `set $finty_backend` del bloque `finance`; hasta E2-M9c, el upstream `finance_backend`); `/api/v2/` reservado para cambios incompatibles del contrato | El cliente no cambia al migrar (ADR-08) |
 | C-24 | Autenticación | `IsAuthenticated` de DRF en cada vista | **Validación única en Nginx con `auth_request`** contra Django; los servicios Flask confían en `X-User-Id` | Función de autenticación del Gateway (ADR-09) |
 | C-25 | Persistencia | Una base compartida | **Una base lógica por servicio** en una sola instancia de PostgreSQL | Autonomía de los servicios (ADR-10) |
 | C-26 | `Account.user` | `ForeignKey(User, PROTECT)` | **`user_id: UUID` sin FK** en `finance-service` | Una FK no puede cruzar bases de datos (ADR-10) |
@@ -61,6 +62,7 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-38 | Idioma del usuario (E2-M7) | Solo la cookie del navegador | **`UserProfile.language`** (`es`/`en`) y el endpoint interno `GET /internal/users/<id>/contact/` de identity para los correos | Los correos salen en el idioma del contacto |
 | C-39 | Diagramas finales (E2-M9b) | §9.4 sin red ni grupo de seguridad, sin Gateway ni Strangler | **§9.4 despliegue en AWS** (región, EC2, IP elástica, grupo de seguridad, red de Compose, bases lógicas de Redis y PostgreSQL), **§9.15 Gateway** y **§9.16 Strangler antes y después**. Cada bloque Mermaid del repositorio se compila con `@mermaid-js/mermaid-cli` (`tools/mermaid/`) | Criterio "Arquitectura": diagramas con AWS, Nginx, Flask y el broker |
 | C-40 | Wiki y sustentación (E2-M9b) | La Wiki se escribiría al final | **`docs/wiki/`** como fuente versionada de la Wiki de GitHub (`tools/publish-wiki.sh`), **`docs/SUSTENTACION.md`** y el comando `tools/seed_demo.py` para los usuarios de demo | Entrega y sustentación |
+| C-41 | Resolución de los backends en Nginx (E2-M9c) | Bloques `upstream` con `server … resolve` y `keepalive` | **`proxy_pass http://$finty_backend`**, con el backend fijado por cada `location`, `resolver 127.0.0.11 valid=10s`, `resolver_timeout 2s` y `proxy_connect_timeout 2s`. Se pierden los pools `keepalive`, despreciables en la red interna | En el ensayo de E2-M9b, con Django detenido, las peticiones quedaban colgadas contra la IP vieja del contenedor; ahora responden en unos 2 s y el Gateway se recupera sin reiniciarse |
 
 ---
 
@@ -214,9 +216,8 @@ finty/
 ├── .env.docker.example            # ejecución con Compose
 ├── deploy/
 │   ├── nginx/                     # ← API Gateway de la Entrega 2 (ADR-06, ADR-08, ADR-09)
-│   │   ├── conf.d/finty.conf      # upstreams (`monolith`, `finance_backend`,
-│   │   │                          # `analytics_backend`, `recommendation_backend`,
-│   │   │                          # `subscription_backend`) y rutas
+│   │   ├── conf.d/finty.conf      # rutas; cada una fija su backend en
+│   │   │                          # `$finty_backend` (DNS en tiempo de ejecución)
 │   │   └── snippets/
 │   │       ├── proxy.conf         # cabeceras de proxy; X-User-Id solo si lo verificó el Gateway
 │   │       └── gateway-auth.conf  # auth_request contra Django (ADR-09), en los bloques
@@ -319,7 +320,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 ### ADR-08 — Strangler Pattern por conmutación de ruta en Nginx
 
 **Decisión:** la migración de `finance` no cambia el contrato. `accounts`, `transactions` y `categories` forman **un solo bloque de rutas**, que se conmuta **completo y de una vez**. Son un mismo agregado con FK entre sí (`Transaction → Account` por INV-02 e INV-13, `Transaction → Category`). Con una base por servicio (ADR-10) no pueden quedar repartidos entre el monolito y `finance-service`: una transacción servida por Flask no puede referenciar una cuenta que vive en la base del monolito.
-**Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy al upstream `finance_backend`. Conmutar consiste en cambiar su línea `server` de `django:8000` a `finance-service:8000` e incluir `snippets/gateway-auth.conf` (el `auth_request` de ADR-09) en ese `location`; revertir es deshacer esas dos líneas. La regex del bloque captura también las variantes sin barra final y con sufijo `.json`, así que ninguna ruta del agregado cae en el bloque genérico de `/api/v1/` (lo verifica `tests/contract/test_routing.py` con la cabecera `X-Finty-Route: finance`). No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
+**Mecanismo:** en `deploy/nginx/conf.d/finty.conf`, las tres rutas comparten un único `location` regex que hace proxy a su backend. Conmutar consiste en cambiar ese backend de `django:8000` a `finance-service:8000` e incluir `snippets/gateway-auth.conf` (el `auth_request` de ADR-09) en ese `location`; revertir es deshacer esas dos líneas. La conmutación de E2-M2b cambió la línea `server` del upstream `finance_backend`; desde E2-M9c el backend es la línea `set $finty_backend` del bloque (C-41). La regex del bloque captura también las variantes sin barra final y con sufijo `.json`, así que ninguna ruta del agregado cae en el bloque genérico de `/api/v1/` (lo verifica `tests/contract/test_routing.py` con la cabecera `X-Finty-Route: finance`). No hay conmutación parcial por ruta. El bloque se conmuta solo cuando `finance-service` pasa, para las tres rutas a la vez, la misma suite de contrato que el monolito (A-20). El cliente sigue llamando a `/api/v1/` y no se entera del cambio.
 **Estrategia de datos:** `finty_finance` arranca **vacía**, salvo el catálogo de categorías, que se siembra con el equivalente de `finance/migrations/0002_seed_categories.py`. Las cuentas y transacciones existentes en la base del monolito **no se migran en esta entrega** (D-16).
 **Retiro del monolito:** el código de `finance` en Django permaneció como respaldo mientras duró la verificación, con el bloque entero apuntando a uno solo de los dos, y **se eliminó en E2-M3a**. El comando `verify_invariants` pasó a `finance-service` como `flask verify-invariants`. Las tablas que la app dejó en `finty_identity` no se borraron (D-20).
 **Versionado:** `/api/v2/` queda reservado para cambios **incompatibles** del contrato. No se usa para migrar.
@@ -1450,7 +1451,7 @@ flowchart TB
 
 - **Contenedores:** son exactamente los de `docker-compose.yml`. Los seis pasos de un solo uso terminan antes de que arranque el servicio que depende de ellos: crean las bases que falten y migran cada esquema.
 - **Puertos:** solo `nginx` publica uno en el host, el 80 (A-17). El grupo de seguridad admite además el 22, para administrar la instancia por SSH.
-- **Red:** todos los contenedores comparten la red por defecto de Compose y se encuentran por nombre (`django`, `finance-service`, …). Nginx los vuelve a resolver si cambian de IP (`resolve` en los upstreams).
+- **Red:** todos los contenedores comparten la red por defecto de Compose y se encuentran por nombre (`django`, `finance-service`, …). Nginx los resuelve en tiempo de ejecución (`proxy_pass` a una variable, con el DNS interno de Docker y 10 s de validez), así que un contenedor que se reinicia o cambia de IP vuelve a ser alcanzable sin reiniciar Nginx (C-41).
 - **Bases:** cada servicio conoce solo la URL de **su** base lógica (ADR-10, A-21). `categorization-service` no tiene base: sus reglas viven en código.
 - **Redis:** la base 0 guarda el stream de eventos y las cachés de derechos y de tasas; la 1 es el broker de Celery (ADR-15). Lo verifica `tests/services/test_compose_celery.py`.
 - **Aliado:** el aliado podría consumir `GET /api/v1/public/spending-summary/`, que sí está implementado. El consumo de un servicio aliado (`AllyServiceProvider`) no está construido, así que no aparece como componente (D-10).
@@ -1950,19 +1951,20 @@ flowchart LR
     L -->|"/ (plantillas), /jsi18n/, /i18n/"| MON
 
     Z2 -->|"accounts · transactions · categories<br/>analytics · recommendations · subscriptions"| AR
-    Z2 -->|"auth · profile · health"| MON["upstream monolith<br/>django:8000"]
+    Z2 -->|"auth · profile · health"| MON["django:8000"]
     AR -->|"verifica el Token"| MON
-    AR -->|"finance_backend"| FIN["finance-service:8000"]
-    AR -->|"analytics_backend"| ANA["analytics-service:8000"]
-    AR -->|"recommendation_backend"| REC["recommendation-service:8000"]
-    AR -->|"subscription_backend"| SUB["subscription-service:8000"]
-    Z3 -->|"analytics_backend, sin X-User-Id"| ANA
+    AR -->|"$finty_backend"| FIN["finance-service:8000"]
+    AR -->|"$finty_backend"| ANA["analytics-service:8000"]
+    AR -->|"$finty_backend"| REC["recommendation-service:8000"]
+    AR -->|"$finty_backend"| SUB["subscription-service:8000"]
+    Z3 -->|"sin X-User-Id"| ANA
 ```
 
 **Cómo funciona:**
 - **Autenticación:** cada bloque de un microservicio hace `auth_request` contra Django y reenvía solo el `X-User-Id` que produjo esa verificación (ADR-09). El que traiga el cliente se borra, y también el `X-Finty-Caller` (§10.3).
 - **Respuestas propias:** el 401 (`@gateway_unauthorized`) y el 429 (`@gateway_throttled`) los responde el propio Gateway, con la forma del contrato.
 - **Ruta y cuotas:** cada bloque de un microservicio responde con `X-Finty-Route`. El reparto de cuotas está en D-17.
+- **Resolución:** cada bloque fija su backend en `$finty_backend` y Nginx lo resuelve en tiempo de ejecución con el DNS de Docker (`valid=10s`), con 2 s de timeout de conexión y de DNS (C-41).
 
 ### 9.16 Strangler — antes y después de la migración de `finance` (ADR-08)
 
@@ -1995,7 +1997,7 @@ flowchart LR
 ```
 
 **Cómo fue la migración:**
-- **Conmutación:** se hizo cambiando la línea `server` del upstream `finance_backend` (§10.3, regla 3). La misma suite de contrato pasó antes y después de conmutar, y después de retirar la app del monolito (A-20, `tests/contract/runs/2026-10-20-*`).
+- **Conmutación:** se hizo cambiando la línea `server` del upstream `finance_backend` (§10.3, regla 3); desde E2-M9c, el backend es la línea `set $finty_backend` del bloque (C-41). La misma suite de contrato pasó antes y después de conmutar, y después de retirar la app del monolito (A-20, `tests/contract/runs/2026-10-20-*`).
 - **Resultado:** 18 de las 20 clases del dominio quedaron fuera del monolito (§4.4, §9.8).
 ---
 
@@ -2049,21 +2051,22 @@ flowchart LR
 | `/api/v1/health/` | `django` | No | Verificación de E2-M1 |
 | `/api/v1/auth/login/`, `/api/v1/auth/register/` | `django` | No | Zona estricta `finty_auth` además de la general (D-17) |
 | `/api/v1/auth/`, `/api/v1/profile/` | `django` | No (DRF lo hace dentro) | `identity` permanece en el monolito |
-| `/api/v1/accounts`, `/api/v1/transactions`, `/api/v1/categories`, con o sin barra final y con sufijo `.json` | upstream `finance_backend` → **`finance-service`** (conmutado el 2026-10-20), las tres rutas juntas | **Sí** (`auth_request`, ADR-09) | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2; responde con `X-Finty-Route: finance` |
-| `/api/v1/analytics`, con o sin barra final y con sufijo | upstream `analytics_backend` → **`analytics-service`** | **Sí** (`auth_request`) | Lectura del modelo de analytics (§10.6); responde con `X-Finty-Route: analytics`. Nace en Flask: no hay versión en el monolito que conmutar |
-| `/api/v1/public/` | upstream `analytics_backend` → **`analytics-service`** | **No** | Endpoint expuesto al equipo aliado (ADR-13, §10.7); zona estricta `finty_public`; `X-User-Id` nunca se reenvía; responde con `X-Finty-Route: public` |
-| `/api/v1/recommendations`, `/api/v1/investment-plans`, `/api/v1/exchange-rates`, con o sin barra final y con sufijo | upstream `recommendation_backend` → **`recommendation-service`** | **Sí** (`auth_request`) | §10.8; responde con `X-Finty-Route: recommendation` |
-| `/api/v1/subscriptions`, con o sin barra final y con sufijo | upstream `subscription_backend` → **`subscription-service`** | **Sí** (`auth_request`) | §10.9; responde con `X-Finty-Route: subscription`. Su `/internal/entitlements/` no es alcanzable desde fuera: `/internal/` responde 404 |
+| `/api/v1/accounts`, `/api/v1/transactions`, `/api/v1/categories`, con o sin barra final y con sufijo `.json` | `$finty_backend` → **`finance-service`** (conmutado el 2026-10-20), las tres rutas juntas | **Sí** (`auth_request`, ADR-09) | Strangler (ADR-08); un solo `location`; mismo contrato que §10.2; responde con `X-Finty-Route: finance` |
+| `/api/v1/analytics`, con o sin barra final y con sufijo | `$finty_backend` → **`analytics-service`** | **Sí** (`auth_request`) | Lectura del modelo de analytics (§10.6); responde con `X-Finty-Route: analytics`. Nace en Flask: no hay versión en el monolito que conmutar |
+| `/api/v1/public/` | `$finty_backend` → **`analytics-service`** | **No** | Endpoint expuesto al equipo aliado (ADR-13, §10.7); zona estricta `finty_public`; `X-User-Id` nunca se reenvía; responde con `X-Finty-Route: public` |
+| `/api/v1/recommendations`, `/api/v1/investment-plans`, `/api/v1/exchange-rates`, con o sin barra final y con sufijo | `$finty_backend` → **`recommendation-service`** | **Sí** (`auth_request`) | §10.8; responde con `X-Finty-Route: recommendation` |
+| `/api/v1/subscriptions`, con o sin barra final y con sufijo | `$finty_backend` → **`subscription-service`** | **Sí** (`auth_request`) | §10.9; responde con `X-Finty-Route: subscription`. Su `/internal/entitlements/` no es alcanzable desde fuera: `/internal/` responde 404 |
 | `/internal/` | ninguno desde fuera | — | Solo como subpetición de `auth_request` |
 
 **Reglas del Gateway:**
 1. Nginx elimina cualquier `X-User-Id` entrante y solo reenvía el que produjo la verificación.
 2. Solo Nginx publica un puerto en el host; los servicios escuchan únicamente en la red interna.
-3. El bloque `finance` (`accounts`, `transactions`, `categories`) se conmuta completo y de una vez, cambiando la línea `server` del upstream `finance_backend`; nunca se conmuta una ruta suelta, porque las tres comparten agregado y base (ADR-08). Es un cambio de configuración de Nginx, no de código, y se hace solo después de que `finance-service` pase la suite de contrato de las tres rutas (A-20).
+3. El bloque `finance` (`accounts`, `transactions`, `categories`) se conmuta completo y de una vez, cambiando su backend (`set $finty_backend`); nunca se conmuta una ruta suelta, porque las tres comparten agregado y base (ADR-08). Es un cambio de configuración de Nginx, no de código, y se hace solo después de que `finance-service` pase la suite de contrato de las tres rutas (A-20).
 4. Las respuestas que genera el propio Gateway tienen la forma del contrato: 401 `{"detail": ...}` con el texto de DRF según el motivo (ADR-09), y 429 `{"detail": "Solicitud fue regulada (throttled)."}`, el texto de `Throttled` de DRF.
 5. `limit_req` por IP en tres zonas (D-17): `finty_auth` (6/min, ráfaga 10) en login y registro, `finty_api` (20/s, ráfaga 50) en todo `/api/v1/` salvo el público, y `finty_public` (30/min, ráfaga 10) en `/api/v1/public/`.
 6. Cada bloque de un microservicio fija `$finty_route` y responde con `X-Finty-Route`, también en el 401 del propio Gateway. La variable no se inicializa a nivel de `server`, porque la subpetición de `auth_request` comparte las variables de la petición y vuelve a ejecutar los `set` de ese nivel: borraría la marca.
 7. `X-Finty-Caller`, igual que `X-User-Id`, se borra de toda petición externa (`proxy.conf`): solo un servicio de la red interna puede declararse como llamador interno (ADR-09, §7.1).
+8. Ningún bloque usa `upstream`: cada `location` fija `$finty_backend` y hace `proxy_pass` a esa variable, y la subpetición de `auth_request` usa `$finty_auth_backend`, porque comparte variables con la petición principal. Nginx resuelve los nombres en tiempo de ejecución con `resolver 127.0.0.11 valid=10s` y conecta con 2 s de timeout, así que un contenedor detenido nunca deja peticiones colgadas y uno que vuelve es alcanzable sin reiniciar Nginx (C-41).
 
 ### 10.4 Contratos internos entre servicios
 
@@ -2389,4 +2392,4 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 
 ---
 
-*Finty · Documentación Consolidada v3.1 · 2026-10-22*
+*Finty · Documentación Consolidada v3.2 · 2026-10-22*

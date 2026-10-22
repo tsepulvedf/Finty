@@ -35,13 +35,13 @@ flowchart LR
     L -->|"/ (plantillas), /jsi18n/, /i18n/"| MON
 
     Z2 -->|"accounts · transactions · categories<br/>analytics · recommendations · subscriptions"| AR
-    Z2 -->|"auth · profile · health"| MON["upstream monolith<br/>django:8000"]
+    Z2 -->|"auth · profile · health"| MON["django:8000"]
     AR -->|"verifica el Token"| MON
-    AR -->|"finance_backend"| FIN["finance-service:8000"]
-    AR -->|"analytics_backend"| ANA["analytics-service:8000"]
-    AR -->|"recommendation_backend"| REC["recommendation-service:8000"]
-    AR -->|"subscription_backend"| SUB["subscription-service:8000"]
-    Z3 -->|"analytics_backend, sin X-User-Id"| ANA
+    AR -->|"$finty_backend"| FIN["finance-service:8000"]
+    AR -->|"$finty_backend"| ANA["analytics-service:8000"]
+    AR -->|"$finty_backend"| REC["recommendation-service:8000"]
+    AR -->|"$finty_backend"| SUB["subscription-service:8000"]
+    Z3 -->|"sin X-User-Id"| ANA
 ```
 
 ## Rutas
@@ -102,6 +102,14 @@ sequenceDiagram
 | 429 | `{"detail": "Solicitud fue regulada (throttled)."}` |
 
 Cada bloque de un microservicio responde con `X-Finty-Route` (`finance`, `analytics`, `recommendation`, `subscription` o `public`), también en el 401, y así se ve qué servicio atendió.
+
+## Resolución de nombres
+
+No hay bloques `upstream`. Cada `location` fija su backend en `$finty_backend` (por ejemplo, `set $finty_backend finance-service:8000;`: esa línea es el conmutador del Strangler) y hace `proxy_pass http://$finty_backend`.
+
+- **Resolución:** Nginx resuelve el nombre en tiempo de ejecución con el DNS de Docker (`resolver 127.0.0.11 valid=10s`).
+- **Timeouts:** 2 s de conexión y 2 s de DNS.
+- **Efecto:** un contenedor detenido responde enseguida con un error en lugar de dejar la petición colgada, y cuando vuelve es alcanzable en unos segundos sin reiniciar Nginx.
 
 ## Estáticos con hash
 

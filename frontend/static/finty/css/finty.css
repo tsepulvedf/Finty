@@ -498,8 +498,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 760px) {
   .site-header__inner { padding: 12px 16px; gap: 12px; }
-  .nav { order: 3; flex: 1 1 100%; flex-direction: column; }
-  .nav a { width: 100%; }
+  /* Las secciones van en una fila que se desplaza en horizontal, sin barra
+     visible; shell.js deja la seccion activa a la vista al cargar. */
+  .nav {
+    order: 3; flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-padding-inline: 16px;
+    margin: 0 -16px; padding: 0 16px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: none; white-space: nowrap; }
   .header-tools { margin-left: auto; }
   .page { padding: 20px 16px; }
   .page-title { font-size: 28px; }

@@ -4,6 +4,8 @@
  * - Sin token, lleva al ingreso antes de pedir nada.
  * - Indicador de plan: GET /api/v1/subscriptions/me/.
  * - Avatar con las iniciales del perfil y el menu para cerrar sesion.
+ * - En movil la navegacion es una fila que se desplaza: la seccion activa se
+ *   deja a la vista al cargar.
  */
 import { api, clearSession, goToLogin, profile, token } from "./api.js";
 import { PLANS } from "./codes.js";
@@ -53,6 +55,13 @@ function renderPlan(subscription) {
   }
 }
 
+function revealActiveSection() {
+  const active = document.querySelector('.nav [aria-current="page"]');
+  if (active) {
+    active.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+}
+
 /**
  * Prepara la cabecera. Devuelve `{profile, subscription}` para la pagina; la
  * suscripcion puede ser `null` si subscription-service no responde: la pagina
@@ -64,6 +73,7 @@ export async function startShell() {
     return new Promise(() => {});
   }
   bindMenu();
+  revealActiveSection();
   const [me, subscription] = await Promise.all([
     profile(),
     api("/subscriptions/me/").catch(() => null),

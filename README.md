@@ -1,6 +1,20 @@
 # Finty
 
-Plataforma web B2C de finanzas personales. Permite a una persona registrar sus cuentas y movimientos, clasificarlos automáticamente y consultar su balance consolidado. Está construida como un **monolito Django de grado empresarial** sobre una arquitectura por capas de tres anillos: un núcleo de dominio en Python puro que no conoce el framework, una capa de servicios que orquesta los casos de uso, y una capa externa con el ORM, la API REST y los adaptadores de infraestructura. Esa separación es el punto del proyecto: cambiar de framework debería tocar únicamente el anillo más externo.
+Plataforma web B2C de finanzas personales. Permite a una persona:
+- registrar sus cuentas y movimientos, que se clasifican automáticamente;
+- consultar su balance y su dashboard, con insights y reportes;
+- recibir recomendaciones de ahorro e inversión según su perfil de riesgo;
+- pasar al plan Premium con un pago simulado.
+
+Cada unidad sigue la misma arquitectura de tres anillos:
+- un núcleo de dominio en Python puro que no conoce el framework;
+- una capa de servicios que orquesta los casos de uso;
+- una capa externa con el ORM, la API y los adaptadores.
+
+Esa separación permitió la Entrega 2. El monolito Django de la Entrega 1 se partió con el Strangler Pattern: el monolito conserva identidad y frontend, y la lógica de negocio pasó a cinco microservicios Flask detrás de un Gateway Nginx. Todo corre en Docker Compose en AWS EC2, en `http://3.95.100.48`.
+
+- **Wiki:** [`docs/wiki/`](docs/wiki/Home.md), que se publica en la Wiki de GitHub con `tools/publish-wiki.sh`.
+- **Guion de la sustentación:** [`docs/SUSTENTACION.md`](docs/SUSTENTACION.md).
 
 ---
 
@@ -15,8 +29,22 @@ Plataforma web B2C de finanzas personales. Permite a una persona registrar sus c
 | psycopg2-binary | 2.9.10 |
 | python-dotenv | 1.2.2 |
 | pytest · pytest-django · pytest-cov | 8.4.2 · 4.11.1 · 7.0.0 |
+| Flask · SQLAlchemy · Alembic (servicios) | 3.1.2 · 2.0.43 · 1.16.5 |
+| pydantic · gunicorn (servicios) | 2.11.9 · 23.0.0 |
+| Celery · redis-py | 5.5.3 · 5.2.1 |
+| Redis · Nginx (imágenes) | 7.4 · 1.28 |
 
-Sin dependencias fuera de `requirements.txt`. Sin llamadas de red salientes.
+Cada unidad tiene su `requirements.txt` y su imagen `python:3.11-slim`. La única llamada de red saliente es la TRM de datos.gov.co, en `recommendation-service`, con respaldo si no responde.
+
+Las herramientas de desarrollo viven en `tools/` y no entran en ninguna imagen:
+
+| Herramienta | Qué hace |
+|---|---|
+| `tools/seed_demo.py` | Datos de demostración por la API, idempotentes |
+| `tools/ux-audit/` | La auditoría de Lighthouse y axe |
+| `tools/mermaid/` | Compila cada diagrama Mermaid |
+| `tools/check_wiki_links.py` | Busca enlaces rotos en la Wiki |
+| `tools/publish-wiki.sh` | Publica la Wiki |
 
 ## Requisitos previos
 
@@ -438,6 +466,8 @@ finty/
 
 ## Alcance de la Entrega 1
 
+> Sección histórica: describe el corte de la Entrega 1. En la Entrega 2, `analytics`, `recommendation` y `subscription` existen como microservicios Flask (ADR-07), y el alcance vigente está en `docs/ARCHITECTURE.md` y en [`docs/VERIFICATION.md`](docs/VERIFICATION.md) (checklist final).
+
 **Implementado:** `identity` (parcial: identidad y perfil) y `finance` (completo: cuentas, transacciones, categorías, balance y clasificación). Once de las veinte clases del diagrama, el 55%. En la Entrega 2, `finance` se migró a `finance-service` y se retiró del monolito (ADR-08).
 
 **Deliberadamente fuera:** analítica e insights, motor de recomendaciones y perfil de riesgo, suscripciones y pagos, e integraciones bancarias automáticas. Los contextos `analytics`, `recommendation` y `subscription` están documentados en la arquitectura pero no existen como código, y no deben crearse en esta entrega.
@@ -449,6 +479,20 @@ El detalle del corte y su justificación están en la §4 de [`docs/ARCHITECTURE
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisiones arquitectónicas, modelo de dominio, patrones creacionales, catálogo de invariantes, diagramas y glosario. Es la fuente única de verdad.
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md) — cada criterio de aceptación mapeado al test que lo demuestra y al comando que lo ejecuta.
 - [`docs/UX-AUDIT.md`](docs/UX-AUDIT.md) — auditoría de UI/UX: Lighthouse y axe-core antes y después, evaluación heurística con Nielsen y los recorridos de tarea. Se repite con `tools/ux-audit` (`npm install && node audit.mjs <etiqueta>`, contra el stack en Docker).
+- [`docs/SUSTENTACION.md`](docs/SUSTENTACION.md) — guion de la sustentación:
+  - preparación previa;
+  - recorrido de 15 minutos por criterio;
+  - demos de resiliencia con sus comandos;
+  - plan B;
+  - preguntas probables.
+- [`docs/wiki/`](docs/wiki/Home.md) — la Wiki con sus diagramas. Antes de publicarla, corre las dos verificaciones:
+
+  ```bash
+  python tools/check_wiki_links.py
+  cd tools/mermaid && npm install && node check-mermaid.mjs
+  ```
+
+  Luego, `bash tools/publish-wiki.sh --push` la sube a `Finty.wiki.git`.
 - `RULES.md` — reglas de trabajo sobre el código.
 
 ## Licencia y autoría

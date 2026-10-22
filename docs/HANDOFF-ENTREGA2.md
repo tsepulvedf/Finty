@@ -135,7 +135,7 @@ El diseño en Claude Design corre **en paralelo** desde E2-M1; solo se implement
 
 Lo que los módulos anteriores dejaron decidido para las pantallas. E2-M8 los implementa sobre las plantillas Django con gettext (D-E2-05).
 
-*Estado tras E2-M8a:* ya están la traducción de errores por `code` y de 401/429 por estado, y el manejo de 403 y 503 en `js/api.js`, con la moneda de presentación tomada de `preferred_currency`. Faltan para E2-M8b el checkout simulado, la bienvenida, la pantalla de planes (destino del 403) y las recomendaciones con `locked`.
+*Estado tras E2-M8b:* **todos implementados.** E2-M8a dejó la traducción de errores por `code` y de 401/429 por estado, el manejo de 403 y 503 en `js/api.js` y la moneda de presentación tomada de `preferred_currency`. E2-M8b agregó el checkout simulado, la bienvenida, la pantalla de planes (destino del 403) y las recomendaciones con `locked` (`ARCHITECTURE.md` ADR-11).
 
 - **Checkout simulado.** Al elegir PREMIUM se muestra un formulario de tarjeta (número, nombre, vencimiento y CVC):
   - La validación de formato ocurre solo en el navegador.

@@ -85,7 +85,7 @@ Se consume una API pública de tasas de cambio detrás de un **Adapter** (`Excha
 ### D-E2-07 — Servicio expuesto y servicio del equipo aliado
 - **Expuesto:** un resumen financiero agregado en JSON (por ejemplo, gasto por categoría del período), servido por `analytics-service`. Ruta y contrato exactos: por definir con el equipo aliado.
 - **Consumido:** el servicio del equipo aliado también va detrás de un Adapter (`AllyServiceProvider` ABC), con un `MockAllyAdapter` de respaldo si el aliado no responde (es resiliencia, que también se evalúa).
-- **TAREA PENDIENTE (Tomás):** el equipo aliado **aún no está asignado**; Tomás lo consultará con el profesor. Hasta entonces se trabaja solo con `MockAllyAdapter`. **No inventes** el dominio, la URL ni el contrato del aliado: cuando lleguen, se escribe el adaptador concreto en un módulo aparte. Datos a obtener: proyecto del aliado, URL y método del endpoint, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha en que su endpoint estará en línea.
+- **TAREA PENDIENTE (Tomás):** el equipo aliado **aún no está asignado**; Tomás lo consultará con el profesor. *Estado tras E2-M9b:* sigue sin asignar. `AllyServiceProvider` y `MockAllyAdapter` están **diseñados pero no implementados** (ADR-13, D-10): ninguna pantalla consume un servicio aliado. **No inventes** el dominio, la URL ni el contrato del aliado: cuando lleguen, se escribe el adaptador concreto en un módulo aparte. Datos a obtener: proyecto del aliado, URL y método del endpoint, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha en que su endpoint estará en línea.
 
 ### D-E2-08 — Pagos: puerto, Factory y pago simulado (revisada en E2-M6b)
 **Sin pasarela real.** Es un ejercicio académico: el pago del plan PREMIUM es una **simulación de interfaz**, y `MockPaymentGateway` es la única implementación de `PaymentGateway` (ABC) en `subscription-service`. `PaymentGatewayFactory` solo acepta `PAYMENT_GATEWAY=MOCK`, y otro valor impide arrancar el servicio.
@@ -113,6 +113,11 @@ Candidatas: generación del reporte mensual (CSV o PDF), notificaciones (backend
 | **E2-M9** | Integración con el equipo aliado, diagramas finales, Wiki, ensayo de la sustentación en EC2 | Checklist del enunciado al 100% |
 
 El diseño en Claude Design corre **en paralelo** desde E2-M1; solo se implementa en E2-M8.
+
+*Estado tras E2-M9b (2026-10-22):*
+- **Terminados:** E2-M0 a E2-M8 y, de E2-M9, la auditoría de UI/UX (E2-M9a), los diagramas finales, la Wiki (`docs/wiki/`), el guion de la sustentación (`docs/SUSTENTACION.md`) y el checklist final (`docs/VERIFICATION.md`).
+- **Despliegue:** verificado en EC2, en `http://3.95.100.48` (A-24).
+- **Pendiente:** solo la integración con el equipo aliado, que espera su asignación.
 
 ## 6. Reglas que siguen vigentes y cómo se extienden
 

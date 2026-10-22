@@ -317,11 +317,13 @@ class TestPaginacion:
         return cuenta
 
     def test_enlaces_absolutos_y_parametros_ordenados(self, ana, con_55):
-        primera = ana.get(f"{TRANSACTIONS_URL}?type=x&account_id={con_55['id']}").json
+        # Un parametro desconocido se conserva en los enlaces, como en DRF. Desde
+        # E2-M8b `type` es un filtro real (D-30), asi que el ejemplo usa otro nombre.
+        primera = ana.get(f"{TRANSACTIONS_URL}?zeta=x&account_id={con_55['id']}").json
 
         assert primera["previous"] is None
         assert primera["next"] == (
-            f"http://localhost{TRANSACTIONS_URL}?account_id={con_55['id']}&page=2&type=x"
+            f"http://localhost{TRANSACTIONS_URL}?account_id={con_55['id']}&page=2&zeta=x"
         )
 
     def test_la_pagina_2_enlaza_a_la_1_sin_parametro(self, ana, con_55):

@@ -106,12 +106,22 @@ class RecategorizeInput(_Input):
 
 
 class TransactionFilter(_Input):
-    """Filtros de `GET /transactions/` (`TransactionFilterSerializer`)."""
+    """Filtros de `GET /transactions/` (`TransactionFilterSerializer`).
+
+    `q` y `type` se agregaron en E2-M8b (D-30). Son opcionales, asi que el
+    contrato anterior sigue igual. Un `q` en blanco no filtra.
+    """
 
     account_id: OptionalIdentifier = None
     category_id: OptionalIdentifier = None
     date_from: OptionalDay = None
     date_to: OptionalDay = None
+    q: Annotated[
+        str, PlainValidator(fields.char(MAX_DESCRIPTION_LENGTH, allow_blank=True))
+    ] = ""
+    type: Annotated[
+        str | None, PlainValidator(fields.choice(TRANSACTION_TYPE_VALUES))
+    ] = None
 
 
 def validate_input(schema, data):

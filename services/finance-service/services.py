@@ -22,6 +22,7 @@ implementacion concreta ni la fabrica: quien elige es el blueprint.
 Las excepciones de dominio suben sin capturarse; las traduce `api/errors.py`. Lo
 que si se traduce aqui son las del ORM, que no deben escapar de esta capa.
 """
+import unicodedata
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -207,6 +208,30 @@ class CategoryService:
         if pk is None:
             return None
         return self._session.get(Category, pk)
+
+
+
+# --- Busqueda en la descripcion (D-30) ----------------------------------------
+
+# Vocales con tilde y la enie, en mayuscula y minuscula, y su forma sin tilde.
+# `translate` de PostgreSQL las cambia en la columna; `_normalized_search` hace lo
+# mismo con lo que escribio el usuario. Asi "cafe" encuentra "Café" sin depender
+# de la extension `unaccent`.
+_ACCENTED = "ÁÉÍÓÚÜÑÀÈÌÒÙáéíóúüñàèìòù"
+_PLAIN = "AEIOUUNAEIOUaeiouunaeiou"
+
+
+def _normalized_column(column):
+    return func.lower(func.translate(func.coalesce(column, ""), _ACCENTED, _PLAIN))
+
+
+def _normalized_search(text):
+    """Minusculas y sin tildes, con `%`, `_` y la barra invertida escapados para LIKE."""
+    plain = "".join(
+        c for c in unicodedata.normalize("NFKD", (text or "").strip())
+        if not unicodedata.combining(c)
+    ).lower()
+    return plain.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class AccountService:
@@ -661,12 +686,16 @@ class TransactionService:
             self._outbox.record(events.transaction_deleted(facts, _utcnow()))
 
     def list_transactions(
-        self, user_id, account_id=None, category_id=None, date_from=None, date_to=None
+        self, user_id, account_id=None, category_id=None, date_from=None, date_to=None,
+        q="", type=None,
     ):
         """Transacciones del usuario, con filtros opcionales.
 
         Siempre acotada a las cuentas del usuario: ninguna combinacion de filtros
         alcanza una transaccion ajena. Orden del monolito: mas recientes primero.
+
+        `q` busca en la descripcion sin distinguir mayusculas ni tildes, y `type`
+        filtra por ingreso o gasto (D-30).
         """
         statement = (
             select(Transaction)
@@ -681,6 +710,13 @@ class TransactionService:
             statement = statement.where(Transaction.occurred_on >= date_from)
         if date_to is not None:
             statement = statement.where(Transaction.occurred_on <= date_to)
+        if type:
+            statement = statement.where(Transaction.type == TransactionType(type).value)
+        search = _normalized_search(q)
+        if search:
+            statement = statement.where(
+                _normalized_column(Transaction.description).like(f"%{search}%", escape="\\")
+            )
         return Listing(
             self._session,
             statement.order_by(

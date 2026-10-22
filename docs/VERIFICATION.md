@@ -11,9 +11,9 @@ Estado a la fecha de este documento (2026-10-22, E2-M7):
 | Monolito (`core`, `identity`, frontend) | **369**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
 | `finance-service` | **744**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **250**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `analytics-service` | **260**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
-| `subscription-service` | **142**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
+| `subscription-service` | **149**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
 | Contrato de caja negra (A-20) | **172**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios | **18** (incluye la convención de Celery en Compose, que se omite sin Docker) | `pytest` en `tests/services/` |
 
@@ -125,7 +125,8 @@ Sale con código 1 si quedan balances desviados (INV-07), así que se puede enca
 | Criterio | Test o evidencia | Estado |
 |---|---|---|
 | **A-33** reporte mensual asíncrono | `tests/contract/test_reports.py`; `as/api/test_reports.py`, `as/test_tasks.py`, `as/test_report_csv.py` | ✅ |
-| **A-34** avisos una sola vez y vencimiento | `ss/test_notifications.py` (reloj controlado), `ss/test_tasks.py` | ✅ |
+| **A-34** avisos una sola vez y vencimiento | `ss/test_notifications.py` (reloj controlado; `TestBienvenidaDeRespaldo` para D-32), `ss/test_tasks.py` | ✅ |
+| Retención de reportes (D-33) | `as/api/test_reports.py::TestRetencion`, `as/test_tasks.py::TestBeat` | ✅ |
 | **A-35** resiliencia de las tareas | `tests/contract/runs/2026-10-22-tareas-asincronas.txt` (secciones 3 y 4) | ✅ |
 | **A-36** tareas sin lógica y convención de Compose | `TestTareasSinLogica` en `as/test_architecture.py` y `ss/test_architecture.py`; `tests/services/test_compose_celery.py` | ✅ |
 | Contacto interno de identity bloqueado desde fuera | `identity/tests/test_internal_contact.py`; `tests/contract/test_routing.py::TestInternal` | ✅ |

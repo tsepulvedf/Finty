@@ -268,9 +268,9 @@ Celery 5.5.3 con Redis como broker, en la base lógica 1 (la 0 es del stream y l
 | Contenedor | Qué hace |
 |---|---|
 | `analytics-celery` | Genera el reporte mensual en CSV (`analytics.generate_monthly_report`) |
-| `analytics-celery-beat` | Cada 2 minutos vuelve a encolar los reportes que quedaron PENDING |
+| `analytics-celery-beat` | Cada 2 minutos vuelve a encolar los reportes que quedaron PENDING, y cada día borra los de más de `REPORT_RETENTION_DAYS` días (7 por defecto) |
 | `subscription-worker` | Envía la bienvenida a Premium, el aviso de vencimiento y vence las suscripciones |
-| `subscription-beat` | Aviso de vencimiento diario (9:00 de Bogotá) y `expire_subscriptions` cada 15 minutos |
+| `subscription-beat` | Aviso de vencimiento diario (9:00 de Bogotá); cada 15 minutos, `expire_subscriptions` y la bienvenida que no se pudo encolar al activar |
 
 **Reporte mensual.** El CSV tiene los movimientos del período y un resumen por categoría y moneda, con encabezados en el idioma de `Accept-Language`. El dashboard lo ofrece con el botón "Descargar reporte".
 

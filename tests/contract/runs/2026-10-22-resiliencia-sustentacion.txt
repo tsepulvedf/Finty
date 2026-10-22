@@ -1,0 +1,51 @@
+# Ensayo de las demos de resiliencia (docs/SUSTENTACION.md §3) contra el stack local
+# Fecha: 2026-10-22T17:40:23-05:00
+## 1. categorization-service detenido
+  $ docker compose stop categorization-service
+  POST /transactions/ -> 201 {"id":"6550bbeb-b523-49fc-b2f5-751106ce69da","account":"a343d524-7a26-4102-8bd6-51364d8f0857","account_name":"Bancolombia Ahorros","amount":"12000.00","type":"expense","category":"a001cf7a-175e-4897-bbbf-7cc3bfe1799a","category_name":"Transporte","description":"Uber al aeropuerto","occurred_on":"2026-10-22","categorization_sourc
+  log: finance-service-1  | categorization-service no utilizable (URLError: <urlopen error [Errno -2] Name or service not known>); clasifica el respaldo local
+  $ docker compose start categorization-service
+## 2. Redis detenido
+  $ docker compose stop redis
+  POST /transactions/ -> 201 {"id":"c6223153-9d16-424a-b064-b0e966f12a99","account":"a343d524-7a26-4102-8bd6-51364d8f0857","account_name":"Bancolombia Ahorros","amount":"12000.00","type":"expense","category":"dafa0f8a-1d3b-40bf-9dee-29dbfd2ab3f8","c
+  GET /analytics/dashboard/ -> 200 {"period":"2026-10","currencies":[{"currency":"COP","income":"4200000.00","expense":"3136400.00","net":"1063600.00","cat
+  GET /analytics/insights/ -> 200 {"period":"2026-10","insights":[{"type":"CATEGORY_SPIKE","code":"category_spike","severity":"warning","period":"2026-10","params":{"category_name":"Compras","cu
+  GET /exchange-rates/ -> 200 {"base":"USD","target":"COP","rate":"3191.47","source":"live","valid_from":"2026-10-22","valid_until":"2026-10-22","fetched_on":"2026-10-22"}
+
+  POST /analytics/reports/ -> 202 {"id":"4bdb5b82-9054-4bd9-89d8-3fd381ed8e3f","period":"2026-10","language":"es","status":"PENDING","created_at":"2026-10-22T17:40:53.438551-05:00","completed_at":null,"filename":null,"download_url":null}
+
+  GET /recommendations/ -> 200 {"period":"2026-10","degraded":false,"risk_profile_type":"moderate","display_currency":null,"exchange_rates":[],"locked":[],"recommendations":[{"code":"reduce_c
+  $ docker compose start redis
+  tras volver: GET /analytics/dashboard/ -> 200 {"period":"2026-10","currencies":[{"currency":"COP","income":"4200000.00","expense":"3136400.00","net":"1063600.00","cat
+## 3. analytics-celery detenido
+  $ docker compose stop analytics-celery
+  POST /analytics/reports/ -> 202 {"id":"6a525a9d-a3a2-4948-aefe-3e8b2730565c","period":"2026-10","language":"es","status":"PENDING","created_at":"2026-10-22T17:41:16.635397-05:00","completed_at":null,"filename":null,"download_url":null}
+
+  GET report -> 200 {"id":"6a525a9d-a3a2-4948-aefe-3e8b2730565c","period":"2026-10","language":"es","status":"PENDING","created_at":"2026-10
+  $ docker compose start analytics-celery
+  tras volver: GET report -> 200 {"id":"6a525a9d-a3a2-4948-aefe-3e8b2730565c","period":"2026-10","language":"es","status":"READY","created_at":"2026-10-2
+## 4. subscription-service detenido
+  $ docker compose stop subscription-service
+  (35 s: vence la cache de derechos)
+  GET /analytics/dashboard/ (gratuito) -> 200 {"period":"2026-10","currencies":[{"currency":"COP","income":"4200000.00","expen
+  GET /analytics/insights/ (premium) -> 503 {"error":{"code":"entitlements_unavailable","message":"No pudimos verificar tu suscripción en este momento. Las funciones PREMIUM no están disponibles; intenta de nuevo en unos minutos."}}
+
+  GET /recommendations/ -> 200 {"period":"2026-10","degraded":false,"risk_profile_type":"moderate","display_currency":null,"exchange_rates":[],"locked":[{"kind":"investment","code":"entitlements_unavailable"}],"recommendations":[{"code":"reduce_category","kind":"optimization","source":"insight","params":{"category_name":"Compras"
+  GET /investment-plans/ -> 503 {"error":{"code":"entitlements_unavailable","message":"No pudimos verificar tu suscripción en este momento. Las funciones PREMIUM no están disponibles; intenta 
+  GET /subscriptions/me/ -> 502 <html>
+<head><title>502 Bad Gateway</ti
+  $ docker compose start subscription-service
+  tras volver: GET /analytics/insights/ -> 200 {"period":"2026-10","insights":[{"type":"CATEGORY_SPIKE","code":"category_spike"
+## 5. reporte pedido con Redis caido, retomado por requeue_pending_reports
+  GET report -> 200 {"id":"4bdb5b82-9054-4bd9-89d8-3fd381ed8e3f","period":"2026-10","language":"es","status":"READY","created_at":"2026-10-2
+## 6. django (identity) detenido
+  $ docker compose stop django
+  GET /accounts/ -> ERR TimeoutError('timed out')
+  GET / -> ERR TimeoutError('timed out')
+  $ docker compose start django
+  tras volver: GET /accounts/ -> 500 <html>
+<head><title>500 Internal Server
+  (nota) Con django detenido, Nginx sigue usando la IP del contenedor hasta volver a resolver el nombre (upstream
+  con `resolve`): las primeras peticiones quedan colgadas hasta el timeout. Despues, `auth_request` falla y el
+  Gateway responde 500 a lo autenticado (verificado a mano: 500 en /api/v1/accounts/ y 502 en /). Ninguna peticion
+  pasa sin verificar. Tras `docker compose start django` el stack vuelve a responder 200 en unos segundos.

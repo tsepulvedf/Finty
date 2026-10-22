@@ -75,7 +75,7 @@ Nginx valida cada petición a un microservicio con `auth_request` contra un endp
 Una sola instancia de PostgreSQL en Compose, pero **una base de datos lógica por servicio** (`finty_identity`, `finty_finance`, …). Ningún servicio consulta la base de otro; se comunican por HTTP a través de la red interna o por eventos en Redis.
 
 ### D-E2-05 — Frontend en plantillas Django con gettext
-El cliente deja de ser un HTML estático. Django sirve plantillas con `{% translate %}` / `{% blocktranslate %}` y el `JavaScriptCatalog` para los textos que genere JavaScript. Las pantallas consumen `/api/v1/` desde el navegador, en el mismo origen y a través de Nginx. Idiomas: `es` y `en`, con selector visible. Los microservicios Flask también traducen sus mensajes de error con Flask-Babel (gettext).
+El cliente deja de ser un HTML estático. Django sirve plantillas con `{% translate %}` / `{% blocktranslate %}` y el `JavaScriptCatalog` para los textos que genere JavaScript. Las pantallas consumen `/api/v1/` desde el navegador, en el mismo origen y a través de Nginx. Idiomas: `es` y `en`, con selector visible. *Actualizado en E2-M8a:* los microservicios Flask **no** usan Flask-Babel; responden `code` estables y el frontend los traduce en un solo módulo JavaScript con gettext (`ARCHITECTURE.md` ADR-11).
 
 El diseño visual lo produce **Claude Design** a partir del inventario de pantallas de Phase 1 (SCR-001 a SCR-008) más las pantallas de los contextos nuevos; Claude Code lo implementa después sobre las plantillas.
 
@@ -134,6 +134,8 @@ El diseño en Claude Design corre **en paralelo** desde E2-M1; solo se implement
 ## 8. Requisitos acumulados para el frontend (E2-M8)
 
 Lo que los módulos anteriores dejaron decidido para las pantallas. E2-M8 los implementa sobre las plantillas Django con gettext (D-E2-05).
+
+*Estado tras E2-M8a:* ya están la traducción de errores por `code` y de 401/429 por estado, y el manejo de 403 y 503 en `js/api.js`, con la moneda de presentación tomada de `preferred_currency`. Faltan para E2-M8b el checkout simulado, la bienvenida, la pantalla de planes (destino del 403) y las recomendaciones con `locked`.
 
 - **Checkout simulado.** Al elegir PREMIUM se muestra un formulario de tarjeta (número, nombre, vencimiento y CVC):
   - La validación de formato ocurre solo en el navegador.

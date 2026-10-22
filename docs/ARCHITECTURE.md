@@ -414,7 +414,7 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 ### ADR-15 — Eventos de dominio y tareas asíncronas
 
-**Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. Candidatas: reporte mensual (CSV o PDF), notificaciones (backend de email en consola o en archivo) y recategorización por lotes. **La primera tarea periódica de E2-M7 es `expire_subscriptions`**, que pasa a EXPIRED las suscripciones ACTIVE o CANCELED cuyo período terminó (§6.7). No hay consulta de estado de pagos: sin pasarela real no hay nada que consultar (ADR-14, C-33).
+**Decisión:** cuando un servicio no necesita la respuesta de otro, publica un evento de dominio en Redis en lugar de llamarlo de forma síncrona. Celery, con Redis como broker, ejecuta las tareas asíncronas. **Implementadas en E2-M7:** el reporte mensual en CSV (`analytics-service`), los correos de bienvenida y de aviso de vencimiento, y `expire_subscriptions`, que pasa a EXPIRED las suscripciones ACTIVE o CANCELED cuyo período terminó (§6.7) (`subscription-service`). La recategorización por lotes no se hizo. No hay consulta de estado de pagos: sin pasarela real no hay nada que consultar (ADR-14, C-33).
 **Consecuencia:** resuelve D-03 y D-05. **Corrección de E2-M5:** `recommendation` no consume los eventos de `finance`, sino que lee a `analytics` por HTTP (ver abajo).
 
 **Publicación desde `finance-service` (E2-M4a):**
@@ -447,7 +447,30 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 
 Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al dashboard).
 
-**Estado:** aceptada; la publicación (E2-M4a) y el consumo de `analytics-service` (E2-M4b) están implementados.
+**Convención de Celery (E2-M7), igual en todos los servicios:**
+- **Versión:** `celery==5.5.3`, fijada en el `requirements.txt` de cada servicio que la usa (`analytics-service` y `subscription-service`, este con `redis==5.2.1` para el transporte).
+- **Broker:** Redis, en la **base lógica 1** (`CELERY_BROKER_URL=redis://redis:6379/1`). La base 0 queda para el stream de eventos y las cachés de derechos y de tasas. Así una limpieza de la cola no toca el stream, y el tamaño de cada cosa se ve por separado.
+- **Sin result backend** (`task_ignore_result`): el estado que el usuario consulta vive en la base del servicio (`monthly_report.status`, `subscription.status`, `sent_notification`), no en Celery.
+- **Una cola por servicio** (`analytics`, `subscription`): el broker es compartido, y cada worker consume solo la suya (`-Q`).
+- **Las tareas son un mecanismo de entrega**, como un blueprint o un comando (regla 3): reciben el mensaje, arman el caso de uso y llaman a un método público de `services.py`. No consultan la base ni tocan el dominio. Lo verifica `tests/test_architecture.py::TestTareasSinLogica` de cada servicio, sobre el AST.
+- **Entrega y reintentos:** `acks_late` con `task_reject_on_worker_lost` y `worker_prefetch_multiplier = 1`: si el worker muere a mitad de una tarea, vuelve a la cola. Por eso **toda tarea es idempotente**. Ante un error transitorio (la base, la red, identity) reintentan con espera creciente (`retry_backoff`, con tope y *jitter*). Tiempo límite: `soft_time_limit` de 60 s y `time_limit` de 90 s.
+- **Contenedores:** la misma imagen del servicio, sin puertos y con `restart: unless-stopped`. **Un solo beat por servicio** (`analytics-celery-beat`, `subscription-beat`); lo verifica `tests/services/test_compose_celery.py`.
+- **Encolar nunca rompe la petición:** el proceso web solo publica por nombre de tarea (`send_task`, sin reintentos de conexión). Si el broker no responde, el caso de uso registra el fallo y sigue.
+
+**Reporte mensual (`analytics-service`, E2-M7):** `POST /api/v1/analytics/reports/` crea el reporte PENDING en `finty_analytics` y encola `analytics.generate_monthly_report` en `analytics-celery`. La tarea lee los hechos de transacción del período (el modelo de lectura, nunca `finty_finance`), arma `MonthlyReport` en el dominio y lo escribe como CSV con encabezados en el idioma de `Accept-Language` (`infra/report_csv.py`). Guarda el archivo en la base y lo deja READY, o FAILED si no se puede armar. Es idempotente: solo genera un PENDING, con la fila bloqueada (`FOR UPDATE SKIP LOCKED`). El beat (`analytics.requeue_pending_reports`, cada 2 minutos) vuelve a encolar los PENDING de más de 2 minutos: cubre un mensaje perdido o un broker que no respondió al pedirlo. El `analytics-worker` de eventos sigue siendo otro proceso. Secuencia en §9.13.
+
+**Notificaciones y vencimiento (`subscription-service`, E2-M7):**
+- `subscription.send_premium_welcome` se encola al activar la suscripción, **después del commit**. Si el broker no responde, la activación ya quedó hecha y solo se registra el fallo (D-32).
+- `subscription.notify_expiring_subscriptions`, diaria a las 9:00 de Bogotá, avisa a las ACTIVE y CANCELED cuyo período termina en 3 días o menos (no hay renovación automática, D-26).
+- `subscription.expire_subscriptions`, cada 15 minutos, persiste EXPIRED en las vencidas. Al leer, EXPIRED ya se derivaba sin escribir (§6.7); esta tarea lo deja escrito también para las que nadie vuelve a tocar.
+- **Cada aviso sale a lo sumo una vez** por usuario, tipo y período: `sent_notification` tiene una restricción única sobre `(user_id, kind, period_end)`. El aviso se registra con `INSERT … ON CONFLICT DO NOTHING` en la misma transacción en que se envía. Si ya existía, no se envía; si el envío falla, la transacción se revierte y la tarea reintenta. El único caso de duplicado sería que el `COMMIT` fallara después de enviar, una ventana de milisegundos que se acepta con un backend de consola o archivo.
+- **El contacto sale de identity** (`GET /internal/users/<user_id>/contact/`, §10.4): correo, nombre e idioma. El texto del correo se elige con ese idioma (`infra/email_templates.py`, es y en). Si identity no responde, la tarea reintenta y no queda registro; si el usuario no existe, se registra para no reintentar. **Nunca se llama a identity desde el checkout**: la activación no depende de él.
+- **Correo:** sin SMTP en esta entrega (D-34). `EMAIL_BACKEND=console` lo escribe en el log del worker; `file` además guarda el `.eml`.
+- Secuencia en §9.14.
+
+**Por qué la bienvenida no es un evento `SubscriptionActivated` (D-27):** el único interesado en la activación es el propio `subscription-service`. Ningún otro servicio necesita enterarse: el gating de INV-06 consulta el derecho cuando lo necesita, y la caché solo guarda los "sí". Publicar el evento exigiría un outbox como el de finance (ADR-15), un consumidor y un stream para que el mismo servicio se escuche a sí mismo. Encolar la tarea después del commit da la misma garantía práctica con mucho menos. El costo es D-32: si el broker no responde justo al activar, ese correo se pierde. Si un día otro servicio necesitara saber de la activación, se publica el evento por outbox y la bienvenida pasa a ser uno de sus consumidores.
+
+**Estado:** aceptada; la publicación (E2-M4a) y el consumo de `analytics-service` (E2-M4b) están implementados, igual que las tareas de Celery de E2-M7.
 
 ### ADR-16 — Despliegue en Docker Compose sobre EC2
 
@@ -483,15 +506,15 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 | UserIdentityContext | monolito (`identity`) + frontend + `/internal/auth/verify/` | Django | `finty_identity` | existente; frontend en E2-M8 |
 | FinancialDataContext | `finance-service` | Flask | `finty_finance` | E2-M2 |
 | FinancialDataContext (categorización) | `categorization-service` | Flask | ninguna: las reglas viven en código; sin estado | E2-M3b (implementado) |
-| AnalyticsInsightsContext | `analytics-service` + `analytics-worker` | Flask | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance` | E2-M4b (implementado) |
+| AnalyticsInsightsContext | `analytics-service` + `analytics-worker` + `analytics-celery` y `analytics-celery-beat` (reporte mensual) | Flask + Celery | `finty_analytics`: modelo de lectura alimentado **solo** por eventos; nunca consulta `finty_finance`. También guarda los reportes mensuales (E2-M7) | E2-M4b; reportes en E2-M7 |
 | RecommendationContext | `recommendation-service` | Flask | `finty_recommendation`: perfiles de riesgo y planes de inversión; las recomendaciones se calculan al leer | E2-M5 (implementado) |
-| SubscriptionBillingContext | `subscription-service` | Flask | `finty_subscription`: suscripciones y pagos (simulados, ADR-14) | E2-M6a (implementado) |
+| SubscriptionBillingContext | `subscription-service` + `subscription-worker` y `subscription-beat` (correos y vencimiento) | Flask + Celery | `finty_subscription`: suscripciones, pagos (simulados, ADR-14) y avisos enviados (E2-M7) | E2-M6a; tareas en E2-M7 |
 
 La app `finance` de Django sirvió de respaldo durante la verificación del Strangler y se retiró en E2-M3a (ADR-08). Sus tablas antiguas siguen en `finty_identity` sin uso (D-20).
 
 **Relaciones de la Entrega 2** (diagrama en §9.5):
 
-- `identity` → todos los servicios: **Customer-Supplier a través del Gateway**. Ningún servicio llama a `identity`; reciben la identidad ya resuelta en `X-User-Id`.
+- `identity` → todos los servicios: **Customer-Supplier a través del Gateway**. Reciben la identidad ya resuelta en `X-User-Id`. **Única excepción (E2-M7):** las tareas de `subscription-service` piden a `identity` el contacto del usuario (`GET /internal/users/<user_id>/contact/`, §10.4) para escribirle en su idioma. Es HTTP interno, desde un worker y nunca desde una petición del usuario: si `identity` no responde, la tarea reintenta y nada más se detiene.
 - `finance-service` → `categorization-service`: **HTTP síncrono** por la red interna, porque la categoría hace falta antes de persistir (INV-08). Contrato en §10.4. `finance-service` lo consume con `RemoteCategorizer`, que implementa el puerto `Categorizer` con un timeout corto (1 s por defecto). Ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o una categoría que no está en su catálogo, clasifica con su `RuleBasedCategorizer` local (A-12, A-22). La procedencia grabada es veraz: la que declara el remoto, o `rule` si actuó el respaldo (A-14). `categorization-service` no recibe `X-User-Id`: la clasificación no depende del usuario.
 - `finance-service` → `analytics-service`: **eventos de dominio en Redis**. **Implementado (E2-M4b):** `analytics-worker` consume `finty.finance.events` con su grupo y proyecta cada transacción en `finty_analytics` (ADR-15). Es una relación **Conformist**: `analytics` adopta el contrato de §10.5 tal cual, sin capa anticorrupción propia más allá de su deserializador.
 - `recommendation-service` → `analytics-service`: **HTTP síncrono por la red interna**, con degradación (E2-M5). `recommendation` es **Customer** de `analytics`: consume sus insights, patrones y dashboard tal como §10.6 los publica, y los traduce a sus propios value objects (`domain/analytics.py`). Ya no depende de `finance` ni por llamada ni por eventos, así que D-03 queda resuelto sin ciclo (ADR-15).
@@ -1356,10 +1379,11 @@ flowchart LR
             CAT["categorization-service<br/>Flask"]
             ANA["analytics-service<br/>Flask"]
             ANW["analytics-worker<br/>consume eventos"]
+            ACW["analytics-celery<br/>+ analytics-celery-beat<br/>reporte mensual"]
             REC["recommendation-service<br/>Flask"]
             SUB["subscription-service<br/>Flask"]
-            WRK["workers Celery"]
-            RDS[("redis<br/>broker + eventos")]
+            SCW["subscription-worker<br/>+ subscription-beat<br/>correos y vencimiento"]
+            RDS[("redis<br/>base 0: eventos y cachés<br/>base 1: broker de Celery")]
             PG[("postgresql<br/>finty_identity · finty_finance<br/>finty_analytics · finty_recommendation<br/>finty_subscription")]
         end
     end
@@ -1381,7 +1405,13 @@ flowchart LR
     RDS -.->|"eventos (grupo analytics)"| ANW
     REC -->|"HTTP interno + X-User-Id"| ANA
     REC ---|"caché de tasas"| RDS
-    WRK ---|tareas| RDS
+    ANA -.->|"encola el reporte"| RDS
+    RDS -.->|"cola analytics"| ACW
+    SUB -.->|"encola la bienvenida"| RDS
+    RDS -.->|"cola subscription"| SCW
+    SCW -->|"/internal/users/&lt;id&gt;/contact/"| DJ
+    ACW --> PG
+    SCW --> PG
     DJ --> PG
     FIN --> PG
     ANA --> PG
@@ -1393,7 +1423,7 @@ flowchart LR
     ALLY -->|"GET /api/v1/public/spending-summary/"| NGX
 ```
 
-Cada servicio solo se conecta a **su** base lógica (ADR-10). El bloque `finance` completo (`accounts`, `transactions`, `categories`) apunta a `finance-service` desde E2-M2b, y el monolito ya no tiene la app (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
+Cada servicio solo se conecta a **su** base lógica (ADR-10); sus contenedores de Celery usan la misma imagen y la misma base que el servicio (E2-M7). El bloque `finance` completo (`accounts`, `transactions`, `categories`) apunta a `finance-service` desde E2-M2b, y el monolito ya no tiene la app (ADR-08). `categorization-service` no tiene base: sus reglas viven en código.
 
 ### 9.5 Mapa de contextos — Entrega 2
 
@@ -1656,7 +1686,7 @@ sequenceDiagram
     AN->>DB: SELECT hechos vigentes del usuario (período y tendencia)
     AN-->>U: 200 Dashboard por moneda, calculado al leer
 
-    Note over U,AN: Consistencia eventual: entre el 201 y el dashboard actualizado pasan unos instantes.<br/>Si el worker está detenido, finance sigue respondiendo; el worker se pone al día al volver.
+    Note over U,AN: Consistencia eventual: entre el 201 y el dashboard actualizado pasan unos instantes.<br/>Si el worker está detenido, finance sigue respondiendo, el worker se pone al día al volver.
 ```
 
 ### 9.11 Diagrama de secuencia — Una recomendación con la cadena de degradación (E2-M5)
@@ -1722,7 +1752,7 @@ sequenceDiagram
     NGX->>SS: auth_request ok → X-User-Id
     rect rgb(240, 245, 250)
         Note over SS,DB: una transacción
-        SS->>DB: UPDATE vencidas → EXPIRED; SELECT vigente FOR UPDATE
+        SS->>DB: UPDATE vencidas → EXPIRED, SELECT vigente FOR UPDATE
         alt ya hay una ACTIVE o CANCELED en período
             SS-->>U: 409 subscription_already_active
         end
@@ -1732,7 +1762,7 @@ sequenceDiagram
     SS->>PG: submit(PaymentRequest)
     PG-->>SS: PaymentOutcome APPROVED
     rect rgb(240, 245, 250)
-        SS->>DB: payment FOR UPDATE; si sigue PENDING → APPROVED
+        SS->>DB: payment FOR UPDATE, si sigue PENDING → APPROVED
         SS->>DB: subscription PENDING_PAYMENT → ACTIVE, período de un mes (INV-05) + COMMIT
     end
     SS-->>U: 201 {subscription: ACTIVE, payment: APPROVED}
@@ -1754,6 +1784,90 @@ sequenceDiagram
     AN-->>U: 200 insights (o 403 premium_required si premium = false)
 ```
 
+### 9.13 Diagrama de secuencia — Reporte mensual asíncrono (E2-M7)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Navegador
+    participant NGX as nginx
+    participant AN as analytics-service
+    participant DB as finty_analytics
+    participant RD as Redis (base 1, cola analytics)
+    participant W as analytics-celery
+    participant B as analytics-celery-beat
+
+    U->>NGX: POST /api/v1/analytics/reports/ {period} · Accept-Language: es
+    NGX->>AN: auth_request ok → X-User-Id
+    AN->>AN: periodo dentro de la ventana del plan (INV-06)
+    AN->>DB: INSERT monthly_report PENDING + COMMIT
+    AN->>RD: send_task analytics.generate_monthly_report(id)
+    Note over AN,RD: si el broker no responde, se registra y el reporte sigue PENDING
+    AN-->>U: 202 {id, status: PENDING}
+    loop cada 1,5 s (el frontend)
+        U->>AN: GET /reports/{id}/ (por el Gateway)
+        AN-->>U: {status: PENDING}
+    end
+    RD-->>W: mensaje (acks_late)
+    rect rgb(240, 245, 250)
+        W->>DB: SELECT ... FOR UPDATE SKIP LOCKED
+        alt ya no esta PENDING
+            W-->>RD: ack (idempotente: no hace nada)
+        else PENDING
+            W->>DB: hechos del periodo del usuario
+            W->>W: MonthlyReport.build → CSV en su idioma
+            W->>DB: content, READY, completed_at + COMMIT
+        end
+    end
+    W-->>RD: ack
+    Note over W,DB: error transitorio: reintento con espera creciente y el reporte sigue PENDING<br/>otro error: FAILED
+    B->>RD: cada 2 min: requeue_pending_reports
+    Note over B,RD: vuelve a encolar los PENDING de mas de 2 minutos
+    U->>AN: GET /reports/{id}/ → READY
+    U->>AN: GET /reports/{id}/download/ (con el token)
+    AN-->>U: 200 text/csv · attachment, filename="finty-reporte-AAAA-MM.csv"
+```
+
+### 9.14 Diagrama de secuencia — Vencimiento con aviso por correo (E2-M7)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as subscription-beat
+    participant RD as Redis (base 1, cola subscription)
+    participant W as subscription-worker
+    participant DB as finty_subscription
+    participant ID as django (identity)
+    participant M as correo (consola o archivo)
+
+    B->>RD: 9:00 de Bogota: notify_expiring_subscriptions
+    RD-->>W: mensaje (acks_late)
+    W->>DB: ACTIVE o CANCELED con fin en los proximos 3 dias
+    loop por cada una
+        rect rgb(240, 245, 250)
+            W->>DB: INSERT sent_notification (usuario, tipo, periodo) ON CONFLICT DO NOTHING
+            alt ya existia
+                W->>W: ya enviado: no se repite
+            else nuevo
+                W->>ID: GET /internal/users/{id}/contact/ (timeout 2 s)
+                alt identity no responde
+                    W->>DB: ROLLBACK (sin registro)
+                    W-->>RD: reintento con espera creciente
+                else responde {email, display_name, language}
+                    W->>M: correo en su idioma: "Tu plan Premium termina el ..."
+                    W->>DB: COMMIT
+                end
+            end
+        end
+    end
+    B->>RD: cada 15 min: expire_subscriptions
+    RD-->>W: mensaje
+    W->>DB: UPDATE ACTIVE/CANCELED con fin <= ahora → EXPIRED + COMMIT
+    Note over W,DB: idempotente: una ya vencida no cambia. La lectura ya la mostraba EXPIRED.<br/>esta tarea deja escrito el estado y libera el lugar unico del usuario
+```
+
+La bienvenida (`send_premium_welcome`) sigue el mismo camino que el aviso: la encola el checkout después del commit que activa la suscripción (§9.12), con la misma tabla de avisos y el mismo reintento si identity no responde.
+
 ---
 
 ## 10. Estrategia de API Gateway
@@ -1774,7 +1888,7 @@ sequenceDiagram
 ├── auth/
 │   ├── register/          POST    → registro
 │   └── login/             POST    → token
-├── profile/               GET,PUT → perfil del usuario autenticado
+├── profile/               GET,PUT → perfil del usuario autenticado (desde E2-M7, con `language`)
 ├── accounts/              GET,POST
 │   ├── summary/           GET     → saldo total por moneda (E2-M8b, D-29)
 │   ├── {id}/              GET,PUT,DELETE
@@ -1785,6 +1899,8 @@ sequenceDiagram
     ├── {id}/              GET,DELETE
     └── {id}/categorize/   POST    → reclasificación manual
 ```
+
+**Extensión compatible de E2-M7:** `GET /profile/` devuelve también `language` (`"es"` o `"en"`), y `PUT /profile/` lo acepta (400 si no es uno de los dos). Al registrarse se toma el idioma activo de la petición. Es el idioma de los correos de `subscription-service`.
 
 **Extensiones compatibles de E2-M8b (D-29, D-30):** las sirve `finance-service` y no cambian nada de lo anterior.
 - `GET /transactions/` admite, además de `account_id`, `category_id`, `date_from` y `date_to`:
@@ -1837,6 +1953,14 @@ No pasan por Nginx ni se publican al host: solo los alcanza la red interna de Co
 
 El monto no viaja: ninguna implementación lo usa para decidir, y el puerto `Categorizer` de este servicio lo recibe como `None`. Si un cliente concreto de IA llegara a necesitarlo (D-07), habría que extender el contrato.
 
+**`identity` (Django) — `GET /internal/users/<user_id>/contact/`** (E2-M7). Lo consume `subscription-service` desde sus tareas (`HttpContactDirectory`, `IDENTITY_URL=http://django:8000`) para escribirle al usuario en su idioma.
+
+| | Contenido |
+|---|---|
+| 200 | `{"email": "ana@finty.co", "display_name": "Ana Restrepo", "language": "es"}`. `language` es `es` o `en` (§10.2) |
+| 404 | `{"error": {"code": "profile_not_found", ...}}` si el usuario no existe, está inactivo o el id no es un UUID |
+| Acceso | Sin autenticación de DRF ni throttles: Nginx responde 404 a todo `/internal/` desde fuera (`tests/contract/test_routing.py::TestInternal`), y Django no publica puertos. `django` está en `ALLOWED_HOSTS` de forma fija (`INTERNAL_HOSTS` en `config/settings.py`): el nombre solo resuelve en la red de Compose |
+
 ### 10.5 Contrato de eventos — `finty.finance.events`
 
 Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15). Lo escribe solo `finance-outbox-relay`. Cada consumidor tiene su grupo de consumidores (`XREADGROUP`); hoy lo consume `analytics-worker` con el grupo `analytics` (E2-M4b). `tests/services/test_event_contract.py` verifica por AST que lo que `analytics-service` lee es lo que `finance-service` escribe (A-25).
@@ -1871,7 +1995,7 @@ Stream de Redis donde `finance-service` publica sus eventos de dominio (ADR-15).
 
 ### 10.6 Contrato de `analytics-service` — lectura autenticada (E2-M4b)
 
-Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde Nginx (§10.3). El servicio toma la identidad de `X-User-Id` y solo ve los hechos de ese usuario. Errores con la misma forma que `finance-service`: 400 `{"period": ["Periodo invalido. Use el formato AAAA-MM, por ejemplo 2026-10."]}`, 405 `{"detail": "Método \"POST\" no permitido."}` y 404 `{"detail": "No encontrado."}`. Solo `GET`.
+Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde Nginx (§10.3). El servicio toma la identidad de `X-User-Id` y solo ve los hechos de ese usuario. Errores con la misma forma que `finance-service`: 400 `{"period": ["Periodo invalido. Use el formato AAAA-MM, por ejemplo 2026-10."]}`, 405 `{"detail": "Método \"POST\" no permitido."}` y 404 `{"detail": "No encontrado."}`. Solo `GET`, salvo `POST /reports/` (E2-M7).
 
 `?period=AAAA-MM` es opcional: sin él, el mes actual en `America/Bogota`. Dinero como texto decimal con dos cifras; porcentajes y participaciones también como texto. **Las cifras son eventualmente consistentes** (ADR-15).
 
@@ -1879,6 +2003,9 @@ Todas por el Gateway, con `auth_request`: sin token válido, el 401 lo responde 
 |------|---------------|
 | `GET /api/v1/analytics/dashboard/?period=` | `{"period": "2026-10", "currencies": [{"currency": "COP", "income": "500000.00", "expense": "120000.00", "net": "380000.00", "categories": [{"category_name": "Alimentación", "transaction_type": "expense", "total": "120000.00", "share": "1.0000"}], "accounts": [{"account_id": "…", "income": …, "expense": …, "net": …}], "trend": [{"period": "2026-05", "income": …, "expense": …, "net": …}, … 6 meses]}]}`. Sin movimientos, `currencies` es `[]` Desde E2-M8b cada moneda trae también `"previous": {"period", "income", "expense", "net"} | null`, `"expense_change_pct": "25.0" | null` (variación de los gastos frente al mes anterior; nula si ese mes no tuvo gastos) y `"savings_rate": "0.2900" | null` (neto sobre ingresos; nula sin ingresos). Para un usuario Free, `previous` solo aparece si el mes anterior está dentro de su ventana de 3 meses (INV-06). Las reglas viven en `domain/dashboard.py` (`Comparison`, `savings_rate`) |
 | `GET /api/v1/analytics/insights/?period=` | `{"period": "2026-10", "insights": [{"type": "NEGATIVE_SAVINGS", "code": "negative_savings", "severity": "warning", "period": "2026-10", "params": {"currency": "COP", "deficit": "50000.00"}, "evidence": {"income": "100000.00", "expense": "150000.00"}}]}`. `params` y `evidence` de cada `code` en §6.5 |
+| `POST /api/v1/analytics/reports/` (E2-M7) | Cuerpo `{"period": "AAAA-MM"}`. **202** `Report` con `status: "PENDING"`: lo genera Celery (§9.13). El idioma del CSV sale de `Accept-Language` (`en…` → inglés; cualquier otro, español). 400 `{"period": ["Este campo es requerido."]}` sin periodo, o el de periodo inválido. Un FREE solo pide los últimos 3 meses: fuera de ellos, 403 `premium_required` (503 `entitlements_unavailable` si no se puede verificar el plan) |
+| `GET /api/v1/analytics/reports/{id}/` (E2-M7) | 200 `Report`: `{"id", "period", "language": "es" \| "en", "status": "PENDING" \| "READY" \| "FAILED", "created_at", "completed_at", "filename", "download_url"}`. `filename` y `download_url` solo con READY. 404 `report_not_found` si no existe o es de otro usuario |
+| `GET /api/v1/analytics/reports/{id}/download/` (E2-M7) | 200 `text/csv; charset=utf-8` con `Content-Disposition: attachment; filename="finty-reporte-AAAA-MM.csv"` (`finty-report-…` en inglés). Con BOM UTF-8. Dos bloques: movimientos (fecha, tipo, categoría, descripción, monto, moneda) y resumen por moneda, tipo y categoría (total y número de movimientos); nunca suma monedas distintas. Montos con punto decimal y sin separador de miles. 409 `report_not_ready` si no está READY; 404 como el anterior |
 | `GET /api/v1/analytics/spending-patterns/?period=` | `{"reference_period": "2026-10", "window_months": 6, "patterns": [{"description": "netflix", "category_name": "Entretenimiento", "currency": "COP", "average_amount": "39900.00", "months_present": 3, "window_months": 6, "occurrences": 3, "monthly_frequency": "1.00", "last_seen": "2026-10-03"}]}`. `period` marca el último mes de la ventana |
 
 El frontend traduce un insight por su `code` e interpola `params` (E2-M8). El texto nunca viaja en la respuesta.
@@ -1978,7 +2105,7 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 | Consumir una API de terceros mediante Adapter | (30%) | **Lo cumple `ExchangeRateProvider`** (ADR-12): `TrmExchangeRateProvider` consume la TRM oficial de datos.gov.co, con caché y tasa fija de respaldo. `PaymentGateway` no consume ningún tercero: el pago es simulado (ADR-14, C-33) | E2-M5 (implementado) |
 | Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 |
 | Despliegue en EC2 con Nginx como API Gateway | (30%) | ADR-06, ADR-09, ADR-16 | E2-M1, E2-M2 |
-| Tareas asíncronas con Redis/Celery | 20% | ADR-15 (primera tarea periódica: `expire_subscriptions`) | E2-M7 |
+| Tareas asíncronas con Redis/Celery | 20% | ADR-15: reporte mensual (`analytics-celery`), correos de bienvenida y de vencimiento y `expire_subscriptions` (`subscription-worker` y `subscription-beat`) | E2-M7 (implementado) |
 | i18n bilingüe con gettext, sin textos quemados | (20%) | ADR-11 | E2-M8 |
 | Bono: más del 70% en microservicios Flask | — | ADR-07, §4.4 | E2-M2 a E2-M6 |
 
@@ -2028,6 +2155,8 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 | Hecho de transacción | analytics | `TransactionFact` / `transaction_fact` | Value Object y tabla del modelo de lectura | — |
 | Evento procesado | analytics | `processed_event` | Tabla de idempotencia por `event_id` (ADR-15) | — |
 | Resumen público de gasto | analytics | `SpendingSummary` | Value Object del endpoint expuesto (§10.7) | — |
+| Reporte mensual | analytics | `MonthlyReport` (dominio), `MonthlyReportRecord` (persistencia) | Value Object generado por una tarea de Celery (E2-M7) | Statement, Extracto |
+| Aviso | subscription | `NotificationKind`, `SentNotificationRecord` | Enumeración y registro de los correos enviados (E2-M7) | Alert, Message |
 
 Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tests/test_architecture.py::TestSinonimosProhibidos` de cada servicio. En `subscription-service` falla si un identificador contiene Membership, Billing o Charge, o si una clase se llama `Plan` a secas.
 
@@ -2067,14 +2196,17 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | D-20 | Tablas de `finance` en `finty_identity` | Al retirar la app (E2-M3a) quedaron `finance_account`, `finance_transaction` y `finance_category` sin uso, junto con sus filas en `django_migrations`, sus tipos de contenido y sus permisos. No se borran en esta entrega: son el único lugar donde están los datos que el monolito tenía antes de la conmutación (D-16) | Abierta — post-Entrega 2: migrarlos a `finty_finance` o descartarlos, y después borrar las tablas |
 | D-22 | Eventos publicados por `analytics` | `analytics-service` **no publica eventos**. Decidido en E2-M5: `recommendation-service` lee los insights y patrones por HTTP cuando calcula, así que un evento `InsightDetected` no tiene consumidor | **Cerrada** (E2-M5) |
 | D-23 | Mensajes fuera de contrato en `finty.finance.events` | El worker los registra en el log como aviso y los confirma con `XACK` para no bloquear el stream. No hay stream de mensajes muertos: si apareciera uno, el evento se perdería para `analytics`. `tests/services/test_event_contract.py` (A-25) evita esa situación antes de desplegar | Abierta — un stream `finty.finance.events.dead` si llega un segundo productor |
-| D-24 | `OptimizationRecommendationGenerated` (DDD Stage 1) | **No se publica.** Las recomendaciones son value objects calculados al leer y no se persisten (§6.6): no hay un instante en que se "generen" que valga la pena anunciar, y ningún servicio consumiría el evento. Si E2-M7 necesitara notificar recomendaciones nuevas, tendría que persistirlas o compararlas entre lecturas | Abierta — E2-M7, solo si las notificaciones lo exigen |
+| D-24 | `OptimizationRecommendationGenerated` (DDD Stage 1) | **No se publica.** Las recomendaciones son value objects calculados al leer y no se persisten (§6.6): no hay un instante en que se "generen" que valga la pena anunciar, y ningún servicio consumiría el evento. Las notificaciones de E2-M7 son sobre la suscripción, no sobre recomendaciones, así que no lo exigen | **Cerrada** (E2-M7) |
 | D-26 | Renovación de la suscripción | **Sin renovación automática**: el período es de un mes, y renovar es un checkout y un pago nuevos cuando termina (EXPIRED). Mientras haya una suscripción ACTIVE o CANCELED en período, un checkout responde 409, así que no se puede pagar por adelantado el mes siguiente. Un cobro recurrente exigiría una pasarela real que guarde un medio de pago, fuera del alcance (ADR-14, C-33) | Abierta — post-Entrega 2 |
-| D-27 | `SubscriptionActivated` y `PremiumFeaturesUnlocked` (DDD Stage 1) | **No se publican en E2-M6a.** Los consumidores del derecho lo consultan cuando lo necesitan (`/internal/entitlements/`), y como la caché solo guarda los "sí", un pago se refleja en la siguiente petición sin necesidad de un evento que invalide nada. E2-M7 decidirá si `SubscriptionActivated` hace falta para notificaciones (correo de bienvenida); si se publica, irá por un outbox como el de finance (ADR-15) | Abierta — E2-M7 |
+| D-27 | `SubscriptionActivated` y `PremiumFeaturesUnlocked` (DDD Stage 1) | **No se publican.** Los consumidores del derecho lo consultan cuando lo necesitan (`/internal/entitlements/`), y como la caché solo guarda los "sí", un pago se refleja en la siguiente petición sin necesidad de un evento que invalide nada. **E2-M7:** la bienvenida se encola directamente como tarea de Celery después del commit, porque su único interesado es el propio `subscription-service`. Un evento exigiría outbox, stream y consumidor para que el servicio se escuche a sí mismo (ADR-15). Si otro servicio necesitara la activación, se publica por outbox y la bienvenida pasa a consumirlo | **Cerrada** (E2-M7) |
 | D-28 | Consecuencia de INV-06 en DDD Stage 1 | Incorporada en §7.1: la consecuencia de violar INV-06 es la **pérdida de ingresos**, y con ella se justifica negar lo premium cuando no se puede verificar la suscripción (fail-closed). También se reconcilia la expresión formal (`status = 'ACTIVE'`) con el estado CANCELED en período de E2-M6a | **Cerrada** (E2-M6a) |
 | D-25 | Dependencia síncrona `recommendation → analytics` | Aceptada con degradación (`degraded: true`) y timeout de 1 s. No hay caché de lo que responde analytics: una recomendación degradada se recupera sola en la siguiente lectura. Si la latencia de las tres llamadas (insights, patrones y dashboard) pesara, se podrían paralelizar o pedir a analytics un endpoint combinado | Abierta, sin módulo asignado |
 | D-29 | Saldo consolidado y comparaciones del dashboard | **Resuelta como datos de la API (E2-M8b).** `GET /accounts/summary/` (finance) da el saldo total por moneda, sin mezclar ni convertir. El dashboard de analytics agrega el período anterior, la variación porcentual de los gastos y la tasa de ahorro, con las reglas en su `domain/` (§10.6). El frontend solo presenta: convierte cada total con la tasa de `/exchange-rates/` y muestra la fuente | **Cerrada** (E2-M8b) |
 | D-30 | Filtros de movimientos | **Resuelta en finance-service (E2-M8b):** `GET /transactions/` admite `q` (sin mayúsculas ni tildes, con `translate` de PostgreSQL y sin la extensión `unaccent`) y `type` (§10.2). El frontend agrega la búsqueda y el filtro por tipo | **Cerrada** (E2-M8b) |
 | D-31 | Mensajes de validación (400) de los servicios Flask | finance-service reproduce los textos de DRF en español por contrato (A-20), así que un 400 por campo llega en español aunque la interfaz esté en inglés. El frontend valida antes los campos obligatorios y los formatos, con mensajes traducidos, y muestra el texto de la API solo si aun así llega un 400 | Abierta — traducir por código de validación si se agrega uno al contrato |
+| D-32 | Bienvenida perdida si el broker no responde al activar | La activación nunca espera al broker: si `send_task` falla, la suscripción ya está activa y solo se registra el fallo, así que ese correo no sale. El reporte mensual no tiene este problema (su beat reencola los PENDING), porque su estado vive en la base. Si importara, se registraría la bienvenida pendiente en la base al activar y un beat la enviaría, o se publicaría `SubscriptionActivated` por outbox (D-27) | Abierta — aceptada para la Entrega 2 |
+| D-33 | Retención de los reportes | Los CSV se guardan en `monthly_report` sin límite de tiempo ni de cantidad. Un usuario puede pedir el mismo mes varias veces y cada pedido es un reporte nuevo | Abierta — una tarea periódica que borre los de más de N días |
+| D-34 | Correo real | Sin SMTP: `EMAIL_BACKEND` es `console` (log del worker) o `file` (`.eml`). Un adaptador SMTP o de un proveedor se agrega como otro `EmailSender`, sin tocar el dominio ni las tareas | Abierta — post-Entrega 2 |
 | D-21 | Traducción de las respuestas 401 y 429 del Gateway | Nginx no puede usar gettext y sus respuestas llevan solo `{"detail": ...}`, la forma de DRF. **Decisión:** el frontend las traduce por **código de estado HTTP** (401 → sesión no válida, 429 → demasiadas peticiones), no por un `code` en el cuerpo. El Gateway y la suite de contrato (A-20) no cambian: el cuerpo de esas respuestas sigue siendo el de DRF. Se descartó agregar `code` al cuerpo porque cambiaría la forma del contrato | **Cerrada** (E2-M3b); implementada en E2-M8a (`frontend/static/finty/js/codes.js`) |
 
 ---
@@ -2119,6 +2251,10 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | A-31 | INV-06 por el Gateway | Un usuario FREE recibe 403 en las rutas premium y 200 en las gratuitas; tras el checkout, 200; tras cancelar, sigue con acceso hasta el fin del período: `tests/contract/test_subscriptions.py::TestSuscripciones::test_de_free_a_premium_y_cancelacion` | E2-M6a |
 | A-32 | INV-06 fail-closed | Con `docker compose stop subscription-service`, lo premium responde 503 `entitlements_unavailable` y lo gratuito sigue: `tests/contract/test_subscriptions.py::TestSubscriptionCaido` con `CONTRACT_SUBSCRIPTION_DOWN=1` y la evidencia en `runs/` | E2-M6a |
 | A-29 | Instrumento según el perfil | Un perfil de cada tipo produce su instrumento genérico, y un excedente ≤ 0 solo produce `build_emergency_fund`: `tests/contract/test_recommendations.py::TestInversionPorPerfil` y `services/recommendation-service/tests/domain/` | E2-M5 |
+| A-33 | Reporte mensual asíncrono | `POST /analytics/reports/` responde 202 PENDING; Celery lo deja READY y la descarga es un CSV correcto en español y en inglés; solo para el dueño; un FREE solo dentro de su ventana: `tests/contract/test_reports.py`, `services/analytics-service/tests/api/test_reports.py` y `tests/test_tasks.py` | E2-M7 |
+| A-34 | Avisos una sola vez y vencimiento | Con reloj controlado, una suscripción a 3 días de vencer recibe el aviso una sola vez, y una vencida pasa a EXPIRED: `services/subscription-service/tests/test_notifications.py` | E2-M7 |
+| A-35 | Resiliencia de las tareas | Con `analytics-celery` detenido el reporte queda PENDING y se completa al reanudarlo; con identity caído la activación funciona y el correo sale al reintentar: `tests/contract/runs/2026-10-22-tareas-asincronas.txt` | E2-M7 |
+| A-36 | Tareas sin lógica | Cada tarea de Celery solo llama a un caso de uso de `services.py`: `tests/test_architecture.py::TestTareasSinLogica` de `analytics-service` y `subscription-service`; convención en Compose: `tests/services/test_compose_celery.py` | E2-M7 |
 | A-27 | Lecturas de analytics eventualmente consistentes | Registrar, reclasificar y eliminar por el Gateway se refleja en el dashboard dentro de 15 s, por sondeo: `tests/contract/test_analytics.py::TestDePuntaAPunta`. Con `analytics-worker` detenido, `finance` responde 201 y el worker se pone al día al volver (evidencia en `runs/`) | E2-M4b |
 
 ---

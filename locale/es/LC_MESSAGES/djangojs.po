@@ -270,6 +270,7 @@ msgid "Ingreso"
 msgstr "Ingreso"
 
 #: .\frontend\static\finty\js\codes.js
+#: .\frontend\static\finty\js\pages\insights.js
 msgid "Gasto"
 msgstr "Gasto"
 
@@ -379,16 +380,42 @@ msgid "Sin categoría"
 msgstr "Sin categoría"
 
 #: .\frontend\static\finty\js\codes.js
-msgid "Tu gasto en %(category_name)s subió un %(increase_pct)s por ciento frente a tu promedio."
-msgstr "Tu gasto en %(category_name)s subió un %(increase_pct)s por ciento frente a tu promedio."
+msgid "Tu gasto en %(category_name)s subió %(increase_pct)s frente a tu promedio"
+msgstr "Tu gasto en %(category_name)s subió %(increase_pct)s frente a tu promedio"
 
 #: .\frontend\static\finty\js\codes.js
-msgid "Este mes gastaste más de lo que ingresó."
-msgstr "Este mes gastaste más de lo que ingresó."
+msgid "Este mes tus gastos superaron a tus ingresos en %(deficit)s"
+msgstr "Este mes tus gastos superaron a tus ingresos en %(deficit)s"
 
 #: .\frontend\static\finty\js\codes.js
-msgid "%(category_name)s es la categoría donde más gastas este mes."
-msgstr "%(category_name)s es la categoría donde más gastas este mes."
+msgid "%(category_name)s concentra el %(share_pct)s de tus gastos del mes"
+msgstr "%(category_name)s concentra el %(share_pct)s de tus gastos del mes"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Alerta · Gasto inusual"
+msgstr "Alerta · Gasto inusual"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Alerta · Gastas más de lo que ingresas"
+msgstr "Alerta · Gastas más de lo que ingresas"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Dato · Categoría principal"
+msgstr "Dato · Categoría principal"
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Se marca cuando una categoría supera en %(threshold)s o más el promedio del mes anterior."
+msgid_plural "Se marca cuando una categoría supera en %(threshold)s o más el promedio de los %(count)s meses anteriores."
+msgstr[0] "Se marca cuando una categoría supera en %(threshold)s o más el promedio del mes anterior."
+msgstr[1] "Se marca cuando una categoría supera en %(threshold)s o más el promedio de los %(count)s meses anteriores."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "Se marca cuando los gastos del período superan a los ingresos."
+msgstr "Se marca cuando los gastos del período superan a los ingresos."
+
+#: .\frontend\static\finty\js\codes.js
+msgid "La categoría con mayor participación en los gastos del período."
+msgstr "La categoría con mayor participación en los gastos del período."
 
 #: .\frontend\static\finty\js\dom.js
 msgid "No pudimos cargar esta sección"
@@ -477,10 +504,12 @@ msgid "Convertido desde %(currency)s"
 msgstr "Convertido desde %(currency)s"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
+#: .\frontend\static\finty\js\pages\insights.js
 msgid "Ingresos"
 msgstr "Ingresos"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
+#: .\frontend\static\finty\js\pages\insights.js
 msgid "Gastos"
 msgstr "Gastos"
 
@@ -590,8 +619,8 @@ msgstr[0] "%(count)s gasto recurrente"
 msgstr[1] "%(count)s gastos recurrentes"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
-msgid "Los verás en detalle en la sección de insights."
-msgstr "Los verás en detalle en la sección de insights."
+msgid "Ver los insights →"
+msgstr "Ver los insights →"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
 #: .\frontend\static\finty\js\pages\register.js
@@ -606,6 +635,73 @@ msgstr "Cuenta «%(name)s» creada."
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Hola, %(name)s"
 msgstr "Hola, %(name)s"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "%(first)s a %(last)s"
+msgstr "%(first)s a %(last)s"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Promedio de %(range)s"
+msgstr "Promedio de %(range)s"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "%(part)s de %(total)s en gastos"
+msgstr "%(part)s de %(total)s en gastos"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Sin hallazgos este mes"
+msgstr "Sin hallazgos este mes"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Cuando una categoría cambie frente a tus meses anteriores o tus gastos superen a tus ingresos, lo verás aquí."
+msgstr "Cuando una categoría cambie frente a tus meses anteriores o tus gastos superen a tus ingresos, lo verás aquí."
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "%(present)s de %(window)s"
+msgstr "%(present)s de %(window)s"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Misma descripción y categoría, con un monto parecido, presente en varios de los últimos %(window)s meses."
+msgstr "Misma descripción y categoría, con un monto parecido, presente en varios de los últimos %(window)s meses."
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "%(count)s detectado"
+msgid_plural "%(count)s detectados"
+msgstr[0] "%(count)s detectado"
+msgstr[1] "%(count)s detectados"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Sin gastos recurrentes"
+msgstr "Sin gastos recurrentes"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Aparecerán cuando un mismo gasto se repita en varios meses."
+msgstr "Aparecerán cuando un mismo gasto se repita en varios meses."
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Gastos recurrentes detectados"
+msgstr "Gastos recurrentes detectados"
+
+#: .\frontend\static\finty\js\pages\insights.js
+#: .\frontend\static\finty\js\pages\transactions.js
+msgid "Categoría"
+msgstr "Categoría"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Meses presentes"
+msgstr "Meses presentes"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Última vez"
+msgstr "Última vez"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Monto promedio"
+msgstr "Monto promedio"
+
+#: .\frontend\static\finty\js\pages\insights.js
+msgid "Insights de %(month)s"
+msgstr "Insights de %(month)s"
 
 #: .\frontend\static\finty\js\pages\login.js
 msgid "Escribe tu correo y tu contraseña."
@@ -670,10 +766,6 @@ msgstr "Fecha"
 #: .\frontend\static\finty\js\pages\transactions.js
 msgid "Descripción"
 msgstr "Descripción"
-
-#: .\frontend\static\finty\js\pages\transactions.js
-msgid "Categoría"
-msgstr "Categoría"
 
 #: .\frontend\static\finty\js\pages\transactions.js
 msgid "Cuenta"

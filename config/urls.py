@@ -30,6 +30,7 @@ urlpatterns = [
     path("registro/", page("register.html"), name="page-register"),
     path("dashboard/", page("dashboard.html"), name="page-dashboard"),
     path("movimientos/", page("transactions.html"), name="page-transactions"),
+    path("insights/", page("insights.html"), name="page-insights"),
     path("planes/", page("plans.html"), name="page-plans"),
     path("pago/", page("checkout.html"), name="page-checkout"),
     path("bienvenida/", page("welcome.html"), name="page-welcome"),

@@ -639,3 +639,35 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .welcome__main { padding: 24px 16px 48px; }
   .welcome__title { font-size: 32px; }
 }
+
+/* Insights */
+.insight { border: 1px solid var(--line); }
+.insight--warning { border-color: #F0D9A6; }
+.insight__head { display: flex; align-items: center; gap: 10px; }
+.insight__tag { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; color: var(--primary-ink); }
+.insight--warning .insight__tag { color: var(--premium-chip); }
+.insight__title { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.35; }
+.meter--lg { width: 100%; }
+.meter--lg, .meter--lg .meter__fill { height: 12px; }
+
+/* Bloqueos premium */
+.locked-hero {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: 48px 40px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center;
+}
+.locked-hero__body { flex: 1 1 420px; display: flex; flex-direction: column; gap: 16px; }
+.locked-hero__title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
+.locked-hero__art { flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; opacity: 0.55; }
+.locked-hero__art span { height: 76px; border-radius: 14px; background: var(--premium-soft); }
+.locked-hero__art span:nth-child(2) { background: var(--primary-soft); }
+.locked-hero__art span:nth-child(3) { background: var(--line-soft); }
+.badge-premium--lg { padding: 6px 12px; }
+.locked-card {
+  background: var(--surface); border: 1px dashed #E3C27A; border-radius: var(--radius-lg);
+  padding: 28px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+}
+.locked-card__body { flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 760px) {
+  .locked-hero { padding: 28px 20px; }
+  .locked-hero__title { font-size: 24px; }
+}

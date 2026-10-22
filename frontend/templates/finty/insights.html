@@ -1,0 +1,54 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Insights" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head__titles">
+    <h1 class="page-title" id="insights-title">{% translate "Insights" %}</h1>
+    <p class="lead">{% translate "Hallazgos calculados a partir de tus movimientos. Cada uno muestra los números con los que se decidió." %}</p>
+  </div>
+  <div class="page-head__tools" id="period-tools" hidden>
+    <div class="stepper" role="group" aria-label="{% translate 'Período' %}">
+      <button type="button" id="period-prev" aria-label="{% translate 'Mes anterior' %}">‹</button>
+      <span class="stepper__label" id="period-label" aria-live="polite"></span>
+      <button type="button" id="period-next" aria-label="{% translate 'Mes siguiente' %}">›</button>
+    </div>
+  </div>
+</div>
+
+{# Plan Free: la invitacion, sin pedir nada premium a la API (INV-06). #}
+<section class="locked-hero" id="insights-locked" aria-labelledby="locked-title" hidden>
+  <div class="locked-hero__body">
+    <span class="badge-premium badge-premium--lg">{% translate "Función Premium" %}</span>
+    <h2 class="locked-hero__title" id="locked-title">{% translate "Descubre en qué cambió tu gasto y qué pagas todos los meses" %}</h2>
+    <p class="lead">{% translate "Con Premium, Finty compara cada categoría con tus meses anteriores, te avisa cuando gastas más de lo habitual y encuentra tus gastos recurrentes." %}</p>
+    <div class="btn-row">
+      <a class="btn btn--premium btn--lg" href="{% url 'page-plans' %}">{% translate "Ver planes" %}</a>
+      <a class="btn btn--plain btn--lg" href="{% url 'page-dashboard' %}">{% translate "Volver al dashboard" %}</a>
+    </div>
+  </div>
+  <div class="locked-hero__art" aria-hidden="true"><span></span><span></span><span></span></div>
+</section>
+
+<div class="stack-lg" id="insights-premium">
+  <section aria-labelledby="findings-title">
+    <h2 class="visually-hidden" id="findings-title">{% translate "Hallazgos" %}</h2>
+    <div class="grid-cards" id="findings" aria-busy="true">
+      {% for i in "12" %}<div class="card"><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text skeleton--full"></span></div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="patterns-title">
+    <div class="card__head">
+      <h2 class="card__title" id="patterns-title">{% translate "Gastos recurrentes" %}</h2>
+      <span class="chip" id="patterns-count" hidden></span>
+    </div>
+    <p class="fine-print" id="patterns-rule"></p>
+    <div id="patterns" aria-busy="true">
+      <div class="skeleton-stack">{% for i in "123" %}<span class="skeleton skeleton--row"></span>{% endfor %}</div>
+    </div>
+  </section>
+</div>
+<template id="icon-warning"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5 2.8 19.5h18.4L12 3.5Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"></path><path d="M12 10v4.5M12 17v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg></template>
+<template id="icon-info"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"></path></svg></template>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/insights.js' %}"></script>{% endblock %}

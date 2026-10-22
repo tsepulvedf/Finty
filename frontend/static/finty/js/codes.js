@@ -10,6 +10,7 @@
  * traducen por nombre con el mismo criterio y, si aparece uno nuevo, se muestra
  * tal cual.
  */
+import { money, percent } from "./format.js";
 import { format } from "./i18n.js";
 
 const ERRORS = {
@@ -166,11 +167,15 @@ export function categoryName(name) {
 
 /** Textos de los insights de analytics, interpolados con sus `params`. */
 const INSIGHTS = {
-  category_spike: gettext("Tu gasto en %(category_name)s subió un %(increase_pct)s por ciento frente a tu promedio."),
-  negative_savings: gettext("Este mes gastaste más de lo que ingresó."),
-  top_category: gettext("%(category_name)s es la categoría donde más gastas este mes."),
+  category_spike: gettext("Tu gasto en %(category_name)s subió %(increase_pct)s frente a tu promedio"),
+  negative_savings: gettext("Este mes tus gastos superaron a tus ingresos en %(deficit)s"),
+  top_category: gettext("%(category_name)s concentra el %(share_pct)s de tus gastos del mes"),
 };
 
+/**
+ * Titulo de un insight, interpolado con sus `params` ya presentados: la
+ * categoria traducida, los porcentajes con Intl y los montos en su moneda.
+ */
 export function insightText(insight) {
   const template = INSIGHTS[insight.code];
   if (!template) {
@@ -180,5 +185,45 @@ export function insightText(insight) {
   if (params.category_name) {
     params.category_name = categoryName(params.category_name);
   }
+  for (const key of ["increase_pct", "share_pct"]) {
+    if (params[key] !== undefined) {
+      params[key] = percent(Number(params[key]) / 100, 1);
+    }
+  }
+  if (params.deficit !== undefined) {
+    params.deficit = money(params.deficit, params.currency);
+  }
   return format(template, params);
+}
+
+/** Etiqueta de cada insight, como en el diseño ("Alerta · Gasto inusual"). */
+export const INSIGHT_TAGS = {
+  category_spike: gettext("Alerta · Gasto inusual"),
+  negative_savings: gettext("Alerta · Gastas más de lo que ingresas"),
+  top_category: gettext("Dato · Categoría principal"),
+};
+
+/**
+ * Por que se marco cada insight. Los numeros de la regla salen de la
+ * `evidence` que entrega analytics, no de este archivo.
+ */
+export function insightRule(insight) {
+  const evidence = insight.evidence || {};
+  if (insight.code === "category_spike") {
+    return format(
+      ngettext(
+        "Se marca cuando una categoría supera en %(threshold)s o más el promedio del mes anterior.",
+        "Se marca cuando una categoría supera en %(threshold)s o más el promedio de los %(count)s meses anteriores.",
+        (evidence.previous_months || []).length,
+      ),
+      { threshold: percent(Number(evidence.threshold_pct) / 100), count: (evidence.previous_months || []).length },
+    );
+  }
+  if (insight.code === "negative_savings") {
+    return gettext("Se marca cuando los gastos del período superan a los ingresos.");
+  }
+  if (insight.code === "top_category") {
+    return gettext("La categoría con mayor participación en los gastos del período.");
+  }
+  return "";
 }

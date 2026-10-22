@@ -18,6 +18,7 @@ import { ACCOUNT_TYPES, RATE_SOURCES, categoryName, errorMessage, sourceLabel } 
 import { busy, byId, emptyState, errorState, h, replace, showFieldErrors, showFormError, skeletonRows, toast } from "../dom.js";
 import { balance, money, monthName, parseAmount, percent, periodLabel, plainAmount, shortDate, signedMoney } from "../format.js";
 import { format } from "../i18n.js";
+import { periodOf, requestedPeriod, shift } from "../period.js";
 import { startShell } from "../shell.js";
 
 const state = {
@@ -31,19 +32,6 @@ const state = {
 };
 
 // --- Periodos -------------------------------------------------------------
-
-function periodOf(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function shift(period, months) {
-  const [year, month] = period.split("-").map(Number);
-  return periodOf(new Date(year, month - 1 + months, 1));
-}
-
-function validPeriod(text) {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(text || "");
-}
 
 /** Primer periodo navegable: sin Premium, el limite de historial del plan Free. */
 function firstAllowedPeriod() {
@@ -365,6 +353,7 @@ async function loadPremiumCard() {
     link.textContent = gettext("Conoce el plan Premium →");
     return;
   }
+  byId("premium-card").href = document.body.dataset.urlInsights;
   try {
     const [insights, patterns] = await Promise.all([
       api("/analytics/insights/", { query: { period: state.period }, premiumRedirect: false }),
@@ -376,7 +365,7 @@ async function loadPremiumCard() {
       findings: format(ngettext("%(count)s hallazgo", "%(count)s hallazgos", findings), { count: findings }),
       recurring: format(ngettext("%(count)s gasto recurrente", "%(count)s gastos recurrentes", recurring), { count: recurring }),
     });
-    link.textContent = gettext("Los verás en detalle en la sección de insights.");
+    link.textContent = gettext("Ver los insights →");
   } catch (error) {
     title.textContent = errorMessage(error);
     link.textContent = "";
@@ -448,8 +437,7 @@ function bindAccountDialog() {
 async function start() {
   const { profile, subscription } = await startShell();
   state.current = periodOf(new Date());
-  const requested = new URLSearchParams(window.location.search).get("period");
-  state.period = validPeriod(requested) && requested <= state.current ? requested : state.current;
+  state.period = requestedPeriod(state.current);
   state.premium = Boolean(subscription && subscription.premium);
   state.display = profile.preferred_currency === "USD" ? "USD" : "COP";
 

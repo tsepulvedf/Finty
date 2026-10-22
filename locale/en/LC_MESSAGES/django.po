@@ -74,6 +74,11 @@ msgid "Movimientos"
 msgstr "Transactions"
 
 #: .\frontend\templates\finty\app_base.html
+#: .\frontend\templates\finty\insights.html
+msgid "Insights"
+msgstr "Insights"
+
+#: .\frontend\templates\finty\app_base.html
 msgid "Menú de la cuenta"
 msgstr "Account menu"
 
@@ -156,14 +161,17 @@ msgid "Tu resumen"
 msgstr "Your summary"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\insights.html
 msgid "Período"
 msgstr "Period"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\insights.html
 msgid "Mes anterior"
 msgstr "Previous month"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\insights.html
 msgid "Mes siguiente"
 msgstr "Next month"
 
@@ -260,6 +268,42 @@ msgstr "The balance you open the account with. It doesn't change later."
 #: .\frontend\templates\finty\register.html
 msgid "Crear cuenta"
 msgstr "Create account"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Finty · Insights"
+msgstr "Finty · Insights"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Hallazgos calculados a partir de tus movimientos. Cada uno muestra los números con los que se decidió."
+msgstr "Findings calculated from your transactions. Each one shows the numbers behind it."
+
+#: .\frontend\templates\finty\insights.html
+msgid "Función Premium"
+msgstr "Premium feature"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Descubre en qué cambió tu gasto y qué pagas todos los meses"
+msgstr "Find out how your spending changed and what you pay every month"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Con Premium, Finty compara cada categoría con tus meses anteriores, te avisa cuando gastas más de lo habitual y encuentra tus gastos recurrentes."
+msgstr "With Premium, Finty compares each category with your previous months, lets you know when you spend more than usual and finds your recurring expenses."
+
+#: .\frontend\templates\finty\insights.html
+msgid "Ver planes"
+msgstr "See plans"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Volver al dashboard"
+msgstr "Back to the dashboard"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Hallazgos"
+msgstr "Findings"
+
+#: .\frontend\templates\finty\insights.html
+msgid "Gastos recurrentes"
+msgstr "Recurring expenses"
 
 #: .\frontend\templates\finty\login.html
 msgid "Finty · Ingreso"
@@ -496,6 +540,10 @@ msgstr "The account balance is recalculated without it. This can't be undone."
 #: .\frontend\templates\finty\welcome.html
 msgid "Finty · Bienvenido a Premium"
 msgstr "Finty · Welcome to Premium"
+
+#: .\frontend\templates\finty\welcome.html
+msgid "Ver mis insights"
+msgstr "See my insights"
 
 #: .\frontend\templates\finty\welcome.html
 msgid "Ir al dashboard"

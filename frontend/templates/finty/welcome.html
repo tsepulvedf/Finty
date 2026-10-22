@@ -18,7 +18,8 @@
       {% for i in "12345" %}<li class="benefit"><span class="skeleton skeleton--text skeleton--full"></span></li>{% endfor %}
     </ul>
     <div class="btn-row">
-      <a class="btn btn--premium btn--lg" id="welcome-primary" href="{% url 'page-dashboard' %}">{% translate "Ir al dashboard" %}</a>
+      <a class="btn btn--premium btn--lg" id="welcome-primary" href="{% url 'page-insights' %}">{% translate "Ver mis insights" %}</a>
+      <a class="btn btn--ghost-light btn--lg" href="{% url 'page-dashboard' %}">{% translate "Ir al dashboard" %}</a>
     </div>
     <p class="welcome__note">{% translate "Pago simulado · modo demostración, no se realizó ningún cobro." %}</p>
   </main>

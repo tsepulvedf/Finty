@@ -12,6 +12,18 @@
   <section class="card layout__main" aria-labelledby="tx-list-title">
     <h2 class="visually-hidden" id="tx-list-title">{% translate "Lista de movimientos" %}</h2>
     <form class="filters" id="filters" role="search" aria-label="{% translate 'Filtros' %}">
+      <div class="field field--compact field--search">
+        <label for="filter-q">{% translate "Buscar" %}</label>
+        <input class="input" id="filter-q" name="q" type="search" maxlength="255" autocomplete="off" placeholder="{% translate 'Descripción del movimiento' %}">
+      </div>
+      <div class="field field--compact">
+        <label for="filter-type">{% translate "Tipo" %}</label>
+        <select class="select" id="filter-type" name="type">
+          <option value="">{% translate "Todos" %}</option>
+          <option value="income">{% translate "Ingresos" %}</option>
+          <option value="expense">{% translate "Gastos" %}</option>
+        </select>
+      </div>
       <div class="field field--compact">
         <label for="filter-account">{% translate "Cuenta" %}</label>
         <select class="select" id="filter-account" name="account_id"><option value="">{% translate "Todas" %}</option></select>

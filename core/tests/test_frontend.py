@@ -287,6 +287,32 @@ class TestCheckout:
         assert "urlWelcome" in fuente
 
 
+class TestDashboardYMovimientos:
+    """D-29 y D-30 en las pantallas: el navegador presenta lo que calcula la API."""
+
+    DASHBOARD = FRONTEND / "static" / "finty" / "js" / "pages" / "dashboard.js"
+
+    def test_la_busqueda_y_el_tipo_estan_en_los_filtros(self, client):
+        html = client.get("/movimientos/").content.decode("utf-8")
+        assert re.search(r'<input[^>]*id="filter-q"[^>]*name="q"[^>]*type="search"', html)
+        assert re.search(r'<select[^>]*id="filter-type"[^>]*name="type"', html)
+        for valor in ('value=""', 'value="income"', 'value="expense"'):
+            assert valor in html[html.index('id="filter-type"'):]
+
+    def test_el_dashboard_usa_las_comparaciones_y_el_resumen_de_la_api(self):
+        fuente = self.DASHBOARD.read_text(encoding="utf-8")
+        for campo in ("section.previous", "expense_change_pct", "savings_rate", '"/accounts/summary/"', '"/exchange-rates/"'):
+            assert campo in fuente
+        assert "previousPoint" not in fuente
+
+    def test_la_tendencia_no_dibuja_barras_en_cero(self):
+        fuente = self.DASHBOARD.read_text(encoding="utf-8")
+        assert "Number(value) > 0" in fuente
+        css = (FRONTEND / "static" / "finty" / "css" / "finty.css").read_text(encoding="utf-8")
+        regla = re.search(r"\.bars__bar \{[^}]*\}", css).group(0)
+        assert "min-height" not in regla
+
+
 # --- A-23: cero textos quemados ------------------------------------------------------
 
 # Codigos que se leen igual en todos los idiomas: idioma y moneda.

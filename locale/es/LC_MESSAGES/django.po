@@ -189,14 +189,20 @@ msgid "Indicadores del período"
 msgstr "Indicadores del período"
 
 #: .\frontend\templates\finty\dashboard.html
+msgid "Saldo total"
+msgstr "Saldo total"
+
+#: .\frontend\templates\finty\dashboard.html
 msgid "Ingresos y gastos"
 msgstr "Ingresos y gastos"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Ingresos"
 msgstr "Ingresos"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Gastos"
 msgstr "Gastos"
 
@@ -243,6 +249,7 @@ msgid "Por ejemplo, Bancolombia Ahorros"
 msgstr "Por ejemplo, Bancolombia Ahorros"
 
 #: .\frontend\templates\finty\dashboard.html
+#: .\frontend\templates\finty\transactions.html
 msgid "Tipo"
 msgstr "Tipo"
 
@@ -697,6 +704,18 @@ msgstr "Lista de movimientos"
 #: .\frontend\templates\finty\transactions.html
 msgid "Filtros"
 msgstr "Filtros"
+
+#: .\frontend\templates\finty\transactions.html
+msgid "Buscar"
+msgstr "Buscar"
+
+#: .\frontend\templates\finty\transactions.html
+msgid "Descripción del movimiento"
+msgstr "Descripción del movimiento"
+
+#: .\frontend\templates\finty\transactions.html
+msgid "Todos"
+msgstr "Todos"
 
 #: .\frontend\templates\finty\transactions.html
 msgid "Cuenta"

@@ -217,6 +217,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .kpi__value { font-size: 30px; font-weight: 800; letter-spacing: -0.6px; overflow-wrap: anywhere; }
 .kpi__note { font-size: 13px; color: var(--muted); }
 .kpi--dark { background: var(--deep); border-color: var(--deep); color: #FFFFFF; }
+/* Los indicadores del periodo comparten la grilla con el saldo total. */
+.kpis__period { display: contents; }
+.kpis__period > :not(.kpi) { grid-column: 1 / -1; }
+.balance-line { display: flex; flex-direction: column; gap: 2px; }
+.balance-line + .balance-line .kpi__value { font-size: 20px; }
 .kpi--dark .kpi__label, .kpi--dark .kpi__note { color: var(--deep-ink); }
 
 .amount--income { color: var(--income); }
@@ -299,6 +304,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 12px; }
 .filters > .field { flex: 1 1 150px; }
+.filters > .field--search { flex: 2 1 260px; }
 
 /* --- Avisos ------------------------------------------------------------------- */
 
@@ -381,7 +387,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 24px; align-items: end; height: 240px; padding: 0 12px; border-bottom: 1px solid var(--line);
 }
 .bars__group { display: flex; justify-content: center; align-items: flex-end; gap: 8px; height: 200px; }
-.bars__bar { width: min(40px, 40%); min-height: 2px; border-radius: 6px 6px 0 0; background: var(--income); }
+.bars__bar { width: min(40px, 40%); border-radius: 6px 6px 0 0; background: var(--income); }
 .bars__bar--expense { background: var(--expense-bar); }
 .bars__labels {
   display: grid; grid-template-columns: repeat(var(--bar-groups, 3), minmax(0, 1fr));

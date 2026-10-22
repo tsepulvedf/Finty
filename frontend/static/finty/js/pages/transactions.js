@@ -1,7 +1,9 @@
 /*
  * Movimientos (docs/design/Movimientos.dc.html).
  *
- *   GET  /transactions/?account_id=&category_id=&date_from=&date_to=&page=
+ *   GET  /transactions/?q=&type=&account_id=&category_id=&date_from=&date_to=&page=
+ *        (`q` busca en la descripcion sin distinguir mayusculas ni tildes, y
+ *        `type` filtra ingresos o gastos: los resuelve finance-service, D-30)
  *   POST /transactions/                       registrar
  *   POST /transactions/{id}/categorize/       recategorizar
  *   DELETE /transactions/{id}/                eliminar (con confirmacion)
@@ -36,8 +38,14 @@ function currencyOf(accountId) {
   return account ? account.currency : "COP";
 }
 
+const SEARCH_DELAY_MS = 300;
+let searchTimer = null;
+let listRequest = 0;
+
 function filters() {
   return {
+    q: byId("filter-q").value.trim(),
+    type: byId("filter-type").value,
     account_id: byId("filter-account").value,
     category_id: byId("filter-category").value,
     date_from: byId("filter-from").value,
@@ -133,10 +141,19 @@ async function loadList() {
   list.setAttribute("aria-busy", "true");
   replace(list, skeletonRows(6));
   list.setAttribute("aria-busy", "true");
+  // Con la busqueda, una respuesta vieja puede llegar despues de una nueva.
+  const request = ++listRequest;
   try {
-    state.data = await api("/transactions/", { query: Object.assign(filters(), { page: state.page }) });
+    const data = await api("/transactions/", { query: Object.assign(filters(), { page: state.page }) });
+    if (request !== listRequest) {
+      return;
+    }
+    state.data = data;
     renderList();
   } catch (error) {
+    if (request !== listRequest) {
+      return;
+    }
     if (error.status === 404 && state.page > 1) {
       resetPaging();
       loadList();
@@ -335,7 +352,16 @@ async function start() {
   bindDetail();
   byId("tx-prev").addEventListener("click", previousPage);
   byId("tx-next").addEventListener("click", nextPage);
-  byId("filters").addEventListener("change", () => { resetPaging(); clearDetail(); loadList(); });
+  const applyFilters = () => { resetPaging(); clearDetail(); loadList(); };
+  byId("filters").addEventListener("change", (event) => {
+    if (event.target.id !== "filter-q") {
+      applyFilters();
+    }
+  });
+  byId("filter-q").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, SEARCH_DELAY_MS);
+  });
   byId("filters").addEventListener("submit", (event) => event.preventDefault());
   byId("tx-list").setAttribute("tabindex", "-1");
 

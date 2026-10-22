@@ -4,14 +4,17 @@
  * Datos, todos de la API:
  *   GET /analytics/dashboard/?period=     indicadores, tendencia y categorias
  *   GET /accounts/                        cuentas y sus saldos
+ *   GET /accounts/summary/                saldo total por moneda (D-29)
  *   GET /transactions/                    ultimos movimientos
  *   GET /exchange-rates/?base=&target=    conversion de presentacion y su fuente
  *   GET /subscriptions/plans/             meses de historial del plan Free
  *   GET /analytics/insights/ y /analytics/spending-patterns/   (solo Premium)
  *
- * Sin reglas de negocio: no se suman saldos ni se comparan periodos. Se presenta
- * lo que la API calculo y, si la moneda difiere, se convierte con la tasa que la
- * API entrego (presentacion, INV-11).
+ * Sin reglas de negocio: no se suman saldos ni se comparan periodos. El saldo por
+ * moneda, el periodo anterior, la variacion de los gastos y la tasa de ahorro
+ * los calculan finance y analytics. Si la moneda difiere, se muestra el
+ * equivalente con la tasa que la API entrego (presentacion, INV-11), sin un total
+ * que mezcle monedas.
  */
 import { api, listAll } from "../api.js";
 import { ACCOUNT_TYPES, RATE_SOURCES, categoryName, errorMessage, sourceLabel } from "../codes.js";
@@ -28,6 +31,7 @@ const state = {
   premium: false,
   freeHistoryMonths: null,
   accounts: [],
+  summary: [],
   rates: {},
 };
 
@@ -110,32 +114,67 @@ function kpi(label, value, note, modifiers = "") {
     note ? h("span", { class: "kpi__note" }, note) : null);
 }
 
-function previousPoint(section) {
-  const index = section.trend.findIndex((point) => point.period === state.period);
-  return index > 0 ? section.trend[index - 1] : null;
+/** Gastos frente al mes anterior, con la variacion que calculo analytics. */
+function expenseNote(section, previousExpense) {
+  const previous = section.previous;
+  if (!previous) {
+    return null;
+  }
+  const month = monthName(previous.period);
+  if (section.expense_change_pct === null) {
+    return format(gettext("%(month)s: %(amount)s"), { month: monthName(previous.period, true), amount: previousExpense });
+  }
+  const change = Number(section.expense_change_pct);
+  const pct = percent(Math.abs(change) / 100, 1);
+  if (change > 0) {
+    return format(gettext("%(pct)s más que %(month)s"), { pct, month });
+  }
+  if (change < 0) {
+    return format(gettext("%(pct)s menos que %(month)s"), { pct, month });
+  }
+  return format(gettext("Igual que %(month)s"), { month });
+}
+
+/** Tasa de ahorro de analytics: neto sobre ingresos; nula sin ingresos. */
+function savingsNote(section) {
+  if (section.savings_rate === null) {
+    return gettext("Sin ingresos este mes: no hay tasa de ahorro");
+  }
+  const rate = Number(section.savings_rate);
+  return rate >= 0
+    ? format(gettext("Ahorras el %(pct)s de tus ingresos"), { pct: percent(rate, 1) })
+    : format(gettext("Gastas un %(pct)s más de lo que ingresas"), { pct: percent(Math.abs(rate), 1) });
 }
 
 async function renderKpis(section, others) {
-  const [income, expense, net] = await Promise.all([
+  const previous = section.previous;
+  const [income, expense, net, previousIncome, previousExpense] = await Promise.all([
     inDisplay(section.income, section.currency),
     inDisplay(section.expense, section.currency),
     inDisplay(section.net, section.currency),
+    previous ? inDisplay(previous.income, section.currency) : null,
+    previous ? inDisplay(previous.expense, section.currency) : null,
   ]);
-  const previous = previousPoint(section);
-  const previousNote = (field) => previous
-    ? format(gettext("%(month)s: %(amount)s"), { month: periodLabel(previous.period), amount: money(previous[field], section.currency) })
-    : null;
   const originalNote = income.converted
     ? format(gettext("Convertido desde %(currency)s"), { currency: section.currency })
     : null;
+  const incomeNote = previousIncome
+    ? format(gettext("%(month)s: %(amount)s"), { month: monthName(previous.period, true), amount: money(previousIncome.amount, previousIncome.currency) })
+    : null;
 
   const cards = [
-    kpi(gettext("Ingresos"), signedMoney(income.amount, income.currency, "income"), previousNote("income") || originalNote),
-    kpi(gettext("Gastos"), signedMoney(expense.amount, expense.currency, "expense"), previousNote("expense") || originalNote),
-    kpi(gettext("Neto del mes"), signedMoney(net.amount, net.currency), gettext("Ingresos menos gastos del período"), "kpi--dark"),
+    kpi(gettext("Ingresos"), signedMoney(income.amount, income.currency, "income"), incomeNote || originalNote),
+    kpi(gettext("Gastos"), signedMoney(expense.amount, expense.currency, "expense"),
+      expenseNote(section, previousExpense ? money(previousExpense.amount, previousExpense.currency) : "") || originalNote),
+    kpi(gettext("Neto del mes"), signedMoney(net.amount, net.currency), savingsNote(section), "kpi--dark"),
   ];
-  cards[0].querySelector(".kpi__value").classList.add("amount--income");
-  cards[1].querySelector(".kpi__value").classList.add("amount--expense");
+  // Un monto en cero va sin signo y sin el color de ingreso o gasto.
+  if (Number(section.income) !== 0) {
+    cards[0].querySelector(".kpi__value").classList.add("amount--income");
+  }
+  if (Number(section.expense) !== 0) {
+    cards[1].querySelector(".kpi__value").classList.add("amount--expense");
+  }
 
   const extra = others.map((other) => h("p", { class: "notice notice--info" },
     format(gettext("También tienes movimientos en %(currency)s este mes: ingresos %(income)s y gastos %(expense)s."), {
@@ -143,7 +182,8 @@ async function renderKpis(section, others) {
       income: money(other.income, other.currency),
       expense: money(other.expense, other.currency),
     })));
-  replace(byId("kpis"), h("div", { class: "kpis" }, cards), extra);
+  replace(byId("kpis"), cards);
+  replace(byId("kpis-extra"), extra);
 }
 
 function renderTrend(section) {
@@ -156,10 +196,14 @@ function renderTrend(section) {
     expense: money(point.expense, section.currency),
   })).join(". ");
 
+  // Un monto en cero no dibuja barra: un mes sin movimientos queda solo con su etiqueta.
+  const bar = (value, modifier) => (Number(value) > 0
+    ? h("div", { class: `bars__bar ${modifier}`, style: { height: height(value) } })
+    : null);
   const bars = h("div", { class: "bars", role: "img", "aria-label": description, style: { "--bar-groups": points.length } },
     points.map((point) => h("div", { class: "bars__group" },
-      h("div", { class: "bars__bar", style: { height: height(point.income) } }),
-      h("div", { class: "bars__bar bars__bar--expense", style: { height: height(point.expense) } }))));
+      bar(point.income, ""),
+      bar(point.expense, "bars__bar--expense"))));
   const labels = h("div", { class: "bars__labels", "aria-hidden": "true", style: { "--bar-groups": points.length } },
     points.map((point) => h("span", {}, monthName(point.period, true))));
   replace(byId("trend"), bars, labels);
@@ -198,6 +242,7 @@ function renderEmptyPeriod() {
   const action = state.accounts.length
     ? h("a", { class: "btn btn--primary btn--small", href: document.body.dataset.urlTransactions }, gettext("Registrar un movimiento"))
     : h("button", { type: "button", class: "btn btn--primary btn--small", onclick: openAccountDialog }, gettext("Crea tu primera cuenta"));
+  replace(byId("kpis-extra"));
   replace(byId("kpis"), h("div", { class: "card" }, emptyState(
     format(gettext("No hay movimientos en %(period)s"), { period: periodLabel(state.period) }),
     gettext("Los indicadores aparecen cuando registras ingresos o gastos en el período."),
@@ -217,6 +262,7 @@ function renderPeriodError(error) {
     replace(byId("categories"));
     return;
   }
+  replace(byId("kpis-extra"));
   replace(byId("kpis"), errorState(error, loadPeriod));
   replace(byId("trend"), errorState(error, loadPeriod));
   replace(byId("categories"), errorState(error, loadPeriod));
@@ -224,8 +270,8 @@ function renderPeriodError(error) {
 
 async function loadPeriod() {
   replace(byId("period-notice"));
-  replace(byId("kpis"), h("div", { class: "kpis" }, [1, 2, 3].map(() => h("div", { class: "kpi" },
-    h("span", { class: "skeleton skeleton--text" }), h("span", { class: "skeleton skeleton--title" })))));
+  replace(byId("kpis"), [1, 2, 3].map(() => h("div", { class: "kpi" },
+    h("span", { class: "skeleton skeleton--text" }), h("span", { class: "skeleton skeleton--title" }))));
   loadPremiumCard();
   try {
     const dashboard = await api("/analytics/dashboard/", { query: { period: state.period }, premiumRedirect: false });
@@ -280,11 +326,60 @@ async function renderAccounts() {
 
 async function loadAccounts() {
   replace(byId("accounts"), skeletonRows(3));
+  loadBalances();
   try {
     state.accounts = (await listAll("/accounts/")).filter((account) => !account.is_archived);
     await renderAccounts();
   } catch (error) {
     replace(byId("accounts"), errorState(error, loadAccounts));
+  }
+}
+
+// --- Saldo total por moneda (D-29) --------------------------------------------------
+
+/**
+ * Una linea por moneda con el saldo que sumo finance; si no es la moneda de
+ * presentacion, su equivalente con la tasa de /exchange-rates/ y su fuente.
+ */
+async function renderBalances() {
+  const container = byId("balance-lines");
+  if (!state.summary.length) {
+    replace(container, h("span", { class: "kpi__value" }, money(0, state.display)),
+      h("span", { class: "kpi__note" }, gettext("Aún no tienes cuentas")));
+    return;
+  }
+  const ordered = [...state.summary].sort((a, b) => (a.currency === state.display ? -1 : b.currency === state.display ? 1 : 0));
+  let rateNote = null;
+  const lines = await Promise.all(ordered.map(async (item) => {
+    const accounts = format(ngettext("%(count)s cuenta en %(currency)s", "%(count)s cuentas en %(currency)s", item.accounts),
+      { count: item.accounts, currency: item.currency });
+    let equivalent = null;
+    if (item.currency !== state.display) {
+      try {
+        const found = await rate(item.currency, state.display);
+        equivalent = format(gettext("≈ %(amount)s"), { amount: balance(Number(item.balance) * Number(found.rate), state.display) });
+        const usd = found.base === "USD" ? found : await rate("USD", "COP");
+        rateNote = format(gettext("Equivalente con %(rate)s por dólar · fuente: %(source)s"), {
+          rate: money(usd.rate, "COP"), source: RATE_SOURCES[usd.source] || usd.source,
+        });
+      } catch (error) {
+        equivalent = gettext("Sin tasa de cambio: solo en su moneda");
+      }
+    }
+    return h("div", { class: "balance-line" },
+      h("span", { class: Number(item.balance) < 0 ? "kpi__value amount--expense" : "kpi__value" }, balance(item.balance, item.currency)),
+      h("span", { class: "kpi__note" }, equivalent ? `${accounts} · ${equivalent}` : accounts));
+  }));
+  replace(container, lines, rateNote ? h("span", { class: "kpi__note" }, rateNote) : null);
+}
+
+async function loadBalances() {
+  const container = byId("balance-lines");
+  try {
+    state.summary = (await api("/accounts/summary/")).currencies;
+    await renderBalances();
+  } catch (error) {
+    replace(container, h("span", { class: "kpi__note" }, errorMessage(error)));
   }
 }
 
@@ -447,6 +542,7 @@ async function start() {
   currency.addEventListener("change", () => {
     state.display = currency.value;
     renderAccounts();
+    renderBalances();
     loadPeriod();
   });
 

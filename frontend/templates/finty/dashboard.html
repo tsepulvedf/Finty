@@ -23,10 +23,18 @@
 
 <div id="period-notice"></div>
 
-<section aria-label="{% translate 'Indicadores del período' %}" id="kpis">
+<section class="stack" aria-label="{% translate 'Indicadores del período' %}">
   <div class="kpis">
-    {% for i in "1234" %}<div class="kpi"><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span></div>{% endfor %}
+    {# Saldo total por moneda: GET /api/v1/accounts/summary/, sin sumar monedas distintas. #}
+    <div class="kpi" id="balance-kpi" aria-live="polite">
+      <span class="kpi__label">{% translate "Saldo total" %}</span>
+      <div id="balance-lines" class="stack-tight"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span></div>
+    </div>
+    <div class="kpis__period" id="kpis">
+      {% for i in "123" %}<div class="kpi"><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span></div>{% endfor %}
+    </div>
   </div>
+  <div id="kpis-extra" class="stack"></div>
 </section>
 
 <div class="layout">

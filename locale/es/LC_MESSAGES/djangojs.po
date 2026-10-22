@@ -619,6 +619,30 @@ msgid "%(month)s: %(amount)s"
 msgstr "%(month)s: %(amount)s"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
+msgid "%(pct)s más que %(month)s"
+msgstr "%(pct)s más que %(month)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "%(pct)s menos que %(month)s"
+msgstr "%(pct)s menos que %(month)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Igual que %(month)s"
+msgstr "Igual que %(month)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Sin ingresos este mes: no hay tasa de ahorro"
+msgstr "Sin ingresos este mes: no hay tasa de ahorro"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Ahorras el %(pct)s de tus ingresos"
+msgstr "Ahorras el %(pct)s de tus ingresos"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Gastas un %(pct)s más de lo que ingresas"
+msgstr "Gastas un %(pct)s más de lo que ingresas"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Convertido desde %(currency)s"
 msgstr "Convertido desde %(currency)s"
 
@@ -635,10 +659,6 @@ msgstr "Gastos"
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Neto del mes"
 msgstr "Neto del mes"
-
-#: .\frontend\static\finty\js\pages\dashboard.js
-msgid "Ingresos menos gastos del período"
-msgstr "Ingresos menos gastos del período"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "También tienes movimientos en %(currency)s este mes: ingresos %(income)s y gastos %(expense)s."
@@ -703,6 +723,28 @@ msgstr "Registra dónde tienes tu dinero: efectivo, banco o tarjeta de crédito.
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Crear cuenta"
 msgstr "Crear cuenta"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Aún no tienes cuentas"
+msgstr "Aún no tienes cuentas"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "%(count)s cuenta en %(currency)s"
+msgid_plural "%(count)s cuentas en %(currency)s"
+msgstr[0] "%(count)s cuenta en %(currency)s"
+msgstr[1] "%(count)s cuentas en %(currency)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "≈ %(amount)s"
+msgstr "≈ %(amount)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Equivalente con %(rate)s por dólar · fuente: %(source)s"
+msgstr "Equivalente con %(rate)s por dólar · fuente: %(source)s"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Sin tasa de cambio: solo en su moneda"
+msgstr "Sin tasa de cambio: solo en su moneda"
 
 #: .\frontend\static\finty\js\pages\dashboard.js
 #: .\frontend\static\finty\js\pages\transactions.js

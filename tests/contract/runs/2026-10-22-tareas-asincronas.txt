@@ -1,0 +1,106 @@
+# Evidencia E2-M7 - tareas asincronas con Celery y Redis (ADR-15)
+# Fecha: 2026-10-22T10:44:46-05:00
+
+## 0. Contenedores de Celery
+  analytics-celery Up About a minute
+  analytics-celery-beat Up 21 minutes
+  analytics-worker Up 21 minutes
+  redis Up 37 hours (healthy)
+  subscription-beat Up 3 minutes
+  subscription-worker Up About a minute
+  broker: db1:keys=4,expires=0,avg_ttl=0,subexpiry=0
+  version de Celery: 5.5.3 (immunity)
+
+## 1. Reporte mensual de punta a punta por el Gateway
+  movimientos proyectados en analytics: True
+  POST /analytics/reports/ (Accept-Language: es-CO,es;q=0.9) -> 202 {"id": "344fa563-e885-43b7-b1d6-77166f5f07a8", "period": "2026-10", "language": "es", "status": "PENDING", "created_at": "2026-10-22T10:44:49.798538-05:00", "completed_at": null, "filename": null, "download_url": null}
+  GET inmediato -> status=READY
+  GET sondeado -> {"id": "344fa563-e885-43b7-b1d6-77166f5f07a8", "period": "2026-10", "language": "es", "status": "READY", "created_at": "2026-10-22T10:44:49.798538-05:00", "completed_at": "2026-10-22T10:44:49.813042-05:00", "filename": "finty-reporte-2026-10.csv", "download_url": "/api/v1/analytics/reports/344fa563-e885-43b7-b1d6-77166f5f07a8/download/"}
+  GET download -> 200 Content-Type: text/csv; charset=utf-8 | attachment; filename="finty-reporte-2026-10.csv"
+    | Movimientos
+    | Fecha,Tipo,Categoría,Descripción,Monto,Moneda
+    | 2026-10-22,Gasto,Alimentación,"Almuerzo, con café",38000.00,COP
+    | 2026-10-22,Ingreso,Salario,Salario,3100000.00,COP
+    | 
+    | Resumen por categoría y moneda
+    | Moneda,Tipo,Categoría,Total,Movimientos
+    | COP,Gasto,Alimentación,38000.00,1
+    | COP,Ingreso,Salario,3100000.00,1
+  POST /analytics/reports/ (Accept-Language: en-US,en;q=0.9) -> 202 {"id": "885b9b7a-4d6b-485a-a069-05322c388c3c", "period": "2026-10", "language": "en", "status": "PENDING", "created_at": "2026-10-22T10:44:49.902677-05:00", "completed_at": null, "filename": null, "download_url": null}
+  GET inmediato -> status=READY
+  GET sondeado -> {"id": "885b9b7a-4d6b-485a-a069-05322c388c3c", "period": "2026-10", "language": "en", "status": "READY", "created_at": "2026-10-22T10:44:49.902677-05:00", "completed_at": "2026-10-22T10:44:49.913958-05:00", "filename": "finty-report-2026-10.csv", "download_url": "/api/v1/analytics/reports/885b9b7a-4d6b-485a-a069-05322c388c3c/download/"}
+  GET download -> 200 Content-Type: text/csv; charset=utf-8 | attachment; filename="finty-report-2026-10.csv"
+    | Transactions
+    | Date,Type,Category,Description,Amount,Currency
+    | 2026-10-22,Expense,Food,"Almuerzo, con café",38000.00,COP
+    | 2026-10-22,Income,Salary,Salario,3100000.00,COP
+    | 
+    | Summary by category and currency
+    | Currency,Type,Category,Total,Transactions
+    | COP,Expense,Food,38000.00,1
+    | COP,Income,Salary,3100000.00,1
+  otro usuario pide el mismo reporte -> 404
+
+## 2. Activar Premium deja el correo de bienvenida en el log de subscription-worker
+  POST checkout {plan} -> 201 status=ACTIVE pago=APPROVED
+     [correo] From: Finty <no-responder@finty.local>
+     To: e2m7-valentina-2a42e21a@finty.co
+     Subject: Welcome to Finty Premium!
+    
+     Hi Valentina,
+    
+     Your Premium plan is active until November 22, 2026. You can now see your insights, your recurring expenses, your whole history and investment recommendations.
+    
+     This payment was a simulation: no charge was made.
+    
+     The Finty team
+    [2026-10-22 10:44:50,643: INFO/ForkPoolWorker-2] Task subscription.send_premium_welcome[790f915c-0446-4915-8f11-c32370cc3c42] succeeded in 0.02924358000018401s: 'sent'
+
+## 3. Resiliencia: con analytics-celery detenido, el reporte queda PENDING y se completa al volver
+  $ docker compose stop analytics-celery
+  POST /analytics/reports/ -> 202 status=PENDING
+  20 s despues, sin worker -> status=PENDING
+  mensajes en la cola analytics: 1
+  $ docker compose start analytics-celery
+  tras reanudar -> status=READY completed_at=2026-10-22T10:45:19.316645-05:00
+
+## 4. Resiliencia: con identity caido, la activacion funciona y el correo sale al reintentar
+  $ docker compose stop subscription-worker
+  POST checkout {plan} (worker detenido: la bienvenida queda en la cola) -> 201 status=ACTIVE
+  $ docker compose stop django
+  identity (django) detenido; el worker arranca y toma la bienvenida
+  $ docker compose start subscription-worker
+    subscription-worker-1  | [2026-10-22 10:45:33,169: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 2s: ContactUnavailable('URLError: <urlopen error [Err
+    subscription-worker-1  | [2026-10-22 10:45:39,163: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 4s: ContactUnavailable('URLError: <urlopen error [Err
+    subscription-worker-1  | [2026-10-22 10:45:47,132: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 4s: ContactUnavailable('URLError: <urlopen error [Err
+  $ docker compose start django
+  identity de nuevo arriba
+    [2026-10-22 10:45:33,169: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 2s: ContactUnavailable('URLError: <urlopen error [Errno -5
+    [2026-10-22 10:45:39,163: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 4s: ContactUnavailable('URLError: <urlopen error [Errno -2
+    [2026-10-22 10:45:47,132: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 4s: ContactUnavailable('URLError: <urlopen error [Errno -2
+    [2026-10-22 10:45:55,103: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] retry: Retry in 11s: ContactUnavailable('URLError: <urlopen error [Errno -
+     [correo] From: Finty <no-responder@finty.local>
+     To: e2m7-ignacio-46f00954@finty.co
+     Subject: ¡Bienvenido a Finty Premium!
+    
+     Hola, Ignacio:
+    
+     Tu plan Premium está activo hasta el 22 de noviembre de 2026. Ya puedes ver tus insights, tus gastos recurrentes, todo tu historial y las recomendaciones de inversión.
+    
+     Este pago fue una simulación: no se realizó ningún cobro.
+    
+     El equipo de Finty
+    [2026-10-22 10:46:06,197: INFO/ForkPoolWorker-1] Task subscription.send_premium_welcome[336f8c40-bc63-443d-bc28-bd2b9351faff] succeeded in 0.09644526299962308s: 'sent'
+  correo enviado tras reintentar: True
+
+## 5. Reloj controlado (tests de subscription-service)
+  TestBienvenida::test_sale_una_sola_vez PASSED [ 11%]
+  TestAvisoDeVencimiento::test_solo_a_3_dias_y_una_sola_vez PASSED [ 22%]
+  TestAvisoDeVencimiento::test_tambien_avisa_a_una_cancelada PASSED [ 33%]
+  TestAvisoDeVencimiento::test_una_ya_vencida_no_recibe_aviso PASSED [ 44%]
+  TestAvisoDeVencimiento::test_identity_caido_no_deja_el_aviso_marcado PASSED [ 55%]
+  TestAvisoDeVencimiento::test_varios_usuarios PASSED [ 66%]
+  TestVencimiento::test_la_vencida_pasa_a_expired PASSED [ 77%]
+  TestVencimiento::test_tambien_vence_una_cancelada_y_no_toca_las_pendientes PASSED [ 88%]
+  TestVencimiento::test_tras_vencer_se_puede_volver_a_pagar PASSED [100%]
+  ======================= 9 passed, 7 deselected in 1.44s =======================

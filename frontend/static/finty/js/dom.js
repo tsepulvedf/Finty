@@ -128,3 +128,20 @@ export async function busy(button, task) {
     button.removeAttribute("aria-busy");
   }
 }
+
+/**
+ * Celda con el nombre de su columna en `data-label`: en movil la tabla se apila
+ * y cada valor lleva su etiqueta delante (`.table--stack`).
+ */
+export function cell(label, attrs, ...children) {
+  return h("td", Object.assign({ "data-label": label }, attrs || {}), ...children);
+}
+
+/**
+ * Contenedor de una tabla que puede desplazarse en horizontal: es una region
+ * con nombre y recibe el foco, asi se recorre tambien con el teclado (axe:
+ * scrollable-region-focusable).
+ */
+export function tableRegion(label, table) {
+  return h("div", { class: "table-wrap", role: "region", "aria-label": label, tabindex: "0" }, table);
+}

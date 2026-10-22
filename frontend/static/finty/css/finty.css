@@ -740,3 +740,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Reporte mensual (E2-M7) */
 .report-status { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink-2); }
 .report-status--error { color: var(--expense-ink); }
+
+/* Tablas (E2-M9a): la region desplazable recibe foco; en movil, filas apiladas
+   con la etiqueta de cada columna, sin desplazamiento horizontal. */
+.table-wrap:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .table--stack { min-width: 0; }
+  .table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .table--stack tr { display: block; padding: 12px 14px; border-top: 1px solid var(--line-soft); }
+  .table--stack tbody tr:first-child { border-top: 0; }
+  .table--stack td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border-top: 0; text-align: right; }
+  .table--stack td::before { content: attr(data-label); flex: none; text-align: left; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .table--stack td.cell--title { padding-bottom: 6px; font-size: 15px; }
+  .table--stack td.cell--title::before { content: none; }
+  .table--stack td .stack-tight { align-items: flex-end; }
+}
+
+/* Solo en movil (E2-M9a): accesos directos que en escritorio sobran. */
+.mobile-only { display: none; }
+@media (max-width: 760px) {
+  .mobile-only { display: inline-flex; }
+  .page-head .mobile-only { width: 100%; }
+  #tx-form, #tx-detail { scroll-margin-top: 16px; }
+}

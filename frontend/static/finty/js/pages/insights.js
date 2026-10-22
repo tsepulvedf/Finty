@@ -12,7 +12,7 @@
  */
 import { api } from "../api.js";
 import { INSIGHT_TAGS, categoryName, insightRule, insightText } from "../codes.js";
-import { byId, emptyState, errorState, h, replace } from "../dom.js";
+import { byId, cell, emptyState, errorState, h, replace, tableRegion } from "../dom.js";
 import { money, monthName, periodLabel, shortDate } from "../format.js";
 import { format } from "../i18n.js";
 import { periodOf, requestedPeriod, shift } from "../period.js";
@@ -93,13 +93,18 @@ async function loadFindings() {
 
 // --- Gastos recurrentes --------------------------------------------------------
 
+const PATTERN_COLUMNS = {
+  expense: gettext("Gasto"), category: gettext("Categoría"), months: gettext("Meses presentes"),
+  last: gettext("Última vez"), average: gettext("Monto promedio"),
+};
+
 function patternRow(pattern) {
   return h("tr", null,
-    h("td", null, h("strong", null, pattern.description)),
-    h("td", null, categoryName(pattern.category_name)),
-    h("td", null, format(gettext("%(present)s de %(window)s"), { present: pattern.months_present, window: pattern.window_months })),
-    h("td", null, shortDate(pattern.last_seen)),
-    h("td", { class: "num" }, money(pattern.average_amount, pattern.currency)));
+    cell(PATTERN_COLUMNS.expense, { class: "cell--title" }, h("strong", null, pattern.description)),
+    cell(PATTERN_COLUMNS.category, null, categoryName(pattern.category_name)),
+    cell(PATTERN_COLUMNS.months, null, format(gettext("%(present)s de %(window)s"), { present: pattern.months_present, window: pattern.window_months })),
+    cell(PATTERN_COLUMNS.last, null, shortDate(pattern.last_seen)),
+    cell(PATTERN_COLUMNS.average, { class: "num" }, money(pattern.average_amount, pattern.currency)));
 }
 
 async function loadPatterns() {
@@ -119,15 +124,16 @@ async function loadPatterns() {
         gettext("Aparecerán cuando un mismo gasto se repita en varios meses.")));
       return;
     }
-    replace(container, h("div", { class: "table-wrap" },
-      h("table", { class: "table" },
-        h("caption", { class: "visually-hidden" }, gettext("Gastos recurrentes detectados")),
+    const caption = gettext("Gastos recurrentes detectados");
+    replace(container, tableRegion(caption,
+      h("table", { class: "table table--stack" },
+        h("caption", { class: "visually-hidden" }, caption),
         h("thead", null, h("tr", null,
-          h("th", { scope: "col" }, gettext("Gasto")),
-          h("th", { scope: "col" }, gettext("Categoría")),
-          h("th", { scope: "col" }, gettext("Meses presentes")),
-          h("th", { scope: "col" }, gettext("Última vez")),
-          h("th", { scope: "col", class: "num" }, gettext("Monto promedio")))),
+          h("th", { scope: "col" }, PATTERN_COLUMNS.expense),
+          h("th", { scope: "col" }, PATTERN_COLUMNS.category),
+          h("th", { scope: "col" }, PATTERN_COLUMNS.months),
+          h("th", { scope: "col" }, PATTERN_COLUMNS.last),
+          h("th", { scope: "col", class: "num" }, PATTERN_COLUMNS.average))),
         h("tbody", null, data.patterns.map(patternRow)))));
   } catch (error) {
     count.hidden = true;

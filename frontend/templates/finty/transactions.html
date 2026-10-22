@@ -6,6 +6,8 @@
     <h1 class="page-title">{% translate "Movimientos" %}</h1>
     <p class="page-subtitle" id="tx-summary" aria-live="polite"><span class="skeleton skeleton--text"></span></p>
   </div>
+  {# En movil el formulario queda debajo de la lista: un acceso directo (E2-M9a). #}
+  <a class="btn btn--primary mobile-only" href="#tx-form">{% translate "Registrar movimiento" %}</a>
 </div>
 
 <div class="layout">
@@ -108,7 +110,7 @@
     <section class="card" id="tx-detail" aria-labelledby="tx-detail-title" aria-live="polite">
       <div class="stack-tight">
         <span class="kpi__label">{% translate "Movimiento seleccionado" %}</span>
-        <h2 class="card__title" id="tx-detail-title">{% translate "Ninguno" %}</h2>
+        <h2 class="card__title" id="tx-detail-title" tabindex="-1">{% translate "Ninguno" %}</h2>
       </div>
       <p class="state__text" id="tx-detail-empty">{% translate "Elige un movimiento de la lista para ver cómo se clasificó, cambiar su categoría o eliminarlo." %}</p>
       <div id="tx-detail-body" class="form" hidden>

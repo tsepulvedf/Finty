@@ -16,7 +16,7 @@
  */
 import { api, listAll } from "../api.js";
 import { categoryName, errorMessage, sourceLabel } from "../codes.js";
-import { busy, byId, emptyState, errorState, h, replace, showFieldErrors, showFormError, skeletonRows, toast } from "../dom.js";
+import { busy, byId, cell, emptyState, errorState, h, replace, showFieldErrors, showFormError, skeletonRows, tableRegion, toast } from "../dom.js";
 import { longDate, parseAmount, percent, shortDate, signedMoney } from "../format.js";
 import { format } from "../i18n.js";
 import { startShell } from "../shell.js";
@@ -103,27 +103,32 @@ function renderList() {
     byId("tx-pager").hidden = true;
     return;
   }
+  const columns = {
+    date: gettext("Fecha"), description: gettext("Descripción"), category: gettext("Categoría"),
+    account: gettext("Cuenta"), amount: gettext("Monto"),
+  };
   const rows = results.map((transaction) => h("tr", {
     "aria-selected": state.selected && state.selected.id === transaction.id ? "true" : "false",
     onclick: () => select(transaction),
   },
-    h("td", { class: "muted" }, shortDate(transaction.occurred_on)),
-    h("td", {}, h("button", { type: "button", class: "row-button", onclick: (event) => { event.stopPropagation(); select(transaction); } },
+    cell(columns.date, { class: "muted" }, shortDate(transaction.occurred_on)),
+    cell(columns.description, { class: "cell--title" }, h("button", { type: "button", class: "row-button", onclick: (event) => { event.stopPropagation(); select(transaction); } },
       transaction.description || categoryName(transaction.category_name))),
-    h("td", {}, h("div", { class: "stack-tight" },
+    cell(columns.category, {}, h("div", { class: "stack-tight" },
       h("span", { class: chipClass(transaction) }, categoryName(transaction.category_name)),
       h("span", { class: "provenance" }, provenance(transaction)))),
-    h("td", { class: "muted" }, transaction.account_name),
-    h("td", { class: `num amount--${transaction.type}` }, signedMoney(transaction.amount, currencyOf(transaction.account), transaction.type))));
+    cell(columns.account, { class: "muted" }, transaction.account_name),
+    cell(columns.amount, { class: `num amount--${transaction.type}` }, signedMoney(transaction.amount, currencyOf(transaction.account), transaction.type))));
 
-  const table = h("div", { class: "table-wrap" }, h("table", { class: "table" },
-    h("caption", { class: "visually-hidden" }, gettext("Movimientos: elige uno para ver su detalle.")),
+  const caption = gettext("Movimientos: elige uno para ver su detalle.");
+  const table = tableRegion(caption, h("table", { class: "table table--stack" },
+    h("caption", { class: "visually-hidden" }, caption),
     h("thead", {}, h("tr", {},
-      h("th", { scope: "col" }, gettext("Fecha")),
-      h("th", { scope: "col" }, gettext("Descripción")),
-      h("th", { scope: "col" }, gettext("Categoría")),
-      h("th", { scope: "col" }, gettext("Cuenta")),
-      h("th", { scope: "col", class: "num" }, gettext("Monto")))),
+      h("th", { scope: "col" }, columns.date),
+      h("th", { scope: "col" }, columns.description),
+      h("th", { scope: "col" }, columns.category),
+      h("th", { scope: "col" }, columns.account),
+      h("th", { scope: "col", class: "num" }, columns.amount))),
     h("tbody", {}, rows)));
   replace(list, table);
 
@@ -185,6 +190,20 @@ function previousPage() {
 
 // --- Detalle ------------------------------------------------------------------------
 
+const STACKED_LAYOUT = "(max-width: 760px)";
+
+/**
+ * En movil el detalle queda debajo de la lista y el formulario: al elegir un
+ * movimiento se lleva a la vista y recibe el foco, para que se note el cambio.
+ */
+function revealDetail() {
+  if (!window.matchMedia(STACKED_LAYOUT).matches) {
+    return;
+  }
+  byId("tx-detail").scrollIntoView({ block: "start", behavior: "smooth" });
+  byId("tx-detail-title").focus({ preventScroll: true });
+}
+
 function select(transaction) {
   state.selected = transaction;
   document.querySelectorAll("#tx-list tbody tr").forEach((row, index) => {
@@ -200,6 +219,7 @@ function select(transaction) {
   byId("detail-date").textContent = longDate(transaction.occurred_on);
   byId("detail-account").textContent = transaction.account_name;
   byId("detail-source").textContent = provenance(transaction);
+  revealDetail();
   const categorySelect = byId("detail-category");
   categorySelect.replaceChildren(...categoryOptions(transaction.type));
   if (transaction.category_name) {

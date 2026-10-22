@@ -1,0 +1,32 @@
+{% extends "finty/base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Ingreso" %}{% endblock %}
+{% block body %}
+<div class="auth">
+  {% include "finty/_auth_hero.html" %}
+  <section class="auth__panel">
+    <div class="auth__top">{% include "finty/_language_switch.html" %}</div>
+    <div class="auth__center">
+      <form class="form form--auth" id="login-form" novalidate>
+        <div class="page-head__titles">
+          <h2 class="auth__title">{% translate "Ingresa a tu cuenta" %}</h2>
+          <p class="auth__intro">{% translate "Bienvenido de nuevo. Usa el correo con el que te registraste." %}</p>
+        </div>
+        <div class="field">
+          <label for="login-email">{% translate "Correo electrónico" %}</label>
+          <input class="input input--large" id="login-email" name="email" type="email" autocomplete="email" required placeholder="{% translate 'tu@correo.com' %}">
+        </div>
+        <div class="field">
+          <label for="login-password">{% translate "Contraseña" %}</label>
+          <input class="input input--large" id="login-password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="notice notice--error" id="login-error" role="alert" hidden>
+          {% include "finty/_alert_icon.html" %}<span id="login-error-text"></span>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" id="login-submit">{% translate "Ingresar" %}</button>
+        <p class="auth__switch">{% translate "¿Aún no tienes cuenta?" %} <a href="{% url 'page-register' %}">{% translate "Crear una cuenta" %}</a></p>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/login.js' %}"></script>{% endblock %}

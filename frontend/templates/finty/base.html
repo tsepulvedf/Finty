@@ -1,0 +1,22 @@
+{% load i18n static %}{% get_current_language as LANG %}<!doctype html>
+<html lang="{{ LANG }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% translate "Finty" %}{% endblock %}</title>
+<link rel="preload" href="{% static 'finty/fonts/manrope-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="{% static 'finty/img/favicon.svg' %}" type="image/svg+xml">
+<link rel="stylesheet" href="{% static 'finty/css/finty.css' %}">
+</head>
+<body data-lang="{{ LANG }}"
+      data-url-login="{% url 'page-login' %}"
+      data-url-register="{% url 'page-register' %}"
+      data-url-dashboard="{% url 'page-dashboard' %}"
+      data-url-transactions="{% url 'page-transactions' %}">
+{% block body %}{% endblock %}
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+{# Textos de JavaScript: gettext(), ngettext() e interpolate() del dominio djangojs. #}
+<script src="{% url 'javascript-catalog' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,130 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Dashboard" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head__titles">
+    <p class="eyebrow" id="greeting"><span class="skeleton skeleton--text"></span></p>
+    <h1 class="page-title" id="period-title">{% translate "Tu resumen" %}</h1>
+  </div>
+  <div class="page-head__tools">
+    <div class="stepper" role="group" aria-label="{% translate 'Período' %}">
+      <button type="button" id="period-prev" aria-label="{% translate 'Mes anterior' %}">‹</button>
+      <span class="stepper__label" id="period-label" aria-live="polite"></span>
+      <button type="button" id="period-next" aria-label="{% translate 'Mes siguiente' %}">›</button>
+    </div>
+    <label class="inline-select">{% translate "Mostrar en" %}
+      <select class="select" id="display-currency">
+        <option value="COP">COP</option>
+        <option value="USD">USD</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<div id="period-notice"></div>
+
+<section aria-label="{% translate 'Indicadores del período' %}" id="kpis">
+  <div class="kpis">
+    {% for i in "1234" %}<div class="kpi"><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span></div>{% endfor %}
+  </div>
+</section>
+
+<div class="layout">
+  <div class="layout__main">
+    <section class="card" aria-labelledby="trend-title">
+      <div class="card__head">
+        <h2 class="card__title" id="trend-title">{% translate "Ingresos y gastos" %}</h2>
+        <div class="legend">
+          <span class="legend__item"><span class="legend__swatch"></span>{% translate "Ingresos" %}</span>
+          <span class="legend__item"><span class="legend__swatch legend__swatch--expense"></span>{% translate "Gastos" %}</span>
+        </div>
+      </div>
+      <div id="trend">
+        <div class="bars" aria-hidden="true">
+          {% for i in "123" %}<div class="bars__group"><span class="skeleton skeleton--bar skeleton--bar-tall"></span><span class="skeleton skeleton--bar skeleton--bar-short"></span></div>{% endfor %}
+        </div>
+      </div>
+      <div id="history-notice" hidden class="notice notice--premium">
+        <span id="history-notice-text"></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="latest-title">
+      <div class="card__head">
+        <h2 class="card__title" id="latest-title">{% translate "Últimos movimientos" %}</h2>
+        <a class="card__link" href="{% url 'page-transactions' %}">{% translate "Ver todos" %}</a>
+      </div>
+      <div id="latest" class="skeleton-stack">{% for i in "1234" %}<span class="skeleton skeleton--row"></span>{% endfor %}</div>
+    </section>
+  </div>
+
+  <aside class="layout__side">
+    <section class="card" aria-labelledby="accounts-title">
+      <div class="card__head">
+        <h2 class="card__title" id="accounts-title">{% translate "Tus cuentas" %}</h2>
+        <button type="button" class="btn btn--secondary btn--small" id="new-account">{% translate "+ Nueva cuenta" %}</button>
+      </div>
+      <div id="accounts" class="skeleton-stack">{% for i in "123" %}<span class="skeleton skeleton--row"></span>{% endfor %}</div>
+      <p class="notice notice--info" id="rate-note" hidden></p>
+    </section>
+
+    <section class="card" aria-labelledby="categories-title">
+      <h2 class="card__title" id="categories-title">{% translate "Gastos por categoría" %}</h2>
+      <div id="categories" class="skeleton-stack">{% for i in "1234" %}<span class="skeleton skeleton--text skeleton--full"></span>{% endfor %}</div>
+    </section>
+
+    <div class="promo" id="premium-card">
+      <span class="badge-premium">{% translate "Premium" %}</span>
+      <span class="promo__title" id="premium-card-title"><span class="skeleton skeleton--text"></span></span>
+      <span class="promo__link" id="premium-card-link"></span>
+    </div>
+  </aside>
+</div>
+
+<dialog class="dialog" id="account-dialog" aria-labelledby="account-dialog-title">
+  <form class="dialog__body" id="account-form" method="dialog" novalidate>
+    <div class="dialog__head">
+      <h2 class="dialog__title" id="account-dialog-title">{% translate "Nueva cuenta" %}</h2>
+      <button type="button" class="dialog__close" id="account-dialog-close" aria-label="{% translate 'Cerrar' %}">×</button>
+    </div>
+    <div class="field">
+      <label for="account-name">{% translate "Nombre" %}</label>
+      <input class="input" id="account-name" name="name" type="text" required maxlength="120" placeholder="{% translate 'Por ejemplo, Bancolombia Ahorros' %}" aria-describedby="account-name-error">
+      <span class="field__error" id="account-name-error" hidden></span>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="account-type">{% translate "Tipo" %}</label>
+        <select class="select" id="account-type" name="type" aria-describedby="account-type-error">
+          <option value="bank">{% translate "Banco" %}</option>
+          <option value="cash">{% translate "Efectivo" %}</option>
+          <option value="credit">{% translate "Crédito" %}</option>
+        </select>
+        <span class="field__error" id="account-type-error" hidden></span>
+      </div>
+      <div class="field">
+        <label for="account-currency">{% translate "Moneda" %}</label>
+        <select class="select" id="account-currency" name="currency" aria-describedby="account-currency-error">
+          <option value="COP">COP</option>
+          <option value="USD">USD</option>
+        </select>
+        <span class="field__error" id="account-currency-error" hidden></span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="account-balance">{% translate "Saldo inicial" %}</label>
+      <input class="input" id="account-balance" name="initial_balance" type="text" inputmode="decimal" placeholder="0" aria-describedby="account-balance-hint account-initial_balance-error">
+      <span class="account__meta" id="account-balance-hint">{% translate "El saldo con el que abres la cuenta. No cambia después." %}</span>
+      <span class="field__error" id="account-initial_balance-error" hidden></span>
+    </div>
+    <div class="notice notice--error" id="account-error" role="alert" hidden>
+      {% include "finty/_alert_icon.html" %}<span id="account-error-text"></span>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn--plain" id="account-cancel">{% translate "Cancelar" %}</button>
+      <button type="submit" class="btn btn--primary" id="account-submit">{% translate "Crear cuenta" %}</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/dashboard.js' %}"></script>{% endblock %}

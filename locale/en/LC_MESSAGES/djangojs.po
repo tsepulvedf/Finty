@@ -1,0 +1,578 @@
+# Finty: catalogo de traducciones (ADR-11). Fuente en espanol; se compila en el build.
+msgid ""
+msgstr ""
+"Project-Id-Version: Finty\n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: 2026-10-21 00:00-0500\n"
+"Last-Translator: Equipo Finty\n"
+"Language-Team: Finty\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: frontend/static/finty/js/codes.js
+msgid "El correo o la contraseña no son correctos. Revísalos e inténtalo de nuevo."
+msgstr "The email or password is incorrect. Check them and try again."
+
+#: frontend/static/finty/js/codes.js
+msgid "Ya existe una cuenta con ese correo. Ingresa con él o usa otro."
+msgstr "An account with that email already exists. Log in with it or use another one."
+
+#: frontend/static/finty/js/codes.js
+msgid "La contraseña es muy débil: usa al menos 8 caracteres, que no sean solo números ni una contraseña común."
+msgstr "The password is too weak: use at least 8 characters, not only numbers and not a common password."
+
+#: frontend/static/finty/js/codes.js
+msgid "Esta cuenta está inactiva."
+msgstr "This account is inactive."
+
+#: frontend/static/finty/js/codes.js
+msgid "El monto debe ser distinto de cero."
+msgstr "The amount can't be zero."
+
+#: frontend/static/finty/js/codes.js
+msgid "Escribe el monto sin signo: el tipo de movimiento ya indica si suma o resta."
+msgstr "Enter the amount without a sign: the transaction type already says whether it adds or subtracts."
+
+#: frontend/static/finty/js/codes.js
+msgid "La fecha del movimiento no puede ser futura."
+msgstr "The transaction date can't be in the future."
+
+#: frontend/static/finty/js/codes.js
+msgid "Esa categoría no existe."
+msgstr "That category doesn't exist."
+
+#: frontend/static/finty/js/codes.js
+msgid "Esa categoría no corresponde al tipo de movimiento."
+msgstr "That category doesn't match the transaction type."
+
+#: frontend/static/finty/js/codes.js
+msgid "Ya tienes una cuenta con ese nombre."
+msgstr "You already have an account with that name."
+
+#: frontend/static/finty/js/codes.js
+msgid "La cuenta está archivada y no admite movimientos."
+msgstr "The account is archived and doesn't accept transactions."
+
+#: frontend/static/finty/js/codes.js
+msgid "No encontramos esa cuenta."
+msgstr "We couldn't find that account."
+
+#: frontend/static/finty/js/codes.js
+msgid "No encontramos ese movimiento. Puede que ya se haya eliminado."
+msgstr "We couldn't find that transaction. It may have been deleted."
+
+#: frontend/static/finty/js/codes.js
+msgid "Este movimiento dejaría la cuenta en negativo, y su tipo no lo permite."
+msgstr "This transaction would leave the account negative, and its type doesn't allow it."
+
+#: frontend/static/finty/js/codes.js
+msgid "La moneda no coincide con la de la cuenta."
+msgstr "The currency doesn't match the account's currency."
+
+#: frontend/static/finty/js/codes.js
+msgid "La cuenta tiene movimientos: archívala en lugar de eliminarla."
+msgstr "The account has transactions: archive it instead of deleting it."
+
+#: frontend/static/finty/js/codes.js
+msgid "El tipo de movimiento no es válido."
+msgstr "The transaction type isn't valid."
+
+#: frontend/static/finty/js/codes.js
+msgid "El movimiento no tiene categoría."
+msgstr "The transaction has no category."
+
+#: frontend/static/finty/js/codes.js
+msgid "El período no es válido."
+msgstr "The period isn't valid."
+
+#: frontend/static/finty/js/codes.js
+msgid "Esta función es parte del plan Premium."
+msgstr "This feature is part of the Premium plan."
+
+#: frontend/static/finty/js/codes.js
+msgid "No pudimos verificar tu plan en este momento. Intenta de nuevo en unos minutos."
+msgstr "We couldn't verify your plan right now. Try again in a few minutes."
+
+#: frontend/static/finty/js/codes.js
+msgid "Solo se puede convertir entre pesos y dólares."
+msgstr "Only conversions between pesos and dollars are available."
+
+#: frontend/static/finty/js/codes.js
+msgid "El plan Free no requiere pago."
+msgstr "The Free plan doesn't require payment."
+
+#: frontend/static/finty/js/codes.js
+msgid "Ya tienes una suscripción vigente."
+msgstr "You already have an active subscription."
+
+#: frontend/static/finty/js/codes.js
+msgid "Tienes un pago en proceso."
+msgstr "You have a payment in progress."
+
+#: frontend/static/finty/js/codes.js
+msgid "No tienes una suscripción activa."
+msgstr "You don't have an active subscription."
+
+#: frontend/static/finty/js/codes.js
+msgid "Todavía no has respondido el cuestionario de perfil de riesgo."
+msgstr "You haven't answered the risk profile questionnaire yet."
+
+#: frontend/static/finty/js/codes.js
+msgid "Responde el cuestionario de perfil de riesgo antes de guardar un plan."
+msgstr "Answer the risk profile questionnaire before saving a plan."
+
+#: frontend/static/finty/js/codes.js
+msgid "Cada respuesta del cuestionario vale 1, 2 o 3."
+msgstr "Each questionnaire answer is worth 1, 2 or 3."
+
+#: frontend/static/finty/js/codes.js
+msgid "Ese instrumento no corresponde a tu perfil de riesgo."
+msgstr "That instrument doesn't match your risk profile."
+
+#: frontend/static/finty/js/codes.js
+msgid "El aporte mensual debe ser mayor que cero."
+msgstr "The monthly contribution must be greater than zero."
+
+#: frontend/static/finty/js/codes.js
+msgid "El horizonte del plan está fuera del rango permitido."
+msgstr "The plan's horizon is outside the allowed range."
+
+#: frontend/static/finty/js/codes.js
+msgid "No encontramos ese plan de inversión."
+msgstr "We couldn't find that investment plan."
+
+#: frontend/static/finty/js/codes.js
+msgid "No pudimos conectar con Finty. Revisa tu conexión e intenta de nuevo."
+msgstr "We couldn't reach Finty. Check your connection and try again."
+
+#: frontend/static/finty/js/codes.js
+msgid "Tu sesión no es válida o expiró. Ingresa de nuevo."
+msgstr "Your session is invalid or has expired. Log in again."
+
+#: frontend/static/finty/js/codes.js
+msgid "No tienes acceso a esta función."
+msgstr "You don't have access to this feature."
+
+#: frontend/static/finty/js/codes.js
+msgid "No encontramos lo que buscabas."
+msgstr "We couldn't find what you were looking for."
+
+#: frontend/static/finty/js/codes.js
+msgid "Hiciste demasiadas solicitudes seguidas. Espera un momento e intenta de nuevo."
+msgstr "You made too many requests in a row. Wait a moment and try again."
+
+#: frontend/static/finty/js/codes.js
+msgid "El servicio no está disponible en este momento. Intenta de nuevo en unos minutos."
+msgstr "The service isn't available right now. Try again in a few minutes."
+
+#: frontend/static/finty/js/codes.js
+msgid "Algo salió mal. Intenta de nuevo."
+msgstr "Something went wrong. Try again."
+
+#: frontend/static/finty/js/codes.js
+msgid "Registro de movimientos"
+msgstr "Transaction tracking"
+
+#: frontend/static/finty/js/codes.js
+msgid "Dashboard estándar"
+msgstr "Standard dashboard"
+
+#: frontend/static/finty/js/codes.js
+msgid "3 meses de historial"
+msgstr "3 months of history"
+
+#: frontend/static/finty/js/codes.js
+msgid "Insights sobre tus gastos"
+msgstr "Insights about your spending"
+
+#: frontend/static/finty/js/codes.js
+msgid "Patrones de gasto recurrente"
+msgstr "Recurring spending patterns"
+
+#: frontend/static/finty/js/codes.js
+msgid "Historial ilimitado"
+msgstr "Unlimited history"
+
+#: frontend/static/finty/js/codes.js
+msgid "Recomendaciones de inversión"
+msgstr "Investment recommendations"
+
+#: frontend/static/finty/js/codes.js
+msgid "Planes de inversión"
+msgstr "Investment plans"
+
+#: frontend/static/finty/js/codes.js
+msgid "Banco"
+msgstr "Bank"
+
+#: frontend/static/finty/js/codes.js
+msgid "Efectivo"
+msgstr "Cash"
+
+#: frontend/static/finty/js/codes.js
+msgid "Crédito"
+msgstr "Credit"
+
+#: frontend/static/finty/js/codes.js
+msgid "Ingreso"
+msgstr "Income"
+
+#: frontend/static/finty/js/codes.js
+msgid "Gasto"
+msgstr "Expense"
+
+#: frontend/static/finty/js/codes.js
+msgid "Automática · por reglas"
+msgstr "Automatic · rules"
+
+#: frontend/static/finty/js/codes.js
+msgid "Automática · por IA"
+msgstr "Automatic · AI"
+
+#: frontend/static/finty/js/codes.js
+msgid "Automática · simulada"
+msgstr "Automatic · simulated"
+
+#: frontend/static/finty/js/codes.js
+msgid "Manual"
+msgstr "Manual"
+
+#: frontend/static/finty/js/codes.js
+msgid "Sin clasificar"
+msgstr "Not categorized"
+
+#: frontend/static/finty/js/codes.js
+msgid "en vivo"
+msgstr "live"
+
+#: frontend/static/finty/js/codes.js
+msgid "en caché"
+msgstr "cached"
+
+#: frontend/static/finty/js/codes.js
+msgid "tasa de respaldo"
+msgstr "fallback rate"
+
+#: frontend/static/finty/js/codes.js
+msgid "Plan Free"
+msgstr "Free plan"
+
+#: frontend/static/finty/js/codes.js
+msgid "Plan Premium"
+msgstr "Premium plan"
+
+#: frontend/static/finty/js/codes.js
+msgid "Alimentación"
+msgstr "Food"
+
+#: frontend/static/finty/js/codes.js
+msgid "Transporte"
+msgstr "Transportation"
+
+#: frontend/static/finty/js/codes.js
+msgid "Vivienda"
+msgstr "Housing"
+
+#: frontend/static/finty/js/codes.js
+msgid "Servicios públicos"
+msgstr "Utilities"
+
+#: frontend/static/finty/js/codes.js
+msgid "Salud"
+msgstr "Health"
+
+#: frontend/static/finty/js/codes.js
+msgid "Educación"
+msgstr "Education"
+
+#: frontend/static/finty/js/codes.js
+msgid "Entretenimiento"
+msgstr "Entertainment"
+
+#: frontend/static/finty/js/codes.js
+msgid "Compras"
+msgstr "Shopping"
+
+#: frontend/static/finty/js/codes.js
+msgid "Deudas y créditos"
+msgstr "Debt and loans"
+
+#: frontend/static/finty/js/codes.js
+msgid "Otros gastos"
+msgstr "Other expenses"
+
+#: frontend/static/finty/js/codes.js
+msgid "Salario"
+msgstr "Salary"
+
+#: frontend/static/finty/js/codes.js
+msgid "Freelance"
+msgstr "Freelance"
+
+#: frontend/static/finty/js/codes.js
+msgid "Inversiones"
+msgstr "Investments"
+
+#: frontend/static/finty/js/codes.js
+msgid "Reembolsos"
+msgstr "Refunds"
+
+#: frontend/static/finty/js/codes.js
+msgid "Otros ingresos"
+msgstr "Other income"
+
+#: frontend/static/finty/js/codes.js
+msgid "Sin categoría"
+msgstr "No category"
+
+#: frontend/static/finty/js/codes.js
+msgid "Tu gasto en %(category_name)s subió un %(increase_pct)s por ciento frente a tu promedio."
+msgstr "Your spending on %(category_name)s rose %(increase_pct)s percent compared with your average."
+
+#: frontend/static/finty/js/codes.js
+msgid "Este mes gastaste más de lo que ingresó."
+msgstr "This month you spent more than you earned."
+
+#: frontend/static/finty/js/codes.js
+msgid "%(category_name)s es la categoría donde más gastas este mes."
+msgstr "%(category_name)s is where you spend the most this month."
+
+#: frontend/static/finty/js/dom.js
+msgid "No pudimos cargar esta sección"
+msgstr "We couldn't load this section"
+
+#: frontend/static/finty/js/dom.js
+msgid "Reintentar"
+msgstr "Try again"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Tu resumen de %(month)s"
+msgstr "Your %(month)s summary"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Conversión con la TRM oficial del %(date)s: %(rate)s por dólar · fuente: %(source)s. Los montos guardados no cambian."
+msgstr "Converted with the official exchange rate (TRM) of %(date)s: %(rate)s per dollar · source: %(source)s. Stored amounts don't change."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Conversión con una tasa de %(rate)s por dólar · fuente: %(source)s. Los montos guardados no cambian."
+msgstr "Converted with a rate of %(rate)s per dollar · source: %(source)s. Stored amounts don't change."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "No pudimos obtener la tasa de cambio: los montos se muestran en su moneda original."
+msgstr "We couldn't get the exchange rate: amounts are shown in their original currency."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "%(month)s: %(amount)s"
+msgstr "%(month)s: %(amount)s"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Convertido desde %(currency)s"
+msgstr "Converted from %(currency)s"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Ingresos"
+msgstr "Income"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Gastos"
+msgstr "Expenses"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Neto del mes"
+msgstr "Net for the month"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Ingresos menos gastos del período"
+msgstr "Income minus expenses for the period"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "También tienes movimientos en %(currency)s este mes: ingresos %(income)s y gastos %(expense)s."
+msgstr "You also have transactions in %(currency)s this month: income %(income)s and expenses %(expense)s."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "%(month)s: ingresos %(income)s, gastos %(expense)s"
+msgstr "%(month)s: income %(income)s, expenses %(expense)s"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Sin gastos en este período"
+msgstr "No expenses in this period"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Cuando registres gastos, verás aquí en qué se va tu dinero."
+msgstr "When you add expenses, you'll see here where your money goes."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "El plan Free muestra los últimos %(months)s meses. Con Premium ves todo tu historial."
+msgstr "The Free plan shows the last %(months)s months. With Premium you see your whole history."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Registrar un movimiento"
+msgstr "Add a transaction"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Crea tu primera cuenta"
+msgstr "Create your first account"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "No hay movimientos en %(period)s"
+msgstr "No transactions in %(period)s"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Los indicadores aparecen cuando registras ingresos o gastos en el período."
+msgstr "Indicators appear when you add income or expenses in the period."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Sin datos para la tendencia"
+msgstr "No data for the trend"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Registra movimientos para ver cómo cambian tus ingresos y gastos mes a mes."
+msgstr "Add transactions to see how your income and expenses change month by month."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Este período está fuera de los últimos %(months)s meses que incluye el plan Free."
+msgstr "This period is outside the last %(months)s months included in the Free plan."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Período no disponible en tu plan"
+msgstr "Period not available on your plan"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Vuelve a un mes reciente o pásate a Premium para ver todo tu historial."
+msgstr "Go back to a recent month or upgrade to Premium to see your whole history."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Registra dónde tienes tu dinero: efectivo, banco o tarjeta de crédito."
+msgstr "Add where you keep your money: cash, bank or credit card."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Crear cuenta"
+msgstr "Create account"
+
+#: frontend/static/finty/js/pages/dashboard.js
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Todavía no hay movimientos"
+msgstr "No transactions yet"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Registra tu primer gasto o ingreso y Finty lo clasificará por ti."
+msgstr "Add your first expense or income and Finty will categorize it for you."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Con Premium, Finty detecta hallazgos y gastos recurrentes en tus movimientos."
+msgstr "With Premium, Finty finds insights and recurring expenses in your transactions."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Incluido en el plan Premium"
+msgstr "Included in the Premium plan"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Este mes: %(findings)s y %(recurring)s."
+msgstr "This month: %(findings)s and %(recurring)s."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "%(count)s hallazgo"
+msgid_plural "%(count)s hallazgos"
+msgstr[0] "%(count)s insight"
+msgstr[1] "%(count)s insights"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "%(count)s gasto recurrente"
+msgid_plural "%(count)s gastos recurrentes"
+msgstr[0] "%(count)s recurring expense"
+msgstr[1] "%(count)s recurring expenses"
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Los verás en detalle en la sección de insights."
+msgstr "You'll see them in detail in the insights section."
+
+#: frontend/static/finty/js/pages/dashboard.js
+#: frontend/static/finty/js/pages/register.js
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Este campo es obligatorio."
+msgstr "This field is required."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Cuenta «%(name)s» creada."
+msgstr "Account “%(name)s” created."
+
+#: frontend/static/finty/js/pages/dashboard.js
+msgid "Hola, %(name)s"
+msgstr "Hi, %(name)s"
+
+#: frontend/static/finty/js/pages/login.js
+msgid "Escribe tu correo y tu contraseña."
+msgstr "Enter your email and password."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "todas las cuentas"
+msgstr "all accounts"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "%(count)s movimiento · %(scope)s"
+msgid_plural "%(count)s movimientos · %(scope)s"
+msgstr[0] "%(count)s transaction · %(scope)s"
+msgstr[1] "%(count)s transactions · %(scope)s"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Ningún movimiento coincide con los filtros"
+msgstr "No transactions match the filters"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Cambia o limpia los filtros para ver más movimientos."
+msgstr "Change or clear the filters to see more transactions."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Registra tu primer gasto o ingreso con el formulario. Finty lo clasificará por ti."
+msgstr "Add your first expense or income with the form. Finty will categorize it for you."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Movimientos: elige uno para ver su detalle."
+msgstr "Transactions: choose one to see its details."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Fecha"
+msgstr "Date"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Descripción"
+msgstr "Description"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Categoría"
+msgstr "Category"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Cuenta"
+msgstr "Account"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Monto"
+msgstr "Amount"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Mostrando %(first)s–%(last)s de %(count)s"
+msgstr "Showing %(first)s–%(last)s of %(count)s"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Ninguno"
+msgstr "None"
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Movimiento recategorizado como %(category)s."
+msgstr "Transaction recategorized as %(category)s."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Movimiento eliminado."
+msgstr "Transaction deleted."
+
+#: frontend/static/finty/js/pages/transactions.js
+msgid "Movimiento guardado en %(category)s · %(source)s."
+msgstr "Transaction saved in %(category)s · %(source)s."
+
+#: frontend/static/finty/js/shell.js
+msgid "Plan Free · Mejorar"
+msgstr "Free plan · Upgrade"

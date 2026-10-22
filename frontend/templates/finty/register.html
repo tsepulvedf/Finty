@@ -1,0 +1,40 @@
+{% extends "finty/base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Registro" %}{% endblock %}
+{% block body %}
+<div class="auth">
+  {% include "finty/_auth_hero.html" %}
+  <section class="auth__panel">
+    <div class="auth__top">{% include "finty/_language_switch.html" %}</div>
+    <div class="auth__center">
+      <form class="form form--auth" id="register-form" novalidate>
+        <div class="page-head__titles">
+          <h2 class="auth__title">{% translate "Crea tu cuenta" %}</h2>
+          <p class="auth__intro">{% translate "Empieza a registrar tus movimientos en un minuto." %}</p>
+        </div>
+        <div class="field">
+          <label for="register-name">{% translate "Nombre" %}</label>
+          <input class="input input--large" id="register-name" name="display_name" type="text" autocomplete="name" required maxlength="120" aria-describedby="register-name-error">
+          <span class="field__error" id="register-name-error" hidden></span>
+        </div>
+        <div class="field">
+          <label for="register-email">{% translate "Correo electrónico" %}</label>
+          <input class="input input--large" id="register-email" name="email" type="email" autocomplete="email" required placeholder="{% translate 'tu@correo.com' %}" aria-describedby="register-email-error">
+          <span class="field__error" id="register-email-error" hidden></span>
+        </div>
+        <div class="field">
+          <label for="register-password">{% translate "Contraseña" %}</label>
+          <input class="input input--large" id="register-password" name="password" type="password" autocomplete="new-password" required aria-describedby="register-password-hint register-password-error">
+          <span class="account__meta" id="register-password-hint">{% translate "Al menos 8 caracteres, que no sean solo números, ni una contraseña común, ni parecidos a tu nombre o correo." %}</span>
+          <span class="field__error" id="register-password-error" hidden></span>
+        </div>
+        <div class="notice notice--error" id="register-error" role="alert" hidden>
+          {% include "finty/_alert_icon.html" %}<span id="register-error-text"></span>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" id="register-submit">{% translate "Crear cuenta" %}</button>
+        <p class="auth__switch">{% translate "¿Ya tienes cuenta?" %} <a href="{% url 'page-login' %}">{% translate "Ingresa" %}</a></p>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/register.js' %}"></script>{% endblock %}

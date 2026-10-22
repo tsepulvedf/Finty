@@ -1,0 +1,14 @@
+{% load i18n %}
+<section class="auth__hero">
+  <div class="brand brand--light">{% include "finty/_logo.html" %}{% translate "Finty" %}</div>
+  <div class="auth__pitch">
+    <h1 class="auth__headline">{% translate "Todas tus cuentas, en un solo lugar." %}</h1>
+    <p class="auth__lead">{% translate "Registra tus movimientos de efectivo, banco y tarjeta de crédito. Finty los clasifica por ti y te muestra en qué se va tu dinero." %}</p>
+    <ul class="auth__benefits">
+      <li>{% include "finty/_check.html" %}{% translate "Clasificación automática y explicable" %}</li>
+      <li>{% include "finty/_check.html" %}{% translate "Saldo de tus cuentas en pesos y dólares" %}</li>
+      <li>{% include "finty/_check.html" %}{% translate "Recomendaciones según tu perfil" %}</li>
+    </ul>
+  </div>
+  <p class="auth__legal">{% translate "© 2026 Finty · Proyecto académico" %}</p>
+</section>

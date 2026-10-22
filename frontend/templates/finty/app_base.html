@@ -1,0 +1,32 @@
+{% extends "finty/base.html" %}{% load i18n %}
+{% block body %}
+<a class="skip-link" href="#contenido">{% translate "Saltar al contenido" %}</a>
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" href="{% url 'page-dashboard' %}">
+      {% include "finty/_logo.html" with dark=True %}{% translate "Finty" %}
+    </a>
+    <nav class="nav" aria-label="{% translate 'Principal' %}">
+      <a href="{% url 'page-dashboard' %}"{% if request.resolver_match.url_name == 'page-dashboard' %} aria-current="page"{% endif %}>{% translate "Dashboard" %}</a>
+      <a href="{% url 'page-transactions' %}"{% if request.resolver_match.url_name == 'page-transactions' %} aria-current="page"{% endif %}>{% translate "Movimientos" %}</a>
+    </nav>
+    <div class="header-tools">
+      {# Indicador de plan: lo llena shell.js con GET /api/v1/subscriptions/me/. #}
+      <span class="plan-chip" id="plan-chip" aria-live="polite"></span>
+      {% include "finty/_language_switch.html" %}
+      <div class="account-menu">
+        <button type="button" class="avatar" id="avatar" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu">
+          <span id="avatar-initials" aria-hidden="true"></span><span class="visually-hidden">{% translate "Menú de la cuenta" %}</span>
+        </button>
+        <ul class="menu" id="account-menu" hidden>
+          <li class="menu__email" id="account-email"></li>
+          <li><button type="button" id="logout">{% translate "Cerrar sesión" %}</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</header>
+<main class="page" id="contenido" tabindex="-1">
+{% block content %}{% endblock %}
+</main>
+{% endblock %}

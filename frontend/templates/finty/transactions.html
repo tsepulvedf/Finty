@@ -1,0 +1,136 @@
+{% extends "finty/app_base.html" %}{% load i18n static %}
+{% block title %}{% translate "Finty · Movimientos" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head__titles">
+    <h1 class="page-title">{% translate "Movimientos" %}</h1>
+    <p class="page-subtitle" id="tx-summary" aria-live="polite"><span class="skeleton skeleton--text"></span></p>
+  </div>
+</div>
+
+<div class="layout">
+  <section class="card layout__main" aria-labelledby="tx-list-title">
+    <h2 class="visually-hidden" id="tx-list-title">{% translate "Lista de movimientos" %}</h2>
+    <form class="filters" id="filters" role="search" aria-label="{% translate 'Filtros' %}">
+      <div class="field field--compact">
+        <label for="filter-account">{% translate "Cuenta" %}</label>
+        <select class="select" id="filter-account" name="account_id"><option value="">{% translate "Todas" %}</option></select>
+      </div>
+      <div class="field field--compact">
+        <label for="filter-category">{% translate "Categoría" %}</label>
+        <select class="select" id="filter-category" name="category_id"><option value="">{% translate "Todas" %}</option></select>
+      </div>
+      <div class="field field--compact">
+        <label for="filter-from">{% translate "Desde" %}</label>
+        <input class="input" id="filter-from" name="date_from" type="date">
+      </div>
+      <div class="field field--compact">
+        <label for="filter-to">{% translate "Hasta" %}</label>
+        <input class="input" id="filter-to" name="date_to" type="date">
+      </div>
+    </form>
+
+    <div id="tx-list" aria-busy="true">
+      <div class="skeleton-stack">{% for i in "123456" %}<span class="skeleton skeleton--row"></span>{% endfor %}</div>
+    </div>
+
+    <div class="pager" id="tx-pager" hidden>
+      <span id="tx-range" aria-live="polite"></span>
+      <div class="pager__buttons">
+        <button type="button" class="btn btn--plain" id="tx-prev">{% translate "Anterior" %}</button>
+        <button type="button" class="btn btn--plain" id="tx-next">{% translate "Siguiente" %}</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="layout__side">
+    <form class="card form" id="tx-form" novalidate aria-labelledby="tx-form-title">
+      <h2 class="card__title" id="tx-form-title">{% translate "Registrar movimiento" %}</h2>
+      <div id="tx-form-empty" hidden class="state">
+        <p class="state__title">{% translate "Crea tu primera cuenta" %}</p>
+        <p class="state__text">{% translate "Para registrar un movimiento necesitas al menos una cuenta: efectivo, banco o tarjeta de crédito." %}</p>
+        <a class="btn btn--primary" href="{% url 'page-dashboard' %}?nueva-cuenta=1">{% translate "Crear una cuenta" %}</a>
+      </div>
+      <div id="tx-form-fields" class="form">
+        <div class="segmented" role="group" aria-label="{% translate 'Tipo de movimiento' %}">
+          <button type="button" data-type="expense" aria-pressed="true">{% translate "Gasto" %}</button>
+          <button type="button" data-type="income" aria-pressed="false">{% translate "Ingreso" %}</button>
+        </div>
+        <div class="field">
+          <label for="tx-account">{% translate "Cuenta" %}</label>
+          <select class="select" id="tx-account" name="account_id" required aria-describedby="tx-account_id-error"></select>
+          <span class="field__error" id="tx-account_id-error" hidden></span>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="tx-amount">{% translate "Monto" %}</label>
+            <input class="input" id="tx-amount" name="amount" type="text" inputmode="decimal" required placeholder="0" aria-describedby="tx-amount-error">
+            <span class="field__error" id="tx-amount-error" hidden></span>
+          </div>
+          <div class="field">
+            <label for="tx-date">{% translate "Fecha" %}</label>
+            <input class="input" id="tx-date" name="occurred_on" type="date" required aria-describedby="tx-occurred_on-error">
+            <span class="field__error" id="tx-occurred_on-error" hidden></span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="tx-description">{% translate "Descripción" %}</label>
+          <input class="input" id="tx-description" name="description" type="text" maxlength="255" aria-describedby="tx-description-error">
+          <span class="field__error" id="tx-description-error" hidden></span>
+        </div>
+        <div class="field">
+          <label for="tx-category">{% translate "Categoría" %}</label>
+          <select class="select" id="tx-category" name="category_name" aria-describedby="tx-category_name-error">
+            <option value="">{% translate "Automática (recomendado)" %}</option>
+          </select>
+          <span class="field__error" id="tx-category_name-error" hidden></span>
+        </div>
+        <p class="notice notice--info">{% translate "Finty clasifica el movimiento por su descripción y te dice cómo lo decidió. Puedes cambiar la categoría cuando quieras." %}</p>
+        <div class="notice notice--error" id="tx-error" role="alert" hidden>
+          {% include "finty/_alert_icon.html" %}<span id="tx-error-text"></span>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" id="tx-submit">{% translate "Guardar movimiento" %}</button>
+      </div>
+    </form>
+
+    <section class="card" id="tx-detail" aria-labelledby="tx-detail-title" aria-live="polite">
+      <div class="stack-tight">
+        <span class="kpi__label">{% translate "Movimiento seleccionado" %}</span>
+        <h2 class="card__title" id="tx-detail-title">{% translate "Ninguno" %}</h2>
+      </div>
+      <p class="state__text" id="tx-detail-empty">{% translate "Elige un movimiento de la lista para ver cómo se clasificó, cambiar su categoría o eliminarlo." %}</p>
+      <div id="tx-detail-body" class="form" hidden>
+        <dl class="details">
+          <dt>{% translate "Monto" %}</dt><dd id="detail-amount"></dd>
+          <dt>{% translate "Fecha" %}</dt><dd id="detail-date"></dd>
+          <dt>{% translate "Cuenta" %}</dt><dd id="detail-account"></dd>
+          <dt>{% translate "Clasificó" %}</dt><dd id="detail-source"></dd>
+        </dl>
+        <div class="field">
+          <label for="detail-category">{% translate "Cambiar categoría" %}</label>
+          <select class="select" id="detail-category"></select>
+        </div>
+        <div class="notice notice--error" id="detail-error" role="alert" hidden>
+          {% include "finty/_alert_icon.html" %}<span id="detail-error-text"></span>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn--dark" id="detail-recategorize">{% translate "Recategorizar" %}</button>
+          <button type="button" class="btn btn--danger" id="detail-delete">{% translate "Eliminar" %}</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<dialog class="dialog" id="delete-dialog" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-text">
+  <div class="dialog__body">
+    <h2 class="dialog__title" id="delete-dialog-title">{% translate "¿Eliminar este movimiento?" %}</h2>
+    <p class="state__text" id="delete-dialog-text">{% translate "El saldo de la cuenta se recalcula sin él. Esta acción no se puede deshacer." %}</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn--plain" id="delete-cancel">{% translate "Cancelar" %}</button>
+      <button type="button" class="btn btn--danger-solid" id="delete-confirm">{% translate "Eliminar" %}</button>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'finty/js/pages/transactions.js' %}"></script>{% endblock %}

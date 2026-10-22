@@ -1,0 +1,8 @@
+{% load i18n %}{% get_current_language as LANG %}
+{# Selector ES/EN: la vista set_language de Django guarda la eleccion en la cookie de idioma. #}
+<form class="lang-switch" action="{% url 'set_language' %}" method="post" role="group" aria-label="{% translate 'Idioma' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" name="language" value="es" lang="es" aria-pressed="{% if LANG == 'es' %}true{% else %}false{% endif %}"><span aria-hidden="true">ES</span><span class="visually-hidden">{% translate "Español" %}</span></button>
+  <button type="submit" name="language" value="en" lang="en" aria-pressed="{% if LANG == 'en' %}true{% else %}false{% endif %}"><span aria-hidden="true">EN</span><span class="visually-hidden">{% translate "Inglés" %}</span></button>
+</form>

@@ -29,6 +29,8 @@ function benefit(code) {
 }
 
 function notPremium() {
+  // Sin Premium no hay nada que celebrar: el sello de exito confundiria (E2-M9a).
+  document.querySelector(".welcome__badge").hidden = true;
   byId("welcome-title").textContent = gettext("Todavía no tienes Premium");
   byId("welcome-lead").textContent = gettext("Si acabas de pagar y ves este mensaje, vuelve a intentarlo desde los planes.");
   replace(byId("benefits"));

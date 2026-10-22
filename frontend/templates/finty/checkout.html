@@ -1,7 +1,8 @@
 {% extends "finty/base.html" %}{% load i18n static %}
 {% block title %}{% translate "Finty · Pasar a Premium (simulación)" %}{% endblock %}
 {% block body %}
-<header class="flow-header">
+<header>
+<div class="flow-header">
   <div class="flow-header__inner">
     <a class="brand" href="{% url 'page-dashboard' %}">{% include "finty/_logo.html" with dark=True %}{% translate "Finty" %}</a>
     <div class="header-tools">
@@ -9,13 +10,14 @@
       <a class="btn btn--plain btn--small" href="{% url 'page-plans' %}">{% translate "Cancelar" %}</a>
     </div>
   </div>
-</header>
+</div>
 <div class="demo-banner" role="note">
   <div class="demo-banner__inner">
     {% include "finty/_alert_icon.html" %}
     <p><strong>{% translate "Modo demostración: no se realiza ningún cobro." %}</strong> {% translate "Este formulario es una simulación y sus datos no se envían ni se guardan. No escribas los datos de una tarjeta real." %}</p>
   </div>
 </div>
+</header>
 <main class="flow" id="contenido" tabindex="-1">
   {% comment %}
     Checkout simulado (ADR-14, handoff §8). Los campos de la tarjeta no tienen

@@ -124,10 +124,11 @@ async function submit(event, plan) {
 
 function showAlreadyPremium() {
   const form = byId("checkout-form");
-  replace(form, emptyState(
-    gettext("Ya tienes el plan Premium"),
-    gettext("Tu suscripción está vigente: no necesitas pagar de nuevo."),
-    h("a", { class: "btn btn--primary", href: document.body.dataset.urlDashboard }, gettext("Ir al dashboard"))));
+  // La pagina conserva su h1 aunque ya no haya formulario (axe: page-has-heading-one).
+  replace(form,
+    h("h1", { class: "page-title" }, gettext("Ya tienes el plan Premium")),
+    h("p", { class: "state__text" }, gettext("Tu suscripción está vigente: no necesitas pagar de nuevo.")),
+    h("a", { class: "btn btn--primary", href: document.body.dataset.urlDashboard }, gettext("Ir al dashboard")));
 }
 
 async function start() {

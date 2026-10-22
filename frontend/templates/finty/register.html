@@ -3,7 +3,7 @@
 {% block body %}
 <div class="auth">
   {% include "finty/_auth_hero.html" %}
-  <section class="auth__panel">
+  <main class="auth__panel" id="contenido" tabindex="-1">
     <div class="auth__top">{% include "finty/_language_switch.html" %}</div>
     <div class="auth__center">
       <form class="form form--auth" id="register-form" novalidate>
@@ -34,7 +34,7 @@
         <p class="auth__switch">{% translate "¿Ya tienes cuenta?" %} <a href="{% url 'page-login' %}">{% translate "Ingresa" %}</a></p>
       </form>
     </div>
-  </section>
+  </main>
 </div>
 {% endblock %}
 {% block scripts %}<script type="module" src="{% static 'finty/js/pages/register.js' %}"></script>{% endblock %}

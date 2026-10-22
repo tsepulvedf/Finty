@@ -111,14 +111,23 @@ def entitlements():
 
 
 @pytest.fixture
-def app(connection, entitlements):
+def report_queue():
+    """Cola de reportes en memoria: guarda lo encolado, o falla si `down`."""
+    from tests.report_doubles import MemoryReportQueue
+
+    return MemoryReportQueue()
+
+
+@pytest.fixture
+def app(connection, entitlements, report_queue):
     """Aplicacion Flask cuyas peticiones usan la conexion del test."""
+    from api.context import REPORT_QUEUE_KEY
     from api.gating import ENTITLEMENTS_READER_KEY
     from app import create_app
 
     application = create_app(
         session_factory=lambda: _session_on(connection),
-        adapters={ENTITLEMENTS_READER_KEY: entitlements},
+        adapters={ENTITLEMENTS_READER_KEY: entitlements, REPORT_QUEUE_KEY: report_queue},
     )
     application.testing = True
     return application

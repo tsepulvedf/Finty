@@ -7,24 +7,30 @@
 - `AnalyticsService` arma `Dashboard`, `Insight` y `SpendingPattern` de un
   usuario a partir de sus transacciones vigentes.
 - `PublicSummaryService` arma el resumen publico con k-anonimato.
+- `ReportService` pide, genera y entrega el reporte mensual (E2-M7). La
+  generacion la ejecuta una tarea de Celery (`tasks.py`).
 
 Las reglas viven en `domain/`; aqui solo se orquesta y se lee la base.
 """
 import logging
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.dialects.postgresql import insert
 
 from domain.dashboard import Dashboard
 from domain.events import EventType
-from domain.exceptions import InvalidEventError
+from domain.exceptions import InvalidEventError, ReportNotFoundError, ReportNotReadyError
 from domain.facts import TransactionFact
 from domain.insights import detect_insights
 from domain.patterns import detect_patterns
+from domain.period import Period
+from domain.report import MonthlyReport, ReportStatus, can_generate, report_language
 from domain.shared.value_objects import Money
 from domain.summary import SpendingSummary
-from models import ProcessedEvent, TransactionFactRecord
+from models import MonthlyReportRecord, ProcessedEvent, TransactionFactRecord
 
 logger = logging.getLogger(__name__)
 
@@ -185,26 +191,31 @@ class AnalyticsService:
         return detect_patterns(reference, self._facts(user_id, window[0], reference), self._thresholds)
 
     def _facts(self, user_id, first, last):
-        rows = self._session.execute(
-            select(TransactionFactRecord).where(
-                TransactionFactRecord.user_id == user_id,
-                TransactionFactRecord.deleted_at.is_(None),
-                TransactionFactRecord.occurred_on >= first.start,
-                TransactionFactRecord.occurred_on < last.end,
-            )
-        ).scalars()
-        return [
-            TransactionFact(
-                transaction_id=row.transaction_id,
-                account_id=row.account_id,
-                amount=Money(row.amount, row.currency),
-                transaction_type=row.transaction_type,
-                category_name=row.category_name,
-                description=row.description,
-                occurred_on=row.occurred_on,
-            )
-            for row in rows
-        ]
+        return load_facts(self._session, user_id, first, last)
+
+
+def load_facts(session, user_id, first, last):
+    """Transacciones vigentes de `user_id` entre los periodos `first` y `last`."""
+    rows = session.execute(
+        select(TransactionFactRecord).where(
+            TransactionFactRecord.user_id == user_id,
+            TransactionFactRecord.deleted_at.is_(None),
+            TransactionFactRecord.occurred_on >= first.start,
+            TransactionFactRecord.occurred_on < last.end,
+        )
+    ).scalars()
+    return [
+        TransactionFact(
+            transaction_id=row.transaction_id,
+            account_id=row.account_id,
+            amount=Money(row.amount, row.currency),
+            transaction_type=row.transaction_type,
+            category_name=row.category_name,
+            description=row.description,
+            occurred_on=row.occurred_on,
+        )
+        for row in rows
+    ]
 
 
 class PublicSummaryService:
@@ -232,3 +243,116 @@ class PublicSummaryService:
             .group_by(fact.category_name, fact.currency)
         ).all()
         return SpendingSummary.build(period, aggregates, self._thresholds.public_min_users)
+
+
+# --- Reporte mensual (E2-M7) ----------------------------------------------------
+
+# Errores que pasan solos: la tarea reintenta con espera creciente.
+TRANSIENT_ERRORS = (OperationalError, DBAPIError, ConnectionError, TimeoutError)
+# Un PENDING mas viejo que esto se vuelve a encolar (se perdio el mensaje, o el
+# broker no respondio al pedirlo).
+STALE_AFTER = timedelta(minutes=2)
+FAILURE_DETAIL_LENGTH = 200
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
+
+
+class ReportService:
+    """Casos de uso del reporte mensual.
+
+    La peticion solo crea el registro PENDING y lo encola; la tarea de Celery
+    llama a `generate`, que es idempotente: un reporte que ya no esta PENDING no
+    se vuelve a generar, y la fila se bloquea con `SKIP LOCKED` para que dos
+    entregas del mismo mensaje no lo generen a la vez.
+    """
+
+    def __init__(self, session, renderer, queue=None, clock=utcnow):
+        self._session = session
+        self._renderer = renderer
+        self._queue = queue
+        self._clock = clock
+
+    def request(self, user_id, period, language):
+        with atomic(self._session):
+            record = MonthlyReportRecord(
+                user_id=user_id,
+                period=str(period),
+                language=report_language(language),
+                status=ReportStatus.PENDING.value,
+                created_at=self._clock(),
+            )
+            self._session.add(record)
+        self._enqueue(record.id)
+        return record
+
+    def get(self, user_id, report_id):
+        record = self._session.get(MonthlyReportRecord, report_id)
+        if record is None or record.user_id != user_id:
+            raise ReportNotFoundError()
+        return record
+
+    def download(self, user_id, report_id):
+        record = self.get(user_id, report_id)
+        if ReportStatus(record.status) is not ReportStatus.READY:
+            raise ReportNotReadyError()
+        return record
+
+    def generate(self, report_id):
+        """Genera el archivo de un reporte PENDING. Devuelve el estado final.
+
+        Un error transitorio (la base) se propaga para que la tarea reintente y
+        el reporte sigue PENDING. Cualquier otro lo deja FAILED.
+        """
+        with atomic(self._session):
+            record = self._session.scalars(
+                select(MonthlyReportRecord)
+                .where(MonthlyReportRecord.id == report_id)
+                .with_for_update(skip_locked=True)
+            ).one_or_none()
+            if record is None or not can_generate(record.status):
+                return record.status if record is not None else None
+            period = Period.parse(record.period)
+            facts = load_facts(self._session, record.user_id, period, period)
+            try:
+                report = MonthlyReport.build(period, facts)
+                content = self._renderer.render(report, record.language)
+            except TRANSIENT_ERRORS:
+                raise
+            except Exception as exc:  # noqa: BLE001 — un reporte que no se puede armar queda FAILED
+                logger.exception("reporte %s fallo al generarse", report_id)
+                record.status = ReportStatus.FAILED.value
+                record.failure = f"{type(exc).__name__}: {exc}"[:FAILURE_DETAIL_LENGTH]
+                record.completed_at = self._clock()
+                return record.status
+            record.content = content
+            record.media_type = self._renderer.media_type
+            record.filename = self._renderer.filename(record.period, record.language)
+            record.status = ReportStatus.READY.value
+            record.completed_at = self._clock()
+            return record.status
+
+    def requeue_stale(self):
+        """Vuelve a encolar los PENDING viejos. Devuelve cuantos encolo."""
+        limit = self._clock() - STALE_AFTER
+        ids = self._session.scalars(
+            select(MonthlyReportRecord.id).where(
+                MonthlyReportRecord.status == ReportStatus.PENDING.value,
+                MonthlyReportRecord.created_at < limit,
+            )
+        ).all()
+        self._session.rollback()
+        return sum(1 for report_id in ids if self._enqueue(report_id))
+
+    def _enqueue(self, report_id):
+        """Encola sin fallar la peticion: si el broker no responde, queda PENDING
+        y `requeue_stale` lo recoge despues."""
+        if self._queue is None:
+            return False
+        try:
+            self._queue.enqueue(report_id)
+        except Exception as exc:  # noqa: BLE001 — el broker caido no tumba la peticion
+            logger.warning("no se pudo encolar el reporte %s (%s): queda PENDING", report_id, exc)
+            return False
+        return True

@@ -8,6 +8,7 @@ corta en Redis) y aplica:
 |---|---|---|
 | `/analytics/insights/`, `/analytics/spending-patterns/` | 403 `premium_required` | si |
 | `/analytics/dashboard/` | solo los ultimos 3 meses (otro periodo: 403), tendencia de 3 meses | todo |
+| `POST /analytics/reports/` | solo los ultimos 3 meses (`require_visible_period`) | todo |
 | `/public/spending-summary/` | sin gating: es el endpoint del aliado | — |
 
 **Si subscription-service no responde, se niega** lo premium con 503
@@ -80,6 +81,20 @@ def enforce_entitlements():
         g.limited_history = access != PREMIUM
         if g.limited_history and requested_period() < free_history_window():
             _deny(access, messages.PREMIUM_HISTORY_REQUIRED.format(months=FREE_HISTORY_MONTHS))
+
+
+def require_visible_period(period):
+    """El reporte mensual sigue la misma ventana que el dashboard (INV-06).
+
+    Se llama desde la ruta porque el periodo viene en el cuerpo del POST, no en
+    la consulta. Un periodo dentro de la ventana gratuita no consulta el plan;
+    uno fuera de ella exige Premium (403), o responde 503 si no se puede verificar.
+    """
+    if period >= free_history_window():
+        return
+    access = _access()
+    if access != PREMIUM:
+        _deny(access, messages.PREMIUM_HISTORY_REQUIRED.format(months=FREE_HISTORY_MONTHS))
 
 
 def earliest_visible_period():

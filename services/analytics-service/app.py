@@ -2,11 +2,14 @@
 
     gunicorn "app:create_app()"        # API
     flask consume-events               # worker de eventos (contenedor analytics-worker)
+    celery -A celery_app:celery worker # reportes mensuales (contenedor analytics-celery, E2-M7)
 
 Configuracion por entorno:
 - `DATABASE_URL` (obligatoria): URL de `finty_analytics`, y solo de ella (A-21).
 - `REDIS_URL` (opcional, `redis://redis:6379/0`): de donde lee el worker.
 - `TIME_ZONE` (opcional, `America/Bogota`): zona del proceso (RULES.md).
+- `CELERY_BROKER_URL` (opcional, `redis://redis:6379/1`): broker de Celery, en
+  otra base logica que el stream y las caches (ADR-15).
 - `ENTITLEMENTS_URL` (opcional, `http://subscription-service:8000`),
   `ENTITLEMENTS_TIMEOUT` (`1` s) y `ENTITLEMENTS_CACHE_SECONDS` (`30`): gating
   premium de INV-06 (`api/gating.py`).
@@ -23,16 +26,26 @@ from decimal import Decimal
 
 from flask import Flask, jsonify
 
-from api.context import SESSION_FACTORY_KEY, close_db_session, db_session, identify_user
+from api.context import (
+    REPORT_QUEUE_KEY,
+    REPORT_RENDERER_KEY,
+    SESSION_FACTORY_KEY,
+    close_db_session,
+    db_session,
+    identify_user,
+)
 from api.errors import register_error_handlers
 from api.gating import ENTITLEMENTS_READER_KEY, enforce_entitlements
 from api.routes import analytics as analytics_blueprint
 from api.routes import public as public_blueprint
 from commands import consume_events
 from domain.thresholds import AnalyticsThresholds
+from infra.celery_factory import make_celery
+from infra.celery_queue import CeleryReportQueue
 from infra.configuration import ConfigurationError
 from infra.database import build_engine, build_session_factory, ping
 from infra.entitlements import CachedEntitlementsReader, HttpEntitlementsReader
+from infra.report_csv import CsvReportRenderer
 
 DEFAULT_TIME_ZONE = "America/Bogota"
 DEFAULT_REDIS_URL = "redis://redis:6379/0"
@@ -100,6 +113,10 @@ def create_app(session_factory=None, config=None, adapters=None):
     app.extensions.update(adapters or {})
     if ENTITLEMENTS_READER_KEY not in app.extensions:
         app.extensions[ENTITLEMENTS_READER_KEY] = _entitlements_reader(app.config["REDIS_URL"])
+    app.extensions.setdefault(REPORT_RENDERER_KEY, CsvReportRenderer())
+    if REPORT_QUEUE_KEY not in app.extensions:
+        # Solo encola: el proceso web no ejecuta tareas (lo hace celery_app.py).
+        app.extensions[REPORT_QUEUE_KEY] = CeleryReportQueue(make_celery())
 
     app.before_request(identify_user)
     app.before_request(enforce_entitlements)

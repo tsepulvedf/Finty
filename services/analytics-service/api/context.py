@@ -1,4 +1,4 @@
-"""Estado por peticion: sesion de base, identidad y periodo pedido.
+"""Estado por peticion: sesion de base, identidad, periodo e idioma pedidos.
 
 La identidad sale solo de `X-User-Id`, que pone el Gateway tras `auth_request`
 (ADR-09); el servicio no valida tokens. El resumen publico y la sonda de salud
@@ -12,10 +12,13 @@ from werkzeug.exceptions import MethodNotAllowed
 
 import messages
 from api.errors import InvalidInput, NotAuthenticated
+from services import ReportService
 from domain.exceptions import InvalidPeriodError
 from domain.period import Period
 
 SESSION_FACTORY_KEY = "finty.session_factory"
+REPORT_RENDERER_KEY = "finty.report_renderer"
+REPORT_QUEUE_KEY = "finty.report_queue"
 USER_ID_HEADER = "X-User-Id"
 PUBLIC_ENDPOINTS = {"health", "public.spending_summary"}
 
@@ -58,3 +61,28 @@ def requested_period():
         return Period.parse(raw[-1])
     except InvalidPeriodError as exc:
         raise InvalidInput({"period": [messages.INVALID_PERIOD]}) from exc
+
+
+def body_period():
+    """`{"period": "AAAA-MM"}` del cuerpo JSON (POST /reports/)."""
+    body = request.get_json(silent=True)
+    raw = body.get("period") if isinstance(body, dict) else None
+    if not isinstance(raw, str) or not raw.strip():
+        raise InvalidInput({"period": [messages.PERIOD_REQUIRED]})
+    try:
+        return Period.parse(raw)
+    except InvalidPeriodError as exc:
+        raise InvalidInput({"period": [messages.INVALID_PERIOD]}) from exc
+
+
+def requested_language():
+    """Primera etiqueta de `Accept-Language` (`en-US,en;q=0.9` → `en-US`); el
+    servicio la reduce a `es` o `en`."""
+    header = request.headers.get("Accept-Language", "")
+    return header.split(",")[0].split(";")[0].strip()
+
+
+def report_service():
+    """`ReportService` con los adaptadores de la aplicacion (web o worker)."""
+    extensions = current_app.extensions
+    return ReportService(db_session(), extensions[REPORT_RENDERER_KEY], extensions.get(REPORT_QUEUE_KEY))

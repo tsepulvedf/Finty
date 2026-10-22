@@ -3,7 +3,7 @@
 Heredan de `domain.shared.exceptions`; el handler de `api/errors.py` las traduce
 a HTTP con el mismo formato que finance-service.
 """
-from domain.shared.exceptions import ValidationError
+from domain.shared.exceptions import BusinessRuleError, NotFoundError, ValidationError
 
 
 class InvalidTransactionTypeError(ValidationError):
@@ -25,3 +25,17 @@ class InvalidEventError(ValidationError):
 
     default_code = "invalid_event"
     default_message = "El evento no cumple el contrato."
+
+
+class ReportNotFoundError(NotFoundError):
+    """El reporte no existe o es de otro usuario (D-08: no se distingue)."""
+
+    default_code = "report_not_found"
+    default_message = "No encontramos ese reporte."
+
+
+class ReportNotReadyError(BusinessRuleError):
+    """Se pidio el archivo de un reporte que aun no esta listo, o que fallo."""
+
+    default_code = "report_not_ready"
+    default_message = "El reporte todavia no esta listo."

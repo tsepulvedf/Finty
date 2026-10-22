@@ -4,13 +4,14 @@ Modelos anemicos (RULES.md, regla 2): columnas, constraints y `__repr__`.
 
 Es un **modelo de lectura** alimentado solo por los eventos de finance-service
 (ADR-15). Nunca consulta `finty_finance` (ADR-10): todo lo que sabe de una
-transaccion llego en un evento.
+transaccion llego en un evento. Guarda tambien los reportes mensuales que genera
+Celery (E2-M7).
 """
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Index, Numeric, String, Uuid
+from sqlalchemy import CheckConstraint, Date, DateTime, Index, LargeBinary, Numeric, String, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -79,3 +80,36 @@ class ProcessedEvent(Base):
 
     def __repr__(self):
         return f"<ProcessedEvent {self.event_id} {self.outcome}>"
+
+
+class MonthlyReportRecord(Base):
+    """Reporte mensual pedido por un usuario (E2-M7, ADR-15).
+
+    Nace PENDING en la peticion; la tarea de Celery lo deja READY con el archivo,
+    o FAILED. El estado vive aqui y no en un result backend: es lo que consulta
+    el usuario. El archivo se guarda en la base (BYTEA).
+    """
+
+    __tablename__ = "monthly_report"
+    __table_args__ = (
+        CheckConstraint("status IN ('PENDING', 'READY', 'FAILED')", name="ck_report_status"),
+        CheckConstraint("language IN ('es', 'en')", name="ck_report_language"),
+        CheckConstraint("status <> 'READY' OR content IS NOT NULL", name="ck_report_ready_has_content"),
+        Index("ix_report_user_created", "user_id", "created_at"),
+        Index("ix_report_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(Uuid)
+    period: Mapped[str] = mapped_column(String(7))
+    language: Mapped[str] = mapped_column(String(2))
+    status: Mapped[str] = mapped_column(String(10))
+    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    media_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    filename: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    failure: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<MonthlyReportRecord {self.id} {self.status}>"

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # Imagen de analytics-service (ADR-07, ADR-16). La misma imagen sirve al proceso
-# web (gunicorn), al worker de eventos (`flask consume-events`) y al paso de
-# migraciones de un solo uso (`alembic upgrade head`).
+# web (gunicorn), al worker de eventos (`flask consume-events`), al worker y al
+# beat de Celery (E2-M7) y al paso de migraciones (`alembic upgrade head`).
 
 FROM python:3.11-slim
 

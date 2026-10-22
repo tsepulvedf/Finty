@@ -4,6 +4,8 @@ alembic==1.16.5
 psycopg2-binary==2.9.10
 redis==5.2.1
 gunicorn==23.0.0
+# Tareas asincronas (E2-M7, ADR-15): reportes mensuales. Broker en Redis.
+celery==5.5.3
 pytest==8.4.2
 # Base IANA de zonas horarias para `zoneinfo` solo en Windows, igual que la
 # dependencia condicional de Django. En la imagen Linux la aporta el sistema.

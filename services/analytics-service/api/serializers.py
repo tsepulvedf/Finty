@@ -120,3 +120,23 @@ def summary_to_dict(summary):
             for c in summary.categories
         ],
     }
+
+
+def report_to_dict(record):
+    """Estado de un reporte mensual (E2-M7). El archivo se pide aparte."""
+    ready = record.status == "READY"
+    return {
+        "id": str(record.id),
+        "period": record.period,
+        "language": record.language,
+        "status": record.status,
+        "created_at": record.created_at.astimezone().isoformat(),
+        "completed_at": record.completed_at.astimezone().isoformat() if record.completed_at else None,
+        "filename": record.filename if ready else None,
+        "download_url": f"/api/v1/analytics/reports/{record.id}/download/" if ready else None,
+    }
+
+
+def report_download_headers(record):
+    """Cabeceras de la descarga: el navegador lo guarda con su nombre."""
+    return {"Content-Disposition": f'attachment; filename="{record.filename}"'}

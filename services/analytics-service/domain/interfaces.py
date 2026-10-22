@@ -44,3 +44,26 @@ class EntitlementsReader(ABC):
     @abstractmethod
     def entitlement(self, user_id):
         """`Entitlement` del usuario, o `EntitlementsUnavailable`."""
+
+
+class ReportRenderer(ABC):
+    """Convierte un `MonthlyReport` en un archivo, en el idioma pedido."""
+
+    media_type = "application/octet-stream"
+    extension = "bin"
+
+    @abstractmethod
+    def render(self, report, language):
+        """Los bytes del archivo."""
+
+    @abstractmethod
+    def filename(self, period, language):
+        """Nombre del archivo para descargarlo."""
+
+
+class ReportQueue(ABC):
+    """Cola donde se encarga la generacion de un reporte (Celery, ADR-15)."""
+
+    @abstractmethod
+    def enqueue(self, report_id):
+        """Encola la generacion. Puede fallar si el broker no responde."""

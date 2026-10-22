@@ -6,6 +6,7 @@
 - Si identity no responde, no queda registro y la tarea reintenta despues.
 """
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 
@@ -113,6 +114,66 @@ class TestBienvenida:
         ana.post(CHECKOUT, {"plan": "PREMIUM"})
         assert notifications().send_premium_welcome(record_of(session, ana.user_id).id) == SKIPPED
         assert adapters["sender"].sent == []
+
+
+class TestBienvenidaDeRespaldo:
+    """D-32: la pasada periodica envia la bienvenida que no se pudo encolar."""
+
+    def test_broker_caido_al_activar_la_recupera_la_pasada(self, ana, adapters, session, notifications):
+        adapters["queue"].down = True
+        activate(ana)
+        assert adapters["queue"].welcomes == [] and adapters["sender"].sent == []
+
+        assert notifications().send_missing_welcomes() == 1
+        [message] = adapters["sender"].sent
+        assert message.subject == "¡Bienvenido a Finty Premium!"
+        assert [row.kind for row in sent_rows(session, ana.user_id)] == ["premium_welcome"]
+
+    def test_no_repite_la_que_ya_salio_por_el_camino_rapido(self, ana, adapters, session, notifications):
+        activate(ana)
+        notifications().send_premium_welcome(record_of(session, ana.user_id).id)
+
+        assert notifications().send_missing_welcomes() == 0
+        assert len(adapters["sender"].sent) == 1
+
+    def test_la_pasada_es_idempotente(self, ana, juan, adapters, notifications):
+        adapters["queue"].down = True
+        activate(ana)
+        activate(juan)
+        assert notifications().send_missing_welcomes() == 2
+        assert notifications().send_missing_welcomes() == 0
+        assert len(adapters["sender"].sent) == 2
+
+    def test_si_el_camino_rapido_llega_despues_no_duplica(self, ana, adapters, session, notifications):
+        activate(ana)
+        notifications().send_missing_welcomes()
+        assert notifications().send_premium_welcome(record_of(session, ana.user_id).id) == ALREADY_SENT
+        assert len(adapters["sender"].sent) == 1
+
+    def test_solo_activas_en_periodo(self, ana, juan, client_for, adapters, session, notifications):
+        adapters["queue"].down = True
+        activate(ana)
+        ana.post(CANCEL)
+        adapters["gateway"].outcome = "DECLINED"
+        juan.post(CHECKOUT, {"plan": "PREMIUM"})
+        assert notifications().send_missing_welcomes() == 0
+
+        adapters["gateway"].outcome = "APPROVED"
+        pedro = client_for(uuid4())
+        activate(pedro)
+        adapters["clock"].advance(days=40)
+        assert notifications().send_missing_welcomes() == 0
+        assert adapters["sender"].sent == []
+
+    def test_identity_caido_reintenta_sin_marcar(self, ana, adapters, session, notifications):
+        adapters["queue"].down = True
+        activate(ana)
+        adapters["contacts"].down = True
+        with pytest.raises(ContactUnavailable):
+            notifications().send_missing_welcomes()
+        assert sent_rows(session, ana.user_id) == []
+        adapters["contacts"].down = False
+        assert notifications().send_missing_welcomes() == 1
 
 
 class TestAvisoDeVencimiento:

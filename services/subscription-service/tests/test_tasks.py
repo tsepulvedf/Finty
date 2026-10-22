@@ -15,6 +15,7 @@ from models import SubscriptionRecord
 CHECKOUT = "/api/v1/subscriptions/checkout/"
 TASKS = (
     "subscription.send_premium_welcome",
+    "subscription.send_missing_welcomes",
     "subscription.notify_expiring_subscriptions",
     "subscription.expire_subscriptions",
 )
@@ -59,6 +60,9 @@ class TestConvencion:
         schedule = celery_app.celery.conf.beat_schedule
         assert schedule["notify-expiring-subscriptions"]["task"] == "subscription.notify_expiring_subscriptions"
         assert schedule["expire-subscriptions"]["task"] == "subscription.expire_subscriptions"
+        assert schedule["send-missing-welcomes"] == {
+            "task": "subscription.send_missing_welcomes", "schedule": 15 * 60,
+        }
         sys.modules.pop("celery_app", None)
 
 

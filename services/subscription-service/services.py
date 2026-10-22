@@ -331,6 +331,40 @@ class NotificationService:
             return SKIPPED
         return self._notify(NotificationKind.PREMIUM_WELCOME, record)
 
+    def send_missing_welcomes(self):
+        """Red de seguridad de la bienvenida (D-32).
+
+        El camino rapido es la tarea que el checkout encola despues del commit;
+        si el broker no respondio en ese momento, la bienvenida no salio. Esta
+        pasada busca las suscripciones ACTIVE en periodo sin la bienvenida
+        registrada para ese periodo y la envia. La restriccion unica de
+        `sent_notification` evita el duplicado si el camino rapido llega a la vez.
+        Devuelve cuantas salieron.
+        """
+        now = self._clock()
+        welcomed = (
+            select(SentNotificationRecord.id)
+            .where(
+                SentNotificationRecord.user_id == SubscriptionRecord.user_id,
+                SentNotificationRecord.kind == NotificationKind.PREMIUM_WELCOME.value,
+                SentNotificationRecord.period_end == SubscriptionRecord.current_period_end,
+            )
+            .exists()
+        )
+        records = self._session.scalars(
+            select(SubscriptionRecord).where(
+                SubscriptionRecord.status == SubscriptionStatus.ACTIVE.value,
+                SubscriptionRecord.current_period_end > now,
+                ~welcomed,
+            )
+        ).all()
+        self._session.rollback()
+        sent = 0
+        for record in records:
+            if deserves_welcome(_subscription(record), now):
+                sent += self._notify(NotificationKind.PREMIUM_WELCOME, record) == SENT
+        return sent
+
     def notify_expiring(self):
         """Avisa a las suscripciones que terminan en los proximos dias. Devuelve
         cuantos avisos salieron en esta pasada."""

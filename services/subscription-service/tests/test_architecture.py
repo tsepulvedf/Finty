@@ -213,7 +213,8 @@ class TestTareasSinLogica:
 
     def test_hay_tareas(self):
         assert {t.name for t in self.tasks()} == {
-            "send_premium_welcome", "notify_expiring_subscriptions", "expire_subscriptions",
+            "send_premium_welcome", "send_missing_welcomes", "notify_expiring_subscriptions",
+            "expire_subscriptions",
         }
 
     def test_no_importa_dominio_modelos_base_ni_infra(self):

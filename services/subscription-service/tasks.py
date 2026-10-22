@@ -5,6 +5,8 @@ caso de uso y lo llaman. No consultan la base ni tocan el dominio (lo verifica
 `tests/test_architecture.py`).
 
 - `subscription.send_premium_welcome`: se encola al activar una suscripcion.
+- `subscription.send_missing_welcomes`: periodica (beat, cada 15 minutos); red
+  de seguridad para la bienvenida que no se pudo encolar (D-32).
 - `subscription.notify_expiring_subscriptions`: diaria (beat); avisa 3 dias
   antes del fin del periodo.
 - `subscription.expire_subscriptions`: periodica (beat); persiste EXPIRED.
@@ -31,6 +33,11 @@ RETRY_POLICY = {
 @shared_task(name="subscription.send_premium_welcome", acks_late=True, **RETRY_POLICY)
 def send_premium_welcome(subscription_id):
     return notification_service().send_premium_welcome(UUID(subscription_id))
+
+
+@shared_task(name="subscription.send_missing_welcomes", acks_late=True, **RETRY_POLICY)
+def send_missing_welcomes():
+    return notification_service().send_missing_welcomes()
 
 
 @shared_task(name="subscription.notify_expiring_subscriptions", acks_late=True, **RETRY_POLICY)

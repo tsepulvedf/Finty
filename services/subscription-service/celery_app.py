@@ -13,6 +13,7 @@ from app import create_app
 from infra.celery_factory import make_celery
 
 EXPIRE_EVERY_SECONDS = 15 * 60
+MISSING_WELCOMES_EVERY_SECONDS = 15 * 60
 
 flask_app = create_app()
 celery = make_celery(flask_app)
@@ -21,6 +22,11 @@ celery.conf.beat_schedule = {
     "notify-expiring-subscriptions": {
         "task": "subscription.notify_expiring_subscriptions",
         "schedule": crontab(hour=9, minute=0),
+    },
+    # Cada 15 minutos: la bienvenida que no se pudo encolar al activar (D-32).
+    "send-missing-welcomes": {
+        "task": "subscription.send_missing_welcomes",
+        "schedule": MISSING_WELCOMES_EVERY_SECONDS,
     },
     # Cada 15 minutos: persiste EXPIRED en las vencidas (pendiente desde E2-M6b).
     "expire-subscriptions": {

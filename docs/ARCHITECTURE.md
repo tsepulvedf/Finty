@@ -1,10 +1,11 @@
 # Finty — Documentación Consolidada de Arquitectura y Dominio
 
-**Versión:** 3.0
-**Fecha:** 2026-10-19
+**Versión:** 3.1
+**Fecha:** 2026-10-22
 **Estado:** Vigente — sustituye funcionalmente a los supuestos técnicos de Phase 0, Phase 1 y DDD Stage 1
 **Cambios de v2.1:** correcciones derivadas de la implementación de los módulos de la Entrega 1 (ver §0, filas C-11 a C-19)
 **Cambios de v3:** decisiones de la Entrega 2 — microservicios Flask, Gateway Nginx, una base por servicio, despliegue en AWS, adaptadores externos, tareas asíncronas e i18n (ver §0, filas C-20 a C-33, y ADR-07 a ADR-16)
+**Cambios de v3.1 (cierre de la Entrega 2, E2-M9b):** el documento describe lo construido. El consumo del equipo aliado queda marcado como no implementado, los diagramas son los finales (despliegue en AWS, Gateway, Strangler) y las deudas de §13 se revisaron una por una (ver §0, filas C-34 a C-40)
 **Alcance:** Documento único de referencia para la implementación del monolito Django + DRF y de los microservicios Flask de la Entrega 2
 
 > Este documento **no reemplaza** los artefactos de Service Design (Phase 0 / Phase 1) ni el Event Storming / Bounded Context Map (DDD Stage 1). Los **consume, corrige y traduce** al stack y a la doctrina arquitectónica definitivos. Donde exista contradicción entre este documento y los anteriores, **prevalece este**.
@@ -13,7 +14,7 @@
 
 ## 0. Registro de cambios
 
-Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas C-20 en adelante registran los de v3 (Entrega 2); en ellas, la columna "Estado en v2" describe v2.1 y "Estado en v3" la decisión vigente.
+Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas C-20 a C-33 registran los de v3 (Entrega 2); en ellas, la columna "Estado en v2" describe v2.1 y "Estado en v3" la decisión vigente. Las filas C-34 en adelante registran los de v3.1, al cerrar la Entrega 2: la tercera columna describe v3.0 y la cuarta, lo construido.
 
 | # | Área | Estado en v1 | Estado en v2 | Motivo |
 |---|------|--------------|--------------|--------|
@@ -53,6 +54,13 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-31 | Coherencia interna de v2.1 | `mock` ausente en §4.2.1, §5.2 y §9.1; cabecera "C-11 a C-18"; §5.3 decía que todo VO es `dataclass`; §9.2 usaba `AccountNotOwnedError` | **Corregido**: cuatro valores de `CategorizationSource`; cabecera C-11 a C-19; enums como `StrEnum`; §9.2 con `AccountNotFoundError` (404) | Alinear el documento con C-15, C-18 y C-19 |
 | C-32 | Comportamiento HTTP fuera del contrato JSON, al conmutar `finance` (E2-M2b) | Lo que hacían Django y DRF: aceptaban cuerpos de formulario, redirigían con 301 la ruta sin barra final, respondían `OPTIONS` con metadatos y servían la API navegable en HTML | **Diferencias aceptadas** de `finance-service`: (1) un cuerpo que no es JSON responde **415**; (2) la ruta sin barra final redirige con **308** en lugar de 301; (3) `OPTIONS` responde **sin metadatos**; (4) **no hay API navegable** (`.api`, `?format=api`). Además, una URL que no existe responde 404 en JSON en lugar de la página HTML de Django. El JSON de toda ruta del contrato es idéntico (A-20) | El contrato de Finty es JSON y el frontend solo envía JSON; replicar esas piezas de DRF no aporta a ningún cliente |
 | C-33 | Pasarela de pagos (E2-M6b) | `PaymentGateway` con `MockPaymentGateway` y `WompiSandboxGateway` (sandbox real), con confirmación por consulta periódica en Celery (C-29) | **Sin pasarela real.** `MockPaymentGateway` es la única implementación y el pago es una **simulación de interfaz**. Se conservan el puerto `PaymentGateway` y `PaymentGatewayFactory`, así que una pasarela real se agregaría como un adaptador más, sin tocar el dominio (OCP). Dos salvaguardas: el backend rechaza cualquier dato de tarjeta (400) y el formulario del frontend se identifica como simulación. La integración con Wompi se evaluó y se descartó (ADR-14) | Es un ejercicio académico: una pasarela real no aporta a los criterios evaluados, y la consulta de estado que exigía no está documentada por Wompi. El requisito de API de terceros ya lo cumple `ExchangeRateProvider` (§11.3) |
+| C-34 | Tareas asíncronas (E2-M7) | Candidatas en ADR-15, sin convención | **Celery 5.5.3 implementado** con una convención única: broker en la base 1 de Redis, sin result backend, una cola por servicio, tareas como mecanismo de entrega, `acks_late`, reintentos y un beat por servicio. Reporte mensual en `analytics-service`; correos, red de seguridad de la bienvenida y vencimiento en `subscription-service` | Criterio "tareas en segundo plano" del enunciado (ADR-15) |
+| C-35 | Frontend (E2-M8a, E2-M8b) | Plantillas con gettext, por construir | **Las 11 pantallas del diseño implementadas**, con i18n completo verificado por test (A-23), estáticos con hash y checkout simulado que nunca envía datos de tarjeta | Corrección eliminatoria de la Entrega 1 (ADR-11) |
+| C-36 | Auditoría de UI/UX (E2-M9a) | No prevista | **Lighthouse y axe-core en las 11 páginas** (es/en, 1440/390 px, Free y Premium): accesibilidad 100 en las 80 combinaciones; evaluación heurística con Nielsen y 4 recorridos. Ver `docs/UX-AUDIT.md` | Criterio "Resiliencia y UX" |
+| C-37 | Consumo del servicio del equipo aliado | `AllyServiceProvider` con `MockAllyAdapter` "como respaldo" | **No implementado: el equipo aliado no está asignado (D-10).** El diseño del puerto se conserva, y ningún diagrama lo muestra como componente desplegado. El endpoint que Finty expone sí existe (§10.7) | El documento no puede describir como existente lo que no se construyó |
+| C-38 | Idioma del usuario (E2-M7) | Solo la cookie del navegador | **`UserProfile.language`** (`es`/`en`) y el endpoint interno `GET /internal/users/<id>/contact/` de identity para los correos | Los correos salen en el idioma del contacto |
+| C-39 | Diagramas finales (E2-M9b) | §9.4 sin red ni grupo de seguridad, sin Gateway ni Strangler | **§9.4 despliegue en AWS** (región, EC2, IP elástica, grupo de seguridad, red de Compose, bases lógicas de Redis y PostgreSQL), **§9.15 Gateway** y **§9.16 Strangler antes y después**. Cada bloque Mermaid del repositorio se compila con `@mermaid-js/mermaid-cli` (`tools/mermaid/`) | Criterio "Arquitectura": diagramas con AWS, Nginx, Flask y el broker |
+| C-40 | Wiki y sustentación (E2-M9b) | La Wiki se escribiría al final | **`docs/wiki/`** como fuente versionada de la Wiki de GitHub (`tools/publish-wiki.sh`), **`docs/SUSTENTACION.md`** y el comando `tools/seed_demo.py` para los usuarios de demo | Entrega y sustentación |
 
 ---
 
@@ -196,9 +204,11 @@ finty/
 │                                  # finance-migrate (un solo uso), finance-service,
 │                                  # finance-outbox-relay, categorization-service,
 │                                  # analytics-migrate (un solo uso), analytics-service,
-│                                  # analytics-worker, recommendation-migrate (un solo
+│                                  # analytics-worker, analytics-celery,
+│                                  # analytics-celery-beat, recommendation-migrate (un solo
 │                                  # uso), recommendation-service, subscription-migrate
-│                                  # (un solo uso), subscription-service, nginx
+│                                  # (un solo uso), subscription-service,
+│                                  # subscription-worker, subscription-beat, nginx
 ├── .dockerignore
 ├── .env.example                   # ejecución local con PostgreSQL en el host
 ├── .env.docker.example            # ejecución con Compose
@@ -217,7 +227,12 @@ finty/
 │
 ├── tests/contract/                # Suite de contrato de caja negra contra CONTRACT_BASE_URL (A-20)
 ├── tests/services/                # Contratos estáticos entre servicios, por AST: catálogo
-│                                  # (A-12) y eventos de finty.finance.events (A-25)
+│                                  # (A-12), eventos de finty.finance.events (A-25),
+│                                  # convención de Celery en Compose, diagramas Mermaid y
+│                                  # enlaces de la Wiki
+├── tools/                         # Solo desarrollo, fuera de las imágenes (.dockerignore):
+│                                  # ux-audit/ (Lighthouse y axe), mermaid/ (mermaid-cli),
+│                                  # seed_demo.py, check_wiki_links.py y publish-wiki.sh
 │
 ├── config/ core/ identity/        # Monolito Django (sin cambios de forma)
 ├── frontend/                      # ADR-11 (E2-M8): templates/finty/ (plantillas con gettext) y
@@ -225,13 +240,18 @@ finty/
 ├── locale/                        # .po de es y en (django y djangojs); los .mo se compilan
 │                                  # en la etapa `messages` del Dockerfile
 ├── docs/design/                   # Las 10 pantallas aprobadas (Claude Design): especificación visual
+├── docs/wiki/                     # Fuente versionada de la Wiki de GitHub (E2-M9b)
+├── docs/UX-AUDIT.md, docs/ux-audit/   # Auditoría de UI/UX con sus resultados y capturas (E2-M9a)
+├── docs/SUSTENTACION.md           # Guía de la sustentación (E2-M9b)
 │
 └── services/
     ├── analytics-service/         # Modelo de lectura alimentado por eventos (E2-M4b): misma
     │                              # forma que finance-service; `flask consume-events` es el
-    │                              # worker y no hay pydantic (solo lee `?period=`)
+    │                              # worker de eventos; tasks.py y celery_app.py, el reporte
+    │                              # mensual (E2-M7)
     ├── categorization-service/    # Sin base de datos: domain/, infra/, services.py, api/ (E2-M3b)
-    ├── subscription-service/      # Planes, suscripciones, pagos y derechos premium (E2-M6a)
+    ├── subscription-service/      # Planes, suscripciones, pagos y derechos premium (E2-M6a);
+    │                              # tasks.py y celery_app.py: correos y vencimiento (E2-M7)
     ├── recommendation-service/    # Perfil de riesgo, recomendaciones, planes y tasas (E2-M5).
     │                              # infra/: cliente HTTP de analytics, TRM oficial, tasa
     │                              # fija y cache de Redis
@@ -247,7 +267,7 @@ finty/
         ├── models.py              # SQLAlchemy: solo persistencia
         ├── services.py            # casos de uso, sobre una sesión inyectada
         ├── commands.py            # flask verify-invariants, relay-outbox y outbox-backfill
-        ├── messages.py            # catálogo único de mensajes al usuario (→ Flask-Babel en E2-M8)
+        ├── messages.py            # catálogo único de mensajes de la API (el frontend traduce por `code`, ADR-11)
         ├── api/                   # blueprints, esquemas pydantic, salida, errores, paginación
         ├── alembic.ini
         ├── migrations/            # Alembic: 0001 esquema, 0002 siembra del catálogo, 0003 outbox
@@ -381,9 +401,9 @@ La autenticación centralizada, que v2.1 dejaba para el Horizonte 3, se adelanta
 ### ADR-13 — Servicio expuesto y servicio del equipo aliado
 
 **Expuesto:** un resumen financiero agregado en JSON (por ejemplo, gasto por categoría del período), servido por `analytics-service`. La ruta y el contrato exactos se acuerdan con el equipo aliado.
-**Consumido:** el servicio del aliado va detrás del puerto `AllyServiceProvider` (ABC), con `MockAllyAdapter` como respaldo cuando el aliado no responde. El adaptador concreto se escribe en un módulo aparte cuando lleguen el dominio, la URL y el contrato del aliado; **no se inventan** antes.
+**Consumido — pendiente de asignación del equipo aliado; no implementado.** Diseño previsto: el servicio del aliado va detrás del puerto `AllyServiceProvider` (ABC), con `MockAllyAdapter` como respaldo cuando el aliado no responde. El adaptador concreto se escribe en un módulo aparte cuando lleguen el dominio, la URL y el contrato del aliado; **no se inventan** antes. Hoy no existe ni el puerto ni el mock en el código, y ninguna pantalla consume un servicio aliado (D-10).
 **Implementación del expuesto (E2-M4b):** `GET /api/v1/public/spending-summary/?period=AAAA-MM`, sin autenticación, servido por `analytics-service`. Publica el gasto agregado por categoría y moneda de todos los usuarios, con número de usuarios, total y promedio por usuario. **Privacidad por k-anonimato:** una categoría solo aparece si la tienen al menos *k* usuarios distintos (*k* = 3 por defecto, `ANALYTICS_PUBLIC_MIN_USERS`). No se publica un total general del período: restándole las categorías visibles revelaría la suma de las ocultas. El bloque de Nginx no lleva `auth_request` y tiene su propia zona estricta, `finty_public` (D-17). Contrato **provisional** en §10.7, a confirmar con el aliado (D-10).
-**Estado:** aceptada. El expuesto está implementado (E2-M4b); el consumo del aliado sigue sin asignar (D-10).
+**Estado:** aceptada. El expuesto está implementado (E2-M4b). El consumo del aliado **no está implementado**: el equipo aliado no está asignado (D-10).
 
 ### ADR-14 — `PaymentGateway`: un puerto, la Factory y un pago simulado
 
@@ -476,7 +496,8 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 ### ADR-16 — Despliegue en Docker Compose sobre EC2
 
 **Decisión:** todo el sistema corre en Docker Compose (Django, servicios Flask, Nginx, PostgreSQL, Redis y workers de Celery) en una instancia EC2 de AWS Academy con IP elástica. Las imágenes Python parten de `python:3.11-slim`. Solo Nginx publica un puerto en el host; el resto se comunica por la red interna de Compose.
-**Estado:** aceptada. Se implementa en E2-M1; la instancia debe estar encendida durante la sustentación.
+**Implementación:** una instancia EC2 de AWS Academy (Learner Lab, región `us-east-1`) con la IP elástica **3.95.100.48**. Su grupo de seguridad admite solo el puerto 22 (SSH, para administrar) y el 80 (HTTP, el Gateway). En la instancia, `git pull` y `docker compose up -d --build` despliegan una versión nueva: los pasos de un solo uso (`db-init`, `migrate`, `finance-migrate`, `analytics-migrate`, `recommendation-migrate` y `subscription-migrate`) dejan las bases y los esquemas al día antes de que arranque cada servicio. Paso a paso en la Wiki (`docs/wiki/Despliegue-en-EC2.md`). Diagrama en §9.4.
+**Estado:** aceptada e implementada. `curl http://3.95.100.48/api/v1/health/` responde 200 desde AWS, y la instancia sirve los mismos estáticos con hash que el stack local (verificado el 2026-10-22, A-24). La instancia debe estar encendida durante la sustentación (`docs/SUSTENTACION.md`).
 
 ---
 
@@ -803,7 +824,7 @@ Toda dependencia externa entra por un puerto definido en el `domain/` del servic
 | `Categorizer` | `finance-service` | `RemoteCategorizer`: cliente HTTP de `categorization-service` (§10.4), timeout de 1 s | `RuleBasedCategorizer` local | Siempre el remoto; respaldo ante timeout, error de red, 4xx/5xx, respuesta fuera de contrato o categoría fuera del catálogo | §6.1, A-12, A-22 |
 | `ExchangeRateProvider` | `recommendation-service` | `TrmExchangeRateProvider`: TRM oficial de datos.gov.co, timeout de 3 s, con caché en Redis (`RedisExchangeRateCache`, puerto `ExchangeRateCache`) | `FixedExchangeRateProvider`: tasa fija configurable | `ExchangeRateService`: caché del día → API → última conocida → tasa fija; procedencia `live` / `cached` / `fallback` | ADR-12, A-22 |
 | `AnalyticsReader` | `recommendation-service` | `HttpAnalyticsReader`: los endpoints de §10.6 por la red interna, reenviando `X-User-Id`, timeout de 1 s | Sin adaptador: la respuesta se degrada (`degraded: true`) | Ante timeout, error de red, no-200 o cuerpo fuera de contrato | ADR-15, A-28 |
-| `AllyServiceProvider` | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` | Respaldo ante fallo; solo mock hasta que exista el aliado | ADR-13, E2-M9 |
+| `AllyServiceProvider` — **pendiente de asignación del equipo aliado; no implementado** | Por definir con el contrato del aliado (D-10) | Por escribir cuando llegue el contrato | `MockAllyAdapter` (diseñado, no construido) | Respaldo ante fallo | ADR-13, D-10 |
 | `PaymentGateway` | `subscription-service` | Ninguno: sin pasarela real (C-33). Una real se agregaría como otro adaptador | `MockPaymentGateway`, la única implementación: aprueba de forma síncrona | `PaymentGatewayFactory` con `PAYMENT_GATEWAY`; solo `MOCK` es válido, y otro valor impide arrancar | ADR-14 |
 | `EntitlementsReader` | `analytics-service` y `recommendation-service` | `HttpEntitlementsReader`: `GET /internal/entitlements/<user_id>`, timeout de 1 s, envuelto en `CachedEntitlementsReader` (Redis, solo los "sí") | Sin respaldo que conceda: si falla, se **niega** lo premium (fail-closed) | Siempre; la caché solo guarda derechos premium, por `min(30 s, fin del período)` | §7.1, D-14 |
 
@@ -1010,7 +1031,7 @@ Las invariantes no cambian; cambia dónde y cómo se hacen cumplir cuando su due
 | **ISP** | `Categorizer` expone **un solo método**. No se obliga a `MockCategorizer` a implementar métodos de configuración de API, timeouts o reintentos que no usa. | Interfaz mínima. |
 | **DIP** | `TransactionService.__init__(categorizer: Categorizer)` depende de la ABC de `domain/`, no de la implementación de `infra/`. La dirección de la dependencia se invierte respecto al flujo de control. | `finance/domain/` no importa nada de `finance/infra/`. |
 
-**En la Entrega 2** la misma evidencia se extiende a los puertos de §6.4. `PaymentGateway`, `ExchangeRateProvider` y `AllyServiceProvider` repiten la forma de `Categorizer`: ABC en `domain/`, implementaciones en `infra/` y servicio que depende solo de la abstracción. Esto es DIP y OCP: añadir un proveedor no toca el caso de uso. También es LSP: el adaptador de respaldo sustituye al concreto sin que el servicio lo note.
+**En la Entrega 2** la misma evidencia se extiende a los puertos de §6.4. `PaymentGateway`, `ExchangeRateProvider`, `AnalyticsReader` y `EntitlementsReader` repiten la forma de `Categorizer` (`AllyServiceProvider` la repetiría, pero no está implementado, D-10): ABC en `domain/`, implementaciones en `infra/` y servicio que depende solo de la abstracción. Esto es DIP y OCP: añadir un proveedor no toca el caso de uso. También es LSP: el adaptador de respaldo sustituye al concreto sin que el servicio lo note.
 
 ---
 
@@ -2099,16 +2120,17 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 
 | Criterio del enunciado | Peso | Decisión | Módulo |
 |------------------------|------|----------|--------|
-| Correcciones E1: frontend intuitivo y agradable (eliminatorio) | 10% | ADR-11 | E2-M8 |
-| Diagramas con AWS, Nginx, Flask y broker | 10% | §9.4 a §9.8 | E2-M0; finales en E2-M9 |
+| Correcciones E1: frontend intuitivo y agradable (eliminatorio) | 10% | ADR-11; auditoría en `docs/UX-AUDIT.md` | E2-M8 y E2-M9a (implementado) |
+| Diagramas con AWS, Nginx, Flask y broker | 10% | §9.4 (despliegue en AWS), §9.5, §9.8, §9.10, §9.12, §9.13, §9.15 (Gateway) y §9.16 (Strangler) | E2-M0; finales en E2-M9b |
 | Exponer un endpoint JSON | 30% | ADR-13 (`analytics-service`, `GET /api/v1/public/spending-summary/`, §10.7) | E2-M4b (implementado; contrato provisional, D-10) |
-| Consumir el servicio del equipo aliado | (30%) | ADR-13, `AllyServiceProvider` + `MockAllyAdapter` | E2-M9 |
+| Consumir el servicio del equipo aliado | (30%) | ADR-13: `AllyServiceProvider` + `MockAllyAdapter` — **pendiente de asignación del equipo aliado; no implementado** | Sin módulo: depende de D-10 |
 | Consumir una API de terceros mediante Adapter | (30%) | **Lo cumple `ExchangeRateProvider`** (ADR-12): `TrmExchangeRateProvider` consume la TRM oficial de datos.gov.co, con caché y tasa fija de respaldo. `PaymentGateway` no consume ningún tercero: el pago es simulado (ADR-14, C-33) | E2-M5 (implementado) |
-| Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 |
-| Despliegue en EC2 con Nginx como API Gateway | (30%) | ADR-06, ADR-09, ADR-16 | E2-M1, E2-M2 |
+| Docker Compose con Django, Flask, Nginx, base de datos y broker | 30% | ADR-16 | E2-M1 a E2-M7 (implementado) |
+| Despliegue en EC2 con Nginx como API Gateway | (30%) | ADR-06, ADR-09, ADR-16: `http://3.95.100.48` | E2-M1, E2-M2 (implementado; A-24) |
 | Tareas asíncronas con Redis/Celery | 20% | ADR-15: reporte mensual (`analytics-celery`), correos de bienvenida y de vencimiento y `expire_subscriptions` (`subscription-worker` y `subscription-beat`) | E2-M7 (implementado) |
-| i18n bilingüe con gettext, sin textos quemados | (20%) | ADR-11 | E2-M8 |
-| Bono: más del 70% en microservicios Flask | — | ADR-07, §4.4 | E2-M2 a E2-M6 |
+| i18n bilingüe con gettext, sin textos quemados | (20%) | ADR-11, A-23 | E2-M8 (implementado) |
+| Auditoría de UI/UX | (20%) | `docs/UX-AUDIT.md` | E2-M9a (implementado) |
+| Bono: más del 70% en microservicios Flask | — | ADR-07, §4.4: 18 de 20 clases (90%) | E2-M2 a E2-M6 (implementado; métrica por confirmar, D-09) |
 
 ---
 
@@ -2142,7 +2164,7 @@ Autenticadas por el Gateway, con identidad por `X-User-Id` y errores con la form
 | Beneficio | subscription | `Benefit` | Value Object (`StrEnum`): `code` estable que traduce el frontend | — |
 | Derecho premium | subscription, analytics, recommendation | `Entitlement` | Value Object `{premium, until}` (§7.1) | — |
 | Lector de derechos | analytics, recommendation | `EntitlementsReader` | Puerto (ABC) | — |
-| Proveedor del servicio aliado | por definir | `AllyServiceProvider` | Puerto (ABC) | — |
+| Proveedor del servicio aliado | por definir | `AllyServiceProvider` | Puerto (ABC) — **pendiente de asignación del equipo aliado; no implementado** | — |
 | Identificador de usuario propagado | todos los servicios Flask | `user_id` (cabecera `X-User-Id`) | Dato de frontera | customer_id, client_id (derivan de los sinónimos prohibidos de `User`) |
 | Transacción registrada | finance | `TransactionManuallyAdded` | Evento de dominio (DDD Stage 1) | TransactionCreated, TransactionAdded |
 | Transacción reclasificada | finance | `TransactionCategorized` | Evento de dominio (DDD Stage 1) | TransactionRecategorized, CategoryChanged |
@@ -2179,12 +2201,12 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | D-02 | Balance persistido vs. calculado | Persistido, con recálculo transaccional en `finance-service`, que es su única autoridad. **`analytics` no relee ni replica balances (E2-M4b):** calcula ingresos, gastos y neto **del período** a partir de los hechos de transacción que le llegan por eventos, y eso no es un balance (no incluye el saldo de apertura, que no viaja en los eventos). El dashboard de analytics nunca muestra un saldo: el saldo de cada cuenta lo sirve `GET /accounts/` | **Cerrada** (E2-M4b) |
 | D-03 | Dependencia circular `Recommendation → FinancialData` | **Resuelta (E2-M5):** `recommendation` no depende de `finance`. Lee insights, patrones y dashboard de `analytics` por HTTP, con degradación, y `analytics` no conoce a `recommendation`. Cambia lo previsto en v3 ("consume eventos de `finance`") para no duplicar la proyección ni las reglas de §6.5 (ADR-15) | **Cerrada** (E2-M5) |
 | D-04 | Multi-moneda real | Una moneda por cuenta. **Conversión solo de presentación (E2-M5):** USD↔COP con la TRM oficial, hacia la moneda que el cliente pide en `display_currency` (el frontend envía el `preferred_currency` de `/profile/`, ADR-12). Los montos originales no cambian (INV-11). Otras monedas no tienen tasa; la multi-moneda contable sigue fuera | Presentación: **cerrada** (E2-M5). Contable: post-MVP |
-| D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). **Consumo implementado (E2-M4b):** `analytics-worker`, idempotente por `event_id` | **Cerrada** para `analytics`; `recommendation` en E2-M5 |
+| D-05 | Eventos de dominio | **Publicación implementada (E2-M4a):** `finance-service` publica `TransactionManuallyAdded`, `TransactionCategorized` y `TransactionDeleted` en el stream `finty.finance.events`, con outbox transaccional y entrega al menos una vez (ADR-15, §10.5). **Consumo implementado (E2-M4b):** `analytics-worker`, idempotente por `event_id`. `recommendation` no consume eventos: lee a `analytics` por HTTP (E2-M5, D-03) | **Cerrada** |
 | D-06 | Modelo de usuario | Se define `AbstractUser` propio desde el inicio | Cerrada — cambiar después es costoso |
 | D-07 | Cliente concreto de IA | Costura inyectada sin implementación; `AICategorizer` opera degradado. Trasladado sin cambios a `categorization-service` en E2-M3b | Abierta, sin módulo asignado |
 | D-08 | Enumeración de cuentas ajenas | `get_owned_account` devuelve 404 y no 403 para no revelar existencia. Se conserva en `finance-service` filtrando por `X-User-Id` | Cerrada |
 | D-09 | Métrica del 70% para el bono | La distribución de §4.4 supera el umbral por clases (90%), por contextos (4 de 5) y por endpoints de negocio | **Abierta** — confirmar con el profesor |
-| D-10 | Equipo aliado | Sin asignar. Solo `MockAllyAdapter`; no se inventan dominio, URL ni contrato. Lo que Finty expone ya existe con un contrato **provisional** (§10.7) que se ajusta al acordarlo. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
+| D-10 | Equipo aliado | Sin asignar. **No hay implementación:** ni `AllyServiceProvider` ni `MockAllyAdapter` existen en el código (C-37); no se inventan dominio, URL ni contrato. Lo que Finty expone ya existe con un contrato **provisional** (§10.7) que se ajusta al acordarlo. Faltan: proyecto, URL y método, autenticación, ejemplo de respuesta, qué esperan consumir de Finty y fecha de disponibilidad | **Abierta** — Tomás lo consulta con el profesor |
 | D-11 | Formato de los diagramas | Mermaid dentro del Markdown, porque la Wiki de GitHub lo renderiza | **Abierta** — confirmar que el curso no exige otro formato |
 | D-12 | TLS en el Gateway | Sin TLS: la instancia se expone por IP elástica, sin dominio. ADR-14 evita depender de HTTPS para los pagos | Abierta — requiere dominio |
 | D-13 | Núcleo compartido (`Money`, `DomainError`) en los servicios Flask | **Copia propia en el `domain/shared/` de cada servicio**, con las mismas reglas del original. Un paquete compartido acoplaría los despliegues: cambiarlo obligaría a reconstruir y desplegar a la vez todos los servicios que lo usan. El costo aceptado es mantener las copias alineadas a mano; el glosario (§12) sigue siendo uno solo | **Cerrada** (E2-M2a) |
@@ -2242,9 +2264,9 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 | A-19 | Ownership a través del Gateway | El usuario B recibe 404 (no 403) sobre la cuenta de A servida por `finance-service` | E2-M2 |
 | A-20 | Conmutación Strangler sin romper el contrato | La misma suite de contrato de `/api/v1/accounts`, `transactions` y `categories` pasa **completa** contra el monolito y contra `finance-service`; solo entonces se cambia el upstream `finance_backend`, para las tres rutas a la vez. Implementada en `tests/contract/` (incluye A-18 en `test_auth.py` y A-19 en `test_isolation.py`); corridas guardadas en `tests/contract/runs/` | E2-M2b (cumplido) |
 | A-21 | Sin acceso a bases ajenas | Cada servicio recibe en su configuración solo la URL de su propia base lógica | E2-M1 en adelante |
-| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; aliado → `MockAllyAdapter`; categorización → respaldo local con procedencia veraz. Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`). **Tasas verificadas en E2-M5:** API disponible → `live`; inalcanzable (`EXCHANGE_RATE_API_URL=http://127.0.0.1:9`) con caché → `cached`; sin caché → `fallback` (`services/recommendation-service/tests/test_exchange_rate_service.py::TestCadenaDeDegradacion` y evidencia en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt`) | E2-M3b (categorización), E2-M5 (tasas), E2-M9 |
+| A-22 | Respaldo de los adaptadores | Con el tercero caído: tasas → tasa fija; categorización → respaldo local con procedencia veraz; aliado → `MockAllyAdapter` (**pendiente de asignación del equipo aliado; no implementado**). Categorización verificada en E2-M3b: con `docker compose stop categorization-service`, el registro responde 201 con `rule` (`tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1`, y `test_categorization_client.py::TestRespaldoA22`). **Tasas verificadas en E2-M5:** API disponible → `live`; inalcanzable (`EXCHANGE_RATE_API_URL=http://127.0.0.1:9`) con caché → `cached`; sin caché → `fallback` (`services/recommendation-service/tests/test_exchange_rate_service.py::TestCadenaDeDegradacion` y evidencia en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt`) | E2-M3b (categorización), E2-M5 (tasas); aliado sin módulo (D-10) |
 | A-23 | Cero textos quemados | Test que falla si una plantilla o un mensaje al usuario no pasa por gettext. **Plantillas:** `core/tests/test_frontend.py::TestA23SinTextosQuemados` analiza el HTML de **todas** las plantillas de `frontend/templates/finty/` y falla ante un nodo de texto o un atributo visible (`aria-label`, `placeholder`, `title`, `alt`) fuera de `{% translate %}`; también ante un `{# #}` de varias líneas, que Django pinta como texto. **JavaScript (E2-M8b):** `core/tests/test_frontend_a23_js.py` separa comentarios, cadenas y plantillas de cada módulo, descarta los argumentos de `gettext()`/`ngettext()` y falla si queda una cadena que se lee como texto para una persona; en `js/codes.js`, cada valor de texto pasa por `gettext()`. **Catálogos:** `TestCatalogos` exige `es` y `en` de los dos dominios completos, sin entradas vacías ni `fuzzy`, con cada texto de plantillas y JavaScript | E2-M8a (plantillas del núcleo); completo en E2-M8b |
-| A-24 | Despliegue verificable | `curl http://<ip-elastica>/api/v1/health/` responde desde AWS | E2-M1 |
+| A-24 | Despliegue verificable | `curl http://3.95.100.48/api/v1/health/` responde 200 desde AWS (verificado el 2026-10-22) | E2-M1 |
 | A-25 | Consumidor de eventos idempotente y alineado con el productor | `services/analytics-service/tests/test_projection.py` (duplicados, fuera de orden, lápida, XACK solo tras el commit); `tests/services/test_event_contract.py` (lo que analytics lee es lo que finance escribe); evidencia de reprocesar el stream completo con `XGROUP SETID … 0` en `tests/contract/runs/2026-10-20-analytics-eventos.txt` | E2-M4b |
 | A-26 | Resumen público con k-anonimato | Con menos de *k* usuarios en una categoría, la categoría no aparece: `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato` y `services/analytics-service/tests/api/test_api.py::TestResumenPublico` | E2-M4b |
 | A-28 | Recomendaciones degradadas, nunca un 500 | Con `docker compose stop analytics-service`, `GET /api/v1/recommendations/` responde 200 con `degraded: true` y solo la recomendación de inversión por perfil: `tests/contract/test_recommendations.py::TestDegradacion` con `CONTRACT_ANALYTICS_DOWN=1`, `services/recommendation-service/tests/api/test_api.py` y la evidencia de `runs/` | E2-M5 |
@@ -2260,4 +2282,4 @@ Los sinónimos prohibidos de los tres contextos nuevos los verifica por AST `tes
 
 ---
 
-*Finty · Documentación Consolidada v3.0 · 2026-10-19*
+*Finty · Documentación Consolidada v3.1 · 2026-10-22*

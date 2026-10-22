@@ -7,7 +7,15 @@ import pytest
 
 from domain.facts import TransactionFact
 from domain.period import Period
-from domain.report import MonthlyReport, ReportStatus, can_generate, report_language, retention_cutoff
+from domain.report import (
+    MonthlyReport,
+    ReportStatus,
+    can_generate,
+    report_language,
+    retention_cutoff,
+    stale_cutoff,
+    validate_positive_seconds,
+)
 from domain.shared.value_objects import Money
 from domain.value_objects import TransactionType
 
@@ -84,3 +92,20 @@ class TestRetencion:
     def test_al_menos_un_dia(self, days):
         with pytest.raises(ValueError):
             retention_cutoff(self.NOW, days)
+
+
+class TestRecuperacion:
+    """E2-M9c: un PENDING con mas de 60 s (configurable) se vuelve a encolar."""
+
+    NOW = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+
+    def test_por_defecto_un_minuto(self):
+        assert stale_cutoff(self.NOW) == self.NOW - timedelta(seconds=60)
+
+    def test_configurable(self):
+        assert stale_cutoff(self.NOW, 90) == self.NOW - timedelta(seconds=90)
+
+    @pytest.mark.parametrize("valor", [0, -1, 1.5, "60", True, None])
+    def test_rechaza_lo_que_no_es_un_entero_positivo(self, valor):
+        with pytest.raises(ValueError):
+            validate_positive_seconds("REPORT_STALE_AFTER_SECONDS", valor)

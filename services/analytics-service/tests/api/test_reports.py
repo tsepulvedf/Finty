@@ -201,6 +201,55 @@ class TestReencolar:
         assert service.requeue_stale() == 1
         assert report_queue.enqueued == [viejo.id]
 
+    def test_por_defecto_toma_los_de_mas_de_un_minuto(self, session, report_queue):
+        now = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+        pasado = MonthlyReportRecord(user_id=uuid4(), period="2026-10", language="es", status="PENDING",
+                                     created_at=now - timedelta(seconds=61))
+        justo = MonthlyReportRecord(user_id=uuid4(), period="2026-10", language="es", status="PENDING",
+                                    created_at=now - timedelta(seconds=60))
+        session.add_all([pasado, justo])
+        session.commit()
+
+        service = ReportService(session, CsvReportRenderer(), report_queue, clock=lambda: now)
+        assert service.requeue_stale() == 1
+        assert report_queue.enqueued == [pasado.id]
+
+    def test_el_umbral_es_configurable(self, session, report_queue):
+        now = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+        record = MonthlyReportRecord(user_id=uuid4(), period="2026-10", language="es", status="PENDING",
+                                     created_at=now - timedelta(seconds=90))
+        session.add(record)
+        session.commit()
+
+        tolerante = ReportService(session, CsvReportRenderer(), report_queue, clock=lambda: now,
+                                  stale_after_seconds=120)
+        assert tolerante.requeue_stale() == 0
+        estricto = ReportService(session, CsvReportRenderer(), report_queue, clock=lambda: now,
+                                 stale_after_seconds=30)
+        assert estricto.requeue_stale() == 1
+
+    def test_la_aplicacion_lee_los_intervalos_del_entorno(self, monkeypatch, connection):
+        from app import create_app
+        from tests.conftest import _session_on
+
+        app = create_app(session_factory=lambda: _session_on(connection))
+        assert (app.config["REPORT_REQUEUE_EVERY_SECONDS"], app.config["REPORT_STALE_AFTER_SECONDS"]) == (60, 60)
+        monkeypatch.setenv("REPORT_REQUEUE_EVERY_SECONDS", "30")
+        monkeypatch.setenv("REPORT_STALE_AFTER_SECONDS", "45")
+        app = create_app(session_factory=lambda: _session_on(connection))
+        assert (app.config["REPORT_REQUEUE_EVERY_SECONDS"], app.config["REPORT_STALE_AFTER_SECONDS"]) == (30, 45)
+
+    @pytest.mark.parametrize("name", ["REPORT_REQUEUE_EVERY_SECONDS", "REPORT_STALE_AFTER_SECONDS"])
+    @pytest.mark.parametrize("raw", ["0", "-5", "uno"])
+    def test_un_intervalo_invalido_impide_arrancar(self, monkeypatch, connection, name, raw):
+        from app import create_app
+        from infra.configuration import ConfigurationError
+        from tests.conftest import _session_on
+
+        monkeypatch.setenv(name, raw)
+        with pytest.raises(ConfigurationError, match=name):
+            create_app(session_factory=lambda: _session_on(connection))
+
 
 class TestRetencion:
     """D-33: la limpieza diaria borra los reportes de mas de N dias (7 por defecto)."""

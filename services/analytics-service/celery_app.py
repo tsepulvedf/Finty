@@ -12,14 +12,14 @@ from celery.schedules import crontab
 from app import create_app
 from infra.celery_factory import make_celery
 
-REQUEUE_EVERY_SECONDS = 120
-
 flask_app = create_app()
 celery = make_celery(flask_app)
 celery.conf.beat_schedule = {
+    # Cada REPORT_REQUEUE_EVERY_SECONDS (60 s por defecto): vuelve a encolar los
+    # reportes con mas de REPORT_STALE_AFTER_SECONDS en PENDING.
     "requeue-pending-reports": {
         "task": "analytics.requeue_pending_reports",
-        "schedule": REQUEUE_EVERY_SECONDS,
+        "schedule": flask_app.config["REPORT_REQUEUE_EVERY_SECONDS"],
     },
     # Cada dia a las 3:30 de Bogota: borra los reportes de mas de
     # REPORT_RETENTION_DAYS dias (D-33).

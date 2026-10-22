@@ -90,4 +90,5 @@ def report_service():
         extensions[REPORT_RENDERER_KEY],
         extensions.get(REPORT_QUEUE_KEY),
         retention_days=current_app.config["REPORT_RETENTION_DAYS"],
+        stale_after_seconds=current_app.config["REPORT_STALE_AFTER_SECONDS"],
     )

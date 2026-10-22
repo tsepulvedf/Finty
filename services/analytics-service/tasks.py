@@ -5,8 +5,9 @@ mensaje, arman el caso de uso y lo llaman. No consultan la base ni tocan el
 dominio (lo verifica `tests/test_architecture.py`).
 
 - `analytics.generate_monthly_report`: genera un reporte PENDING. Idempotente.
-- `analytics.requeue_pending_reports`: periodica (beat); vuelve a encolar los
-  PENDING que quedaron sin tarea.
+- `analytics.requeue_pending_reports`: periodica (beat, cada
+  `REPORT_REQUEUE_EVERY_SECONDS`); vuelve a encolar los PENDING con mas de
+  `REPORT_STALE_AFTER_SECONDS` que quedaron sin tarea.
 - `analytics.purge_expired_reports`: diaria (beat); borra los reportes de mas
   de `REPORT_RETENTION_DAYS` dias (D-33).
 

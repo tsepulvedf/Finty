@@ -95,6 +95,19 @@ class TestBeat:
         schedule = celery_app.celery.conf.beat_schedule
         sys.modules.pop("celery_app", None)
         assert schedule["requeue-pending-reports"]["task"] == "analytics.requeue_pending_reports"
+        assert schedule["requeue-pending-reports"]["schedule"] == 60
         purge = schedule["purge-expired-reports"]
         assert purge["task"] == "analytics.purge_expired_reports"
         assert (purge["schedule"].hour, purge["schedule"].minute) == ({3}, {30})
+
+    def test_el_intervalo_del_reencolado_sale_del_entorno(self, monkeypatch):
+        import importlib
+        import sys
+
+        monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg2://x:y@localhost:5432/nada")
+        monkeypatch.setenv("REPORT_REQUEUE_EVERY_SECONDS", "15")
+        sys.modules.pop("celery_app", None)
+        celery_app = importlib.import_module("celery_app")
+        schedule = celery_app.celery.conf.beat_schedule
+        sys.modules.pop("celery_app", None)
+        assert schedule["requeue-pending-reports"]["schedule"] == 15

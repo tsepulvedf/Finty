@@ -87,7 +87,7 @@ sequenceDiagram
 | Tarea | Contenedor | Cuándo | Qué hace |
 |---|---|---|---|
 | `analytics.generate_monthly_report` | `analytics-celery` | Al pedir un reporte | Arma el CSV del mes, con encabezados en el idioma de la petición, y lo deja READY o FAILED |
-| `analytics.requeue_pending_reports` | `analytics-celery-beat` | Cada 2 min | Vuelve a encolar los PENDING huérfanos |
+| `analytics.requeue_pending_reports` | `analytics-celery-beat` | Cada 60 s (`REPORT_REQUEUE_EVERY_SECONDS`) | Vuelve a encolar los PENDING de más de 60 s (`REPORT_STALE_AFTER_SECONDS`) |
 | `analytics.purge_expired_reports` | `analytics-celery-beat` | Cada día, 3:30 | Borra los reportes de más de 7 días |
 | `subscription.send_premium_welcome` | `subscription-worker` | Al activar Premium | Envía la bienvenida en el idioma del usuario |
 | `subscription.send_missing_welcomes` | `subscription-beat` | Cada 15 min | Red de seguridad: las bienvenidas que no se pudieron encolar en las últimas 24 h |
@@ -133,8 +133,8 @@ sequenceDiagram
     end
     W-->>RD: ack
     Note over W,DB: error transitorio: reintento con espera creciente y el reporte sigue PENDING<br/>otro error: FAILED
-    B->>RD: cada 2 min: requeue_pending_reports
-    Note over B,RD: vuelve a encolar los PENDING de mas de 2 minutos
+    B->>RD: cada 60 s: requeue_pending_reports
+    Note over B,RD: vuelve a encolar los PENDING de mas de 60 s (configurable)
     U->>AN: GET /reports/{id}/ → READY
     U->>AN: GET /reports/{id}/download/ (con el token)
     AN-->>U: 200 text/csv · attachment, filename="finty-reporte-AAAA-MM.csv"

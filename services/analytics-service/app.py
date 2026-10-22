@@ -12,6 +12,9 @@ Configuracion por entorno:
   otra base logica que el stream y las caches (ADR-15).
 - `REPORT_RETENTION_DAYS` (opcional, `7`): dias que se guarda un reporte mensual
   antes de que la limpieza diaria lo borre (D-33).
+- `REPORT_REQUEUE_EVERY_SECONDS` (opcional, `60`) y `REPORT_STALE_AFTER_SECONDS`
+  (`60`): cada cuanto corre el reencolado de reportes y cuanto debe llevar un
+  reporte en PENDING para volver a encolarlo. Un valor menor a 1 s impide arrancar.
 - `ENTITLEMENTS_URL` (opcional, `http://subscription-service:8000`),
   `ENTITLEMENTS_TIMEOUT` (`1` s) y `ENTITLEMENTS_CACHE_SECONDS` (`30`): gating
   premium de INV-06 (`api/gating.py`).
@@ -41,7 +44,12 @@ from api.gating import ENTITLEMENTS_READER_KEY, enforce_entitlements
 from api.routes import analytics as analytics_blueprint
 from api.routes import public as public_blueprint
 from commands import consume_events
-from domain.report import DEFAULT_RETENTION_DAYS
+from domain.report import (
+    DEFAULT_REQUEUE_EVERY_SECONDS,
+    DEFAULT_RETENTION_DAYS,
+    DEFAULT_STALE_AFTER_SECONDS,
+    validate_positive_seconds,
+)
 from domain.thresholds import AnalyticsThresholds
 from infra.celery_factory import make_celery
 from infra.celery_queue import CeleryReportQueue
@@ -90,6 +98,15 @@ def _session_factory_from_environment():
     return build_session_factory(build_engine(database_url))
 
 
+def _seconds_from_environment(name, default):
+    """Intervalo en segundos del entorno; falla al arrancar si no es valido."""
+    raw = os.environ.get(name, str(default))
+    try:
+        return validate_positive_seconds(name, int(raw))
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} invalida ({raw!r}): debe ser un entero de al menos 1 segundo.") from exc
+
+
 def _entitlements_reader(redis_url):
     """Derechos premium de subscription-service, con cache corta de los "si" (INV-06)."""
     inner = HttpEntitlementsReader(
@@ -106,6 +123,12 @@ def create_app(session_factory=None, config=None, adapters=None):
     app.config["REDIS_URL"] = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     app.config["ANALYTICS_THRESHOLDS"] = thresholds_from_environment()
     app.config["REPORT_RETENTION_DAYS"] = int(os.environ.get("REPORT_RETENTION_DAYS", DEFAULT_RETENTION_DAYS))
+    app.config["REPORT_REQUEUE_EVERY_SECONDS"] = _seconds_from_environment(
+        "REPORT_REQUEUE_EVERY_SECONDS", DEFAULT_REQUEUE_EVERY_SECONDS
+    )
+    app.config["REPORT_STALE_AFTER_SECONDS"] = _seconds_from_environment(
+        "REPORT_STALE_AFTER_SECONDS", DEFAULT_STALE_AFTER_SECONDS
+    )
     app.config.update(config or {})
     _set_process_time_zone(app.config["TIME_ZONE"])
 

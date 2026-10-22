@@ -20,6 +20,10 @@ from domain.value_objects import TransactionType
 SUPPORTED_LANGUAGES = ("es", "en")
 DEFAULT_LANGUAGE = "es"
 DEFAULT_RETENTION_DAYS = 7
+# Recuperacion de reportes huerfanos: cada cuanto corre el reencolado y cuanto
+# debe llevar un reporte en PENDING para volver a encolarlo (E2-M9c).
+DEFAULT_REQUEUE_EVERY_SECONDS = 60
+DEFAULT_STALE_AFTER_SECONDS = 60
 
 
 class ReportStatus(StrEnum):
@@ -43,6 +47,19 @@ def retention_cutoff(now, retention_days=DEFAULT_RETENTION_DAYS):
     if retention_days < 1:
         raise ValueError(f"La retencion de reportes debe ser de al menos 1 dia: {retention_days}")
     return now - timedelta(days=retention_days)
+
+
+def validate_positive_seconds(name, seconds):
+    """Un intervalo de la recuperacion de reportes es un entero de al menos 1 s."""
+    if isinstance(seconds, bool) or not isinstance(seconds, int) or seconds < 1:
+        raise ValueError(f"{name} debe ser un entero de al menos 1 segundo: {seconds!r}")
+    return seconds
+
+
+def stale_cutoff(now, stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS):
+    """Un PENDING creado antes de este instante se vuelve a encolar: se perdio su
+    mensaje, o el broker no respondio al pedirlo."""
+    return now - timedelta(seconds=validate_positive_seconds("REPORT_STALE_AFTER_SECONDS", stale_after_seconds))
 
 
 def can_generate(status):

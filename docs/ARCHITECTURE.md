@@ -477,7 +477,7 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 - **Contenedores:** la misma imagen del servicio, sin puertos y con `restart: unless-stopped`. **Un solo beat por servicio** (`analytics-celery-beat`, `subscription-beat`); lo verifica `tests/services/test_compose_celery.py`.
 - **Encolar nunca rompe la petición:** el proceso web solo publica por nombre de tarea (`send_task`, sin reintentos de conexión). Si el broker no responde, el caso de uso registra el fallo y sigue.
 
-**Reporte mensual (`analytics-service`, E2-M7):** `POST /api/v1/analytics/reports/` crea el reporte PENDING en `finty_analytics` y encola `analytics.generate_monthly_report` en `analytics-celery`. La tarea lee los hechos de transacción del período (el modelo de lectura, nunca `finty_finance`), arma `MonthlyReport` en el dominio y lo escribe como CSV con encabezados en el idioma de `Accept-Language` (`infra/report_csv.py`). Guarda el archivo en la base y lo deja READY, o FAILED si no se puede armar. Es idempotente: solo genera un PENDING, con la fila bloqueada (`FOR UPDATE SKIP LOCKED`). El beat (`analytics.requeue_pending_reports`, cada 2 minutos) vuelve a encolar los PENDING de más de 2 minutos: cubre un mensaje perdido o un broker que no respondió al pedirlo. **Retención (D-33):** el mismo beat programa `analytics.purge_expired_reports` cada día a las 3:30 de Bogotá, que borra los reportes pedidos hace más de `REPORT_RETENTION_DAYS` días (7 por defecto, al menos 1), en cualquier estado. El `analytics-worker` de eventos sigue siendo otro proceso. Secuencia en §9.13.
+**Reporte mensual (`analytics-service`, E2-M7):** `POST /api/v1/analytics/reports/` crea el reporte PENDING en `finty_analytics` y encola `analytics.generate_monthly_report` en `analytics-celery`. La tarea lee los hechos de transacción del período (el modelo de lectura, nunca `finty_finance`), arma `MonthlyReport` en el dominio y lo escribe como CSV con encabezados en el idioma de `Accept-Language` (`infra/report_csv.py`). Guarda el archivo en la base y lo deja READY, o FAILED si no se puede armar. Es idempotente: solo genera un PENDING, con la fila bloqueada (`FOR UPDATE SKIP LOCKED`). El beat (`analytics.requeue_pending_reports`, cada `REPORT_REQUEUE_EVERY_SECONDS`, 60 s por defecto) vuelve a encolar los PENDING de más de `REPORT_STALE_AFTER_SECONDS` (60 s por defecto): cubre un mensaje perdido o un broker que no respondió al pedirlo. Así, un reporte pedido con el broker caído se completa a lo sumo unos 2 minutos después de que el broker vuelva (E2-M9c). **Retención (D-33):** el mismo beat programa `analytics.purge_expired_reports` cada día a las 3:30 de Bogotá, que borra los reportes pedidos hace más de `REPORT_RETENTION_DAYS` días (7 por defecto, al menos 1), en cualquier estado. El `analytics-worker` de eventos sigue siendo otro proceso. Secuencia en §9.13.
 
 **Notificaciones y vencimiento (`subscription-service`, E2-M7):**
 - `subscription.send_premium_welcome` se encola al activar la suscripción, **después del commit**: es el camino rápido. Si el broker no responde, la activación ya quedó hecha y solo se registra el fallo.
@@ -1874,8 +1874,8 @@ sequenceDiagram
     end
     W-->>RD: ack
     Note over W,DB: error transitorio: reintento con espera creciente y el reporte sigue PENDING<br/>otro error: FAILED
-    B->>RD: cada 2 min: requeue_pending_reports
-    Note over B,RD: vuelve a encolar los PENDING de mas de 2 minutos
+    B->>RD: cada 60 s: requeue_pending_reports
+    Note over B,RD: vuelve a encolar los PENDING de mas de 60 s (configurable)
     U->>AN: GET /reports/{id}/ → READY
     U->>AN: GET /reports/{id}/download/ (con el token)
     AN-->>U: 200 text/csv · attachment, filename="finty-reporte-AAAA-MM.csv"

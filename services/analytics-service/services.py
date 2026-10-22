@@ -14,7 +14,7 @@ Las reglas viven en `domain/`; aqui solo se orquesta y se lee la base.
 """
 import logging
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import DBAPIError, OperationalError
@@ -29,11 +29,13 @@ from domain.patterns import detect_patterns
 from domain.period import Period
 from domain.report import (
     DEFAULT_RETENTION_DAYS,
+    DEFAULT_STALE_AFTER_SECONDS,
     MonthlyReport,
     ReportStatus,
     can_generate,
     report_language,
     retention_cutoff,
+    stale_cutoff,
 )
 from domain.shared.value_objects import Money
 from domain.summary import SpendingSummary
@@ -256,9 +258,6 @@ class PublicSummaryService:
 
 # Errores que pasan solos: la tarea reintenta con espera creciente.
 TRANSIENT_ERRORS = (OperationalError, DBAPIError, ConnectionError, TimeoutError)
-# Un PENDING mas viejo que esto se vuelve a encolar (se perdio el mensaje, o el
-# broker no respondio al pedirlo).
-STALE_AFTER = timedelta(minutes=2)
 FAILURE_DETAIL_LENGTH = 200
 
 
@@ -275,11 +274,20 @@ class ReportService:
     entregas del mismo mensaje no lo generen a la vez.
     """
 
-    def __init__(self, session, renderer, queue=None, clock=utcnow, retention_days=DEFAULT_RETENTION_DAYS):
+    def __init__(
+        self,
+        session,
+        renderer,
+        queue=None,
+        clock=utcnow,
+        retention_days=DEFAULT_RETENTION_DAYS,
+        stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS,
+    ):
         self._session = session
         self._renderer = renderer
         self._queue = queue
         self._retention_days = retention_days
+        self._stale_after_seconds = stale_after_seconds
         self._clock = clock
 
     def request(self, user_id, period, language):
@@ -342,8 +350,9 @@ class ReportService:
             return record.status
 
     def requeue_stale(self):
-        """Vuelve a encolar los PENDING viejos. Devuelve cuantos encolo."""
-        limit = self._clock() - STALE_AFTER
+        """Vuelve a encolar los PENDING con mas de `stale_after_seconds`. Devuelve
+        cuantos encolo."""
+        limit = stale_cutoff(self._clock(), self._stale_after_seconds)
         ids = self._session.scalars(
             select(MonthlyReportRecord.id).where(
                 MonthlyReportRecord.status == ReportStatus.PENDING.value,

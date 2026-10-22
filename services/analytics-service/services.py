@@ -16,7 +16,7 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.dialects.postgresql import insert
 
@@ -27,7 +27,14 @@ from domain.facts import TransactionFact
 from domain.insights import detect_insights
 from domain.patterns import detect_patterns
 from domain.period import Period
-from domain.report import MonthlyReport, ReportStatus, can_generate, report_language
+from domain.report import (
+    DEFAULT_RETENTION_DAYS,
+    MonthlyReport,
+    ReportStatus,
+    can_generate,
+    report_language,
+    retention_cutoff,
+)
 from domain.shared.value_objects import Money
 from domain.summary import SpendingSummary
 from models import MonthlyReportRecord, ProcessedEvent, TransactionFactRecord
@@ -268,10 +275,11 @@ class ReportService:
     entregas del mismo mensaje no lo generen a la vez.
     """
 
-    def __init__(self, session, renderer, queue=None, clock=utcnow):
+    def __init__(self, session, renderer, queue=None, clock=utcnow, retention_days=DEFAULT_RETENTION_DAYS):
         self._session = session
         self._renderer = renderer
         self._queue = queue
+        self._retention_days = retention_days
         self._clock = clock
 
     def request(self, user_id, period, language):
@@ -344,6 +352,16 @@ class ReportService:
         ).all()
         self._session.rollback()
         return sum(1 for report_id in ids if self._enqueue(report_id))
+
+    def purge_expired(self):
+        """Borra los reportes pedidos hace mas de la retencion (D-33). Devuelve
+        cuantos borro. Idempotente: una segunda pasada no encuentra nada."""
+        cutoff = retention_cutoff(self._clock(), self._retention_days)
+        with atomic(self._session):
+            result = self._session.execute(
+                delete(MonthlyReportRecord).where(MonthlyReportRecord.created_at < cutoff)
+            )
+        return result.rowcount
 
     def _enqueue(self, report_id):
         """Encola sin fallar la peticion: si el broker no responde, queda PENDING

@@ -7,6 +7,8 @@ Un solo beat por servicio: lo garantiza Compose, con un unico contenedor de beat
 La convencion (broker, sin result backend, acks tardios, limites) esta en
 `infra/celery_factory.py`.
 """
+from celery.schedules import crontab
+
 from app import create_app
 from infra.celery_factory import make_celery
 
@@ -18,6 +20,12 @@ celery.conf.beat_schedule = {
     "requeue-pending-reports": {
         "task": "analytics.requeue_pending_reports",
         "schedule": REQUEUE_EVERY_SECONDS,
+    },
+    # Cada dia a las 3:30 de Bogota: borra los reportes de mas de
+    # REPORT_RETENTION_DAYS dias (D-33).
+    "purge-expired-reports": {
+        "task": "analytics.purge_expired_reports",
+        "schedule": crontab(hour=3, minute=30),
     },
 }
 

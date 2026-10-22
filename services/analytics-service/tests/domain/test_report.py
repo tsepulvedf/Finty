@@ -1,5 +1,5 @@
 """Reporte mensual en el dominio (E2-M7). Sin base de datos."""
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -7,7 +7,7 @@ import pytest
 
 from domain.facts import TransactionFact
 from domain.period import Period
-from domain.report import MonthlyReport, ReportStatus, can_generate, report_language
+from domain.report import MonthlyReport, ReportStatus, can_generate, report_language, retention_cutoff
 from domain.shared.value_objects import Money
 from domain.value_objects import TransactionType
 
@@ -69,3 +69,18 @@ class TestEstadoEIdioma:
         assert can_generate("PENDING")
         assert not can_generate(ReportStatus.READY)
         assert not can_generate("FAILED")
+
+
+class TestRetencion:
+    NOW = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+
+    def test_por_defecto_7_dias(self):
+        assert retention_cutoff(self.NOW) == self.NOW - timedelta(days=7)
+
+    def test_configurable(self):
+        assert retention_cutoff(self.NOW, 30) == self.NOW - timedelta(days=30)
+
+    @pytest.mark.parametrize("days", [0, -1])
+    def test_al_menos_un_dia(self, days):
+        with pytest.raises(ValueError):
+            retention_cutoff(self.NOW, days)

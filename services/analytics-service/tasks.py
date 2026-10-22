@@ -7,6 +7,8 @@ dominio (lo verifica `tests/test_architecture.py`).
 - `analytics.generate_monthly_report`: genera un reporte PENDING. Idempotente.
 - `analytics.requeue_pending_reports`: periodica (beat); vuelve a encolar los
   PENDING que quedaron sin tarea.
+- `analytics.purge_expired_reports`: diaria (beat); borra los reportes de mas
+  de `REPORT_RETENTION_DAYS` dias (D-33).
 
 Ante un error transitorio (la base no responde) reintentan con espera creciente;
 el reporte sigue PENDING mientras tanto.
@@ -35,3 +37,8 @@ def generate_monthly_report(report_id):
 @shared_task(name="analytics.requeue_pending_reports", acks_late=True, **RETRY_POLICY)
 def requeue_pending_reports():
     return report_service().requeue_stale()
+
+
+@shared_task(name="analytics.purge_expired_reports", acks_late=True, **RETRY_POLICY)
+def purge_expired_reports():
+    return report_service().purge_expired()

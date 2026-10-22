@@ -85,4 +85,9 @@ def requested_language():
 def report_service():
     """`ReportService` con los adaptadores de la aplicacion (web o worker)."""
     extensions = current_app.extensions
-    return ReportService(db_session(), extensions[REPORT_RENDERER_KEY], extensions.get(REPORT_QUEUE_KEY))
+    return ReportService(
+        db_session(),
+        extensions[REPORT_RENDERER_KEY],
+        extensions.get(REPORT_QUEUE_KEY),
+        retention_days=current_app.config["REPORT_RETENTION_DAYS"],
+    )

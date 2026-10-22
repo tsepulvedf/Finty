@@ -58,6 +58,8 @@ x-analytics: &analytics
     REDIS_URL: redis://redis:6379/0
     # Broker de Celery en otra base logica que el stream y las caches (ADR-15).
     CELERY_BROKER_URL: redis://redis:6379/1
+    # Dias que se guarda un reporte mensual antes de la limpieza diaria (D-33).
+    REPORT_RETENTION_DAYS: ${REPORT_RETENTION_DAYS:-7}
     # Derechos premium para el gating de INV-06 (insights, patrones, historial).
     ENTITLEMENTS_URL: http://subscription-service:8000
 

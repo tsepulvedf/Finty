@@ -11,7 +11,7 @@ El formato (CSV, encabezados en el idioma pedido) lo pone el adaptador de
 `infra/`; aqui solo hay datos.
 """
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from enum import StrEnum
 
 from domain.shared.value_objects import Money
@@ -19,6 +19,7 @@ from domain.value_objects import TransactionType
 
 SUPPORTED_LANGUAGES = ("es", "en")
 DEFAULT_LANGUAGE = "es"
+DEFAULT_RETENTION_DAYS = 7
 
 
 class ReportStatus(StrEnum):
@@ -31,6 +32,17 @@ def report_language(code):
     """`es` o `en` a partir de una etiqueta como `en-US`; cualquier otra, `es`."""
     prefix = (code or "").split("-")[0].strip().lower()
     return prefix if prefix in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
+
+
+def retention_cutoff(now, retention_days=DEFAULT_RETENTION_DAYS):
+    """Un reporte creado antes de este instante ya cumplio su retencion (D-33).
+
+    Se cuenta desde que se pidio, en cualquier estado: un PENDING de hace una
+    semana tampoco sirve. La retencion es de al menos un dia.
+    """
+    if retention_days < 1:
+        raise ValueError(f"La retencion de reportes debe ser de al menos 1 dia: {retention_days}")
+    return now - timedelta(days=retention_days)
 
 
 def can_generate(status):

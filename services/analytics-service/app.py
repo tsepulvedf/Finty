@@ -10,6 +10,8 @@ Configuracion por entorno:
 - `TIME_ZONE` (opcional, `America/Bogota`): zona del proceso (RULES.md).
 - `CELERY_BROKER_URL` (opcional, `redis://redis:6379/1`): broker de Celery, en
   otra base logica que el stream y las caches (ADR-15).
+- `REPORT_RETENTION_DAYS` (opcional, `7`): dias que se guarda un reporte mensual
+  antes de que la limpieza diaria lo borre (D-33).
 - `ENTITLEMENTS_URL` (opcional, `http://subscription-service:8000`),
   `ENTITLEMENTS_TIMEOUT` (`1` s) y `ENTITLEMENTS_CACHE_SECONDS` (`30`): gating
   premium de INV-06 (`api/gating.py`).
@@ -39,6 +41,7 @@ from api.gating import ENTITLEMENTS_READER_KEY, enforce_entitlements
 from api.routes import analytics as analytics_blueprint
 from api.routes import public as public_blueprint
 from commands import consume_events
+from domain.report import DEFAULT_RETENTION_DAYS
 from domain.thresholds import AnalyticsThresholds
 from infra.celery_factory import make_celery
 from infra.celery_queue import CeleryReportQueue
@@ -102,6 +105,7 @@ def create_app(session_factory=None, config=None, adapters=None):
     app.config["TIME_ZONE"] = os.environ.get("TIME_ZONE", DEFAULT_TIME_ZONE)
     app.config["REDIS_URL"] = os.environ.get("REDIS_URL", DEFAULT_REDIS_URL)
     app.config["ANALYTICS_THRESHOLDS"] = thresholds_from_environment()
+    app.config["REPORT_RETENTION_DAYS"] = int(os.environ.get("REPORT_RETENTION_DAYS", DEFAULT_RETENTION_DAYS))
     app.config.update(config or {})
     _set_process_time_zone(app.config["TIME_ZONE"])
 

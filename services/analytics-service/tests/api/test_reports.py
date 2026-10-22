@@ -200,3 +200,55 @@ class TestReencolar:
         service = ReportService(session, CsvReportRenderer(), report_queue, clock=lambda: now)
         assert service.requeue_stale() == 1
         assert report_queue.enqueued == [viejo.id]
+
+
+class TestRetencion:
+    """D-33: la limpieza diaria borra los reportes de mas de N dias (7 por defecto)."""
+
+    NOW = datetime(2026, 10, 22, 12, tzinfo=timezone.utc)
+
+    def report(self, session, days_ago, status="READY"):
+        record = MonthlyReportRecord(
+            user_id=uuid4(), period="2026-10", language="es", status=status,
+            content=b"x" if status == "READY" else None, created_at=self.NOW - timedelta(days=days_ago),
+        )
+        session.add(record)
+        session.commit()
+        return record.id
+
+    def service(self, session, **kwargs):
+        return ReportService(session, CsvReportRenderer(), clock=lambda: self.NOW, **kwargs)
+
+    def test_borra_los_de_mas_de_7_dias_en_cualquier_estado(self, session):
+        viejo = self.report(session, 8)
+        viejo_pendiente = self.report(session, 10, status="PENDING")
+        viejo_fallido = self.report(session, 9, status="FAILED")
+        reciente = self.report(session, 6)
+        justo = self.report(session, 7)
+
+        assert self.service(session).purge_expired() == 3
+        session.expire_all()
+        restantes = {r.id for r in session.query(MonthlyReportRecord).all()}
+        assert {viejo, viejo_pendiente, viejo_fallido}.isdisjoint(restantes)
+        assert {reciente, justo} <= restantes
+
+    def test_la_retencion_es_configurable(self, session):
+        tres = self.report(session, 4)
+        dos = self.report(session, 2)
+        assert self.service(session, retention_days=3).purge_expired() == 1
+        session.expire_all()
+        assert session.get(MonthlyReportRecord, tres) is None
+        assert session.get(MonthlyReportRecord, dos) is not None
+
+    def test_es_idempotente(self, session):
+        self.report(session, 30)
+        assert self.service(session).purge_expired() == 1
+        assert self.service(session).purge_expired() == 0
+
+    def test_la_aplicacion_lee_la_retencion_del_entorno(self, monkeypatch, connection):
+        from app import create_app
+        from tests.conftest import _session_on
+
+        monkeypatch.setenv("REPORT_RETENTION_DAYS", "30")
+        app = create_app(session_factory=lambda: _session_on(connection))
+        assert app.config["REPORT_RETENTION_DAYS"] == 30

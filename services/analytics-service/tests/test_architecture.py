@@ -198,7 +198,9 @@ class TestTareasSinLogica:
         ]
 
     def test_hay_tareas(self):
-        assert {t.name for t in self.tasks()} == {"generate_monthly_report", "requeue_pending_reports"}
+        assert {t.name for t in self.tasks()} == {
+            "generate_monthly_report", "requeue_pending_reports", "purge_expired_reports",
+        }
 
     def test_no_importa_dominio_modelos_base_ni_infra(self):
         roots = imported_roots(tree_of(self.TASKS))

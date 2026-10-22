@@ -1,0 +1,164 @@
+/*
+ * Traduccion de los `code` que devuelve la API (ADR-11, D-21).
+ *
+ * Un solo modulo: el backend responde con codigos estables (errores de dominio,
+ * beneficios, insights, recomendaciones, avisos, procedencias) y aqui se
+ * convierten en texto con gettext(). Por eso los servicios Flask no necesitan
+ * Flask-Babel. Los 401 y 429 del Gateway se traducen por codigo de estado.
+ *
+ * Los nombres de categoria son datos del catalogo de finance (en espanol); se
+ * traducen por nombre con el mismo criterio y, si aparece uno nuevo, se muestra
+ * tal cual.
+ */
+import { format } from "./i18n.js";
+
+const ERRORS = {
+  // identity
+  invalid_credentials: gettext("El correo o la contraseña no son correctos. Revísalos e inténtalo de nuevo."),
+  email_already_registered: gettext("Ya existe una cuenta con ese correo. Ingresa con él o usa otro."),
+  weak_password: gettext("La contraseña es muy débil: usa al menos 8 caracteres, que no sean solo números ni una contraseña común."),
+  inactive_user: gettext("Esta cuenta está inactiva."),
+  // finance
+  zero_amount: gettext("El monto debe ser distinto de cero."),
+  negative_amount: gettext("Escribe el monto sin signo: el tipo de movimiento ya indica si suma o resta."),
+  future_transaction_date: gettext("La fecha del movimiento no puede ser futura."),
+  category_not_found: gettext("Esa categoría no existe."),
+  category_type_mismatch: gettext("Esa categoría no corresponde al tipo de movimiento."),
+  duplicate_account_name: gettext("Ya tienes una cuenta con ese nombre."),
+  archived_account: gettext("La cuenta está archivada y no admite movimientos."),
+  account_not_found: gettext("No encontramos esa cuenta."),
+  account_not_owned: gettext("No encontramos esa cuenta."),
+  transaction_not_found: gettext("No encontramos ese movimiento. Puede que ya se haya eliminado."),
+  negative_balance_not_allowed: gettext("Este movimiento dejaría la cuenta en negativo, y su tipo no lo permite."),
+  currency_mismatch: gettext("La moneda no coincide con la de la cuenta."),
+  account_has_transactions: gettext("La cuenta tiene movimientos: archívala en lugar de eliminarla."),
+  invalid_transaction_type: gettext("El tipo de movimiento no es válido."),
+  uncategorized_transaction: gettext("El movimiento no tiene categoría."),
+  // analytics, recommendation y subscription
+  invalid_period: gettext("El período no es válido."),
+  premium_required: gettext("Esta función es parte del plan Premium."),
+  entitlements_unavailable: gettext("No pudimos verificar tu plan en este momento. Intenta de nuevo en unos minutos."),
+  unsupported_currency_pair: gettext("Solo se puede convertir entre pesos y dólares."),
+  plan_not_purchasable: gettext("El plan Free no requiere pago."),
+  subscription_already_active: gettext("Ya tienes una suscripción vigente."),
+  payment_in_progress: gettext("Tienes un pago en proceso."),
+  no_active_subscription: gettext("No tienes una suscripción activa."),
+  risk_profile_not_found: gettext("Todavía no has respondido el cuestionario de perfil de riesgo."),
+  risk_profile_required: gettext("Responde el cuestionario de perfil de riesgo antes de guardar un plan."),
+  invalid_risk_answer: gettext("Cada respuesta del cuestionario vale 1, 2 o 3."),
+  instrument_not_recommended: gettext("Ese instrumento no corresponde a tu perfil de riesgo."),
+  invalid_monthly_contribution: gettext("El aporte mensual debe ser mayor que cero."),
+  invalid_horizon: gettext("El horizonte del plan está fuera del rango permitido."),
+  investment_plan_not_found: gettext("No encontramos ese plan de inversión."),
+};
+
+const STATUSES = {
+  0: gettext("No pudimos conectar con Finty. Revisa tu conexión e intenta de nuevo."),
+  401: gettext("Tu sesión no es válida o expiró. Ingresa de nuevo."),
+  403: gettext("No tienes acceso a esta función."),
+  404: gettext("No encontramos lo que buscabas."),
+  429: gettext("Hiciste demasiadas solicitudes seguidas. Espera un momento e intenta de nuevo."),
+  503: gettext("El servicio no está disponible en este momento. Intenta de nuevo en unos minutos."),
+};
+const UNKNOWN_ERROR = gettext("Algo salió mal. Intenta de nuevo.");
+
+/** Texto de un error de la API: por `code` si lo trae, si no por estado (D-21). */
+export function errorMessage(error) {
+  if (error && error.code && ERRORS[error.code]) {
+    return ERRORS[error.code];
+  }
+  if (error && STATUSES[error.status] !== undefined) {
+    return STATUSES[error.status];
+  }
+  return UNKNOWN_ERROR;
+}
+
+export const BENEFITS = {
+  transaction_tracking: gettext("Registro de movimientos"),
+  standard_dashboard: gettext("Dashboard estándar"),
+  history_3_months: gettext("3 meses de historial"),
+  insights: gettext("Insights sobre tus gastos"),
+  spending_patterns: gettext("Patrones de gasto recurrente"),
+  unlimited_history: gettext("Historial ilimitado"),
+  investment_recommendations: gettext("Recomendaciones de inversión"),
+  investment_plans: gettext("Planes de inversión"),
+};
+
+export const ACCOUNT_TYPES = {
+  bank: gettext("Banco"),
+  cash: gettext("Efectivo"),
+  credit: gettext("Crédito"),
+};
+
+export const TRANSACTION_TYPES = {
+  income: gettext("Ingreso"),
+  expense: gettext("Gasto"),
+};
+
+/** Procedencia de la categoria (A-14): cada mecanismo con su nombre. */
+const SOURCES = {
+  rule: gettext("Automática · por reglas"),
+  ai: gettext("Automática · por IA"),
+  mock: gettext("Automática · simulada"),
+  manual: gettext("Manual"),
+};
+
+export function sourceLabel(source) {
+  return SOURCES[source] || gettext("Sin clasificar");
+}
+
+/** Procedencia de una tasa de cambio (ADR-12). */
+export const RATE_SOURCES = {
+  live: gettext("en vivo"),
+  cached: gettext("en caché"),
+  fallback: gettext("tasa de respaldo"),
+};
+
+export const PLANS = {
+  FREE: gettext("Plan Free"),
+  PREMIUM: gettext("Plan Premium"),
+};
+
+const CATEGORIES = {
+  "Alimentación": gettext("Alimentación"),
+  "Transporte": gettext("Transporte"),
+  "Vivienda": gettext("Vivienda"),
+  "Servicios públicos": gettext("Servicios públicos"),
+  "Salud": gettext("Salud"),
+  "Educación": gettext("Educación"),
+  "Entretenimiento": gettext("Entretenimiento"),
+  "Compras": gettext("Compras"),
+  "Deudas y créditos": gettext("Deudas y créditos"),
+  "Otros gastos": gettext("Otros gastos"),
+  "Salario": gettext("Salario"),
+  "Freelance": gettext("Freelance"),
+  "Inversiones": gettext("Inversiones"),
+  "Reembolsos": gettext("Reembolsos"),
+  "Otros ingresos": gettext("Otros ingresos"),
+};
+
+export function categoryName(name) {
+  if (!name) {
+    return gettext("Sin categoría");
+  }
+  return CATEGORIES[name] || name;
+}
+
+/** Textos de los insights de analytics, interpolados con sus `params`. */
+const INSIGHTS = {
+  category_spike: gettext("Tu gasto en %(category_name)s subió un %(increase_pct)s por ciento frente a tu promedio."),
+  negative_savings: gettext("Este mes gastaste más de lo que ingresó."),
+  top_category: gettext("%(category_name)s es la categoría donde más gastas este mes."),
+};
+
+export function insightText(insight) {
+  const template = INSIGHTS[insight.code];
+  if (!template) {
+    return "";
+  }
+  const params = Object.assign({}, insight.params);
+  if (params.category_name) {
+    params.category_name = categoryName(params.category_name);
+  }
+  return format(template, params);
+}

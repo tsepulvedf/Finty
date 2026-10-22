@@ -181,5 +181,9 @@ STATIC_URL = "static/"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Estaticos del frontend: CSS, JavaScript y la tipografia Manrope, servida desde
+# el propio proyecto (sin CDN: la sustentacion puede no tener red).
+STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

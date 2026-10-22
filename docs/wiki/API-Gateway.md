@@ -100,8 +100,15 @@ sequenceDiagram
 |---|---|
 | 401 | `{"detail": ...}` con el texto de DRF según el motivo |
 | 429 | `{"detail": "Solicitud fue regulada (throttled)."}` |
+| 503 | `{"detail": "El servicio no está disponible…", "code": "service_unavailable"}`, con `Retry-After: 10` |
 
-Cada bloque de un microservicio responde con `X-Finty-Route` (`finance`, `analytics`, `recommendation`, `subscription` o `public`), también en el 401, y así se ve qué servicio atendió.
+El 503 cubre dos casos:
+- el servicio no resuelve, no acepta la conexión o no responde;
+- Django no responde a la verificación del token, que sin este manejo sería el 500 de `auth_request`.
+
+Una petición sin verificar nunca pasa. El 503 propio de un servicio, como `entitlements_unavailable`, llega tal cual.
+
+Cada bloque de un microservicio responde con `X-Finty-Route` (`finance`, `analytics`, `recommendation`, `subscription` o `public`), también en el 401 y en el 503, y así se ve qué servicio atendió. En el 503 de las rutas de Django, la marca es `monolith`.
 
 ## Resolución de nombres
 

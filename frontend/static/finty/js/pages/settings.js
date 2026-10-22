@@ -2,14 +2,15 @@
  * Ajustes (docs/design/Ajustes.dc.html).
  *
  * Datos, todos de la API:
- *   GET / PUT /profile/                 nombre visible y moneda preferida
+ *   GET / PUT /profile/                 nombre visible, moneda preferida e idioma
  *   GET /subscriptions/me/              estado y fin del periodo (lo trae shell.js)
  *   GET /subscriptions/plans/           precio del plan, para la ficha
  *   POST /subscriptions/me/cancel/      cancelar; se conserva el acceso hasta el fin
  *
- * El idioma no es parte del perfil: lo guarda `set_language` de Django en su
- * cookie, igual que el selector ES/EN. Cerrar sesion borra el token de este
- * navegador.
+ * El idioma se guarda en el perfil (es el de los correos, E2-M7) y, si cambia,
+ * tambien en la cookie de Django con `set_language`, igual que el selector
+ * ES/EN, para que la pagina cambie de idioma. Cerrar sesion borra el token de
+ * este navegador.
  */
 import { api, forgetProfile, logout } from "../api.js";
 import { PLANS, SUBSCRIPTION_STATUSES, errorMessage } from "../codes.js";
@@ -50,12 +51,16 @@ async function saveProfile(event) {
   }
   await busy(byId("profile-submit"), async () => {
     try {
+      const language = byId("profile-language");
       await api("/profile/", {
         method: "PUT",
-        body: { display_name: displayName, preferred_currency: byId("profile-preferred_currency").value },
+        body: {
+          display_name: displayName,
+          preferred_currency: byId("profile-preferred_currency").value,
+          language: language.value,
+        },
       });
       forgetProfile();
-      const language = byId("profile-language");
       if (language.value !== language.dataset.current) {
         changeLanguage(language.value);
         return;

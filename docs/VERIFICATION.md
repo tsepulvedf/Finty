@@ -4,7 +4,7 @@ Mapea cada criterio del **Anexo A** de [`ARCHITECTURE.md`](ARCHITECTURE.md) al t
 
 **Desde E2-M3a** el contexto `finance` ya no vive en el monolito: lo sirve `services/finance-service/` (ADR-08). **Desde E2-M3b** la categorización (los categorizadores y `CategorizerFactory`) vive en `services/categorization-service/`, y `finance-service` la consume por HTTP con un respaldo local. Por eso los criterios de la Entrega 1 que hablaban de cuentas, transacciones, categorización y balance se verifican ahora en la suite de ese servicio. En el monolito quedan `core` e `identity`. El criterio autoritativo de capas sigue siendo el análisis del AST (A-15 en el monolito, A-16 en el servicio); un `grep` es solo una comprobación rápida.
 
-Estado a la fecha de este documento (2026-10-22, E2-M7):
+Estado a la fecha de este documento (2026-10-22, E2-M9b):
 
 | Suite | Tests | Cómo se corre |
 |---|---|---|
@@ -15,9 +15,32 @@ Estado a la fecha de este documento (2026-10-22, E2-M7):
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
 | `subscription-service` | **155**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
 | Contrato de caja negra (A-20) | **172**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
-| Contratos estáticos entre servicios | **18** (incluye la convención de Celery en Compose, que se omite sin Docker) | `pytest` en `tests/services/` |
+| Contratos estáticos entre servicios y documentación | **20** (incluye la convención de Celery en Compose, que se omite sin Docker, y la compilación de los diagramas Mermaid, que se omite sin `tools/mermaid/node_modules`) | `pytest` en `tests/services/` |
 
 En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
+
+---
+
+## Checklist final del enunciado (E2-M9b)
+
+Cada requisito de la Entrega 2, con su evidencia y su estado al cierre. ✅ cumplido y verificado; ⏳ pendiente de un tercero.
+
+| Criterio (peso) | Requisito | Evidencia | Estado |
+|---|---|---|---|
+| Correcciones E1 (10%, eliminatorio) | Frontend intuitivo y agradable | 11 pantallas en plantillas Django según el diseño de `docs/design/`; auditoría en `docs/UX-AUDIT.md` (Lighthouse 100 en accesibilidad en las 80 combinaciones, 0 violaciones de axe, hallazgos de severidad 3 corregidos); tests del frontend en `core/tests/test_frontend.py` | ✅ |
+| Arquitectura (10%) | Diagramas actualizados con AWS, Nginx, Flask y el broker | `ARCHITECTURE.md` §9.4 (despliegue en AWS), §9.15 (Gateway), §9.5 (mapa de contextos), §9.10, §9.12 y §9.13 (secuencias), §9.16 (Strangler); los mismos en la Wiki (`docs/wiki/`). Todos compilan: `tools/mermaid/check-mermaid.mjs` | ✅ |
+| Servicios (30%) | Exponer un endpoint JSON | `GET /api/v1/public/spending-summary/` con k-anonimato (A-26) | ✅ |
+| Servicios (30%) | Consumir el servicio del equipo aliado y mostrarlo | **Pendiente de asignación del equipo aliado; no implementado** (D-10, ADR-13). El diseño (`AllyServiceProvider` con `MockAllyAdapter`) queda documentado, sin código | ⏳ |
+| Servicios (30%) | Consumir una API de terceros mediante Adapter | TRM de datos.gov.co: `ExchangeRateProvider` → `TrmExchangeRateProvider`, respaldo `FixedExchangeRateProvider` (A-22, `runs/2026-10-21-recomendaciones-y-tasas.txt`) | ✅ |
+| Infraestructura (30%) | Todo en Docker Compose: Django, Flask, Nginx, base de datos y broker | `docker-compose.yml`; `tests/services/test_compose_celery.py`; solo Nginx publica puerto (A-17) | ✅ |
+| Infraestructura (30%) | Desplegado en EC2 de AWS Academy | `http://3.95.100.48` (A-24, verificado el 2026-10-22); paso a paso en la Wiki, Despliegue en EC2 | ✅ |
+| Infraestructura (30%) | Nginx como API Gateway | `deploy/nginx/`: ruteo, `auth_request` y `limit_req` (A-18, A-19, `tests/contract/test_routing.py`, `test_auth.py`, `test_throttling.py`) | ✅ |
+| Resiliencia y UX (20%) | Tareas asíncronas con Redis y Celery (reportes, notificaciones) | A-33 a A-36; `runs/2026-10-22-tareas-asincronas.txt` | ✅ |
+| Resiliencia y UX (20%) | Resiliencia ante la caída de servicios | A-22, A-28, A-32, A-35; ensayo de la sustentación en `runs/2026-10-22-resiliencia-sustentacion.txt` | ✅ |
+| Resiliencia y UX (20%) | Auditoría de UI/UX | `docs/UX-AUDIT.md`; `docs/ux-audit/antes.json` y `despues.json` | ✅ |
+| Resiliencia y UX (20%) | i18n bilingüe completo con gettext, sin textos quemados | A-23: `TestA23SinTextosQuemados`, `test_frontend_a23_js.py`, `TestCatalogos` | ✅ |
+| Bono | Más del 70% de los servicios y la lógica en microservicios Flask | 18 de 20 clases del dominio (90%), 4 de 5 contextos (80%) y la mayoría de los endpoints; la métrica oficial está por confirmar con el profesor (ARCHITECTURE.md ADR-08) | ✅ |
+| Entrega | Repositorio (rama `main`) e IP elástica; instancia encendida en la sustentación | `https://github.com/tsepulvedf/Finty` y `3.95.100.48`; lista previa en `docs/SUSTENTACION.md` §1 | ✅ |
 
 ---
 
@@ -53,7 +76,7 @@ En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `s
 | **A-21** | `services/finance-service/.env.docker`, `services/analytics-service/.env.docker`, `services/recommendation-service/.env.docker` y `services/subscription-service/.env.docker` solo contienen `DATABASE_URL` (cada uno, la de su base) y `TIME_ZONE`; `categorization-service` no tiene base ni secretos | ✅ |
 | **A-22** | Categorización: `tests/contract/test_categorization.py` con `CONTRACT_CATEGORIZATION_DOWN=1` y el servicio detenido (201 con `rule`); `fs/test_categorization_client.py::TestRespaldoA22` (timeout, conexión rechazada, 5xx, cuerpo inválido). Tasas: `rs/test_exchange_rate_service.py::TestCadenaDeDegradacion` y `rs/test_adapters.py::TestTrmExchangeRateProvider`; por el Gateway, `live` → `cached` → `fallback` en `tests/contract/runs/2026-10-21-recomendaciones-y-tasas.txt` | ✅ (categorización y tasas) |
 | **A-23** | `core/tests/test_frontend.py::TestA23SinTextosQuemados` (ningún texto visible fuera de `{% translate %}` en todas las plantillas), `core/tests/test_frontend_a23_js.py` (ningún texto visible con literales en el JavaScript) y `TestCatalogos` (catálogos `es` y `en` completos, sin entradas vacías ni `fuzzy`) | ✅ |
-| **A-24** | `curl http://<ip>/api/v1/health/` — pendiente del despliegue en EC2 | ⏳ |
+| **A-24** | `curl http://3.95.100.48/api/v1/health/` responde 200 desde AWS, y la instancia sirve los mismos estáticos con hash que el stack local (verificado el 2026-10-22) | ✅ |
 | **A-25** | `as/test_projection.py` (`TestProyector`, `TestConsumidor`: duplicados, fuera de orden, lápida, `XACK` solo tras el commit) y `tests/services/test_event_contract.py` | ✅ |
 | **A-26** | `tests/contract/test_analytics.py::TestResumenPublico::test_k_anonimato`, `as/api/test_api.py::TestResumenPublico` | ✅ |
 | **A-27** | `tests/contract/test_analytics.py::TestDePuntaAPunta` (sondeo con límite de 15 s) | ✅ |
@@ -173,6 +196,23 @@ curl -sI http://localhost/static/finty/js/pages/dashboard.js | grep -i cache-con
 
 ---
 
+## Documentación y sustentación (E2-M9b)
+
+| Requisito | Verificación | Estado |
+|---|---|---|
+| Cada bloque Mermaid del repositorio compila | `tools/mermaid/check-mermaid.mjs` (mermaid-cli 12.0.0); en la suite, `tests/services/test_docs.py::test_cada_bloque_mermaid_compila` | ✅ |
+| La Wiki no tiene enlaces internos rotos, ni citas de archivo y línea desactualizadas | `tools/check_wiki_links.py`; en la suite, `tests/services/test_docs.py::test_la_wiki_no_tiene_enlaces_rotos` | ✅ |
+| `seed-demo` es idempotente | `tests/contract/runs/2026-10-22-seed-demo.txt`: la primera corrida crea 67 movimientos, la segunda 0 | ✅ |
+| Las demos de resiliencia de la sustentación se comportan como dice el guion | `tests/contract/runs/2026-10-22-resiliencia-sustentacion.txt` | ✅ |
+
+```bash
+cd tools/mermaid && npm install && node check-mermaid.mjs    # usa el Chrome instalado (CHROME_PATH)
+python tools/check_wiki_links.py
+python tools/seed_demo.py --base-url http://localhost        # dos veces: la segunda no crea nada
+```
+
+---
+
 ## Comprobaciones rápidas con `grep`
 
 Complementarias, **no autoritativas**: el criterio es el AST.
@@ -188,4 +228,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M7)*
+*Finty · Guía de verificación · Entrega 2 (E2-M9b)*

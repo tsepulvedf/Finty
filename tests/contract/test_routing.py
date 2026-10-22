@@ -94,3 +94,10 @@ class TestInternal:
     @pytest.mark.parametrize("path", ["/internal/auth/verify/", "/_gateway/auth/verify"])
     def test_no_es_alcanzable_desde_fuera(self, ana, path):
         assert ana.client.get(path).status == 404
+
+    def test_el_contacto_interno_de_identity_no_es_alcanzable(self, ana, anonimo):
+        """E2-M7: lo usa subscription-service por la red interna; desde fuera, 404."""
+        path = f"/internal/users/{ana.user_id}/contact/"
+        assert anonimo.get(path).status == 404
+        response = ana.client.get(path)
+        assert response.status == 404 and ana.email not in response.text

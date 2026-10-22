@@ -15,6 +15,7 @@
  */
 import { errorMessage } from "./codes.js";
 import { toast } from "./dom.js";
+import { language } from "./i18n.js";
 
 const BASE = "/api/v1";
 const TOKEN_KEY = "finty.token";
@@ -119,27 +120,11 @@ function handle(error, options) {
  *
  * Opciones: `query` (parametros de consulta), `auth: false` (login y registro:
  * sin token y sin redirigir ante un 401), `premiumRedirect: false` (la pantalla
- * muestra el 403 a su manera).
+ * muestra el 403 a su manera) y `localized: true` (envia `Accept-Language` con
+ * el idioma de la pagina, para lo que el servidor redacta, como el reporte).
  */
 export async function api(path, options = {}) {
-  const headers = { Accept: "application/json" };
-  if (options.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (options.auth !== false && token()) {
-    headers.Authorization = `Token ${token()}`;
-  }
-  let response;
-  try {
-    response = await fetch(buildUrl(path, options.query), {
-      method: options.method || "GET",
-      headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      credentials: "same-origin",
-    });
-  } catch (networkError) {
-    throw new ApiError(0, null);
-  }
+  const response = await send(path, options, "application/json");
   const text = await response.text();
   let body = null;
   try {
@@ -153,6 +138,59 @@ export async function api(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function send(path, options, accept) {
+  const headers = { Accept: accept };
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (options.auth !== false && token()) {
+    headers.Authorization = `Token ${token()}`;
+  }
+  if (options.localized) {
+    headers["Accept-Language"] = language();
+  }
+  try {
+    return await fetch(buildUrl(path, options.query), {
+      method: options.method || "GET",
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      credentials: "same-origin",
+    });
+  } catch (networkError) {
+    throw new ApiError(0, null);
+  }
+}
+
+/**
+ * Descarga un archivo con el token (un enlace simple no lo lleva) y lo entrega
+ * al navegador con el nombre de `Content-Disposition`.
+ */
+export async function download(path, fallbackName) {
+  const response = await send(path, {}, "*/*");
+  if (!response.ok) {
+    const text = await response.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (parseError) {
+      body = null;
+    }
+    const error = new ApiError(response.status, body);
+    handle(error, {});
+    throw error;
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = match ? match[1] : fallbackName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Perfil del usuario, una vez por pestaña. */

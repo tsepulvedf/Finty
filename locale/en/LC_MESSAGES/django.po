@@ -185,6 +185,10 @@ msgid "Mostrar en"
 msgstr "Show in"
 
 #: .\frontend\templates\finty\dashboard.html
+msgid "Descargar reporte"
+msgstr "Download report"
+
+#: .\frontend\templates\finty\dashboard.html
 msgid "Indicadores del período"
 msgstr "Period indicators"
 

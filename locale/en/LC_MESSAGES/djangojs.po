@@ -186,7 +186,6 @@ msgid "3 meses de historial"
 msgstr "3 months of history"
 
 #: .\frontend\static\finty\js\codes.js
-#| msgid "Recomendaciones de inversión"
 msgid "Recomendaciones para optimizar gastos"
 msgstr "Recommendations to optimize spending"
 
@@ -802,6 +801,22 @@ msgstr "This field is required."
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Cuenta «%(name)s» creada."
 msgstr "Account “%(name)s” created."
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Preparando el reporte de %(period)s…"
+msgstr "Preparing the %(period)s report…"
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "El reporte sigue en preparación. Intenta descargarlo de nuevo en un momento."
+msgstr "The report is still being prepared. Try downloading it again in a moment."
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "No pudimos generar el reporte. Intenta de nuevo."
+msgstr "We couldn't generate the report. Try again."
+
+#: .\frontend\static\finty\js\pages\dashboard.js
+msgid "Reporte descargado."
+msgstr "Report downloaded."
 
 #: .\frontend\static\finty\js\pages\dashboard.js
 msgid "Hola, %(name)s"

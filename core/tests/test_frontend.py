@@ -324,6 +324,13 @@ class TestDashboardYMovimientos:
             assert campo in fuente
         assert "previousPoint" not in fuente
 
+    def test_el_dashboard_pide_y_descarga_el_reporte(self, client):
+        """E2-M7: boton, sondeo del estado y descarga con el idioma de la pagina."""
+        assert 'id="report-download"' in client.get("/dashboard/").content.decode("utf-8")
+        fuente = self.DASHBOARD.read_text(encoding="utf-8")
+        assert '"/analytics/reports/"' in fuente and "localized: true" in fuente
+        assert 'report.status === "PENDING"' in fuente and "download(" in fuente
+
     def test_la_tendencia_no_dibuja_barras_en_cero(self):
         fuente = self.DASHBOARD.read_text(encoding="utf-8")
         assert "Number(value) > 0" in fuente

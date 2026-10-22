@@ -9,6 +9,7 @@
  *   GET /exchange-rates/?base=&target=    conversion de presentacion y su fuente
  *   GET /subscriptions/plans/             meses de historial del plan Free
  *   GET /analytics/insights/ y /analytics/spending-patterns/   (solo Premium)
+ *   POST /analytics/reports/ y GET /analytics/reports/<id>/      reporte mensual (E2-M7)
  *
  * Sin reglas de negocio: no se suman saldos ni se comparan periodos. El saldo por
  * moneda, el periodo anterior, la variacion de los gastos y la tasa de ahorro
@@ -16,7 +17,7 @@
  * equivalente con la tasa que la API entrego (presentacion, INV-11), sin un total
  * que mezcle monedas.
  */
-import { api, listAll } from "../api.js";
+import { api, download, listAll } from "../api.js";
 import { ACCOUNT_TYPES, RATE_SOURCES, categoryName, errorMessage, sourceLabel } from "../codes.js";
 import { busy, byId, emptyState, errorState, h, replace, showFieldErrors, showFormError, skeletonRows, toast } from "../dom.js";
 import { balance, money, monthName, parseAmount, percent, periodLabel, plainAmount, shortDate, signedMoney } from "../format.js";
@@ -527,6 +528,55 @@ function bindAccountDialog() {
   });
 }
 
+// --- Reporte mensual (E2-M7) -----------------------------------------------------
+
+const REPORT_POLL_MS = 1500;
+const REPORT_TIMEOUT_MS = 60000;
+
+function reportStatus(text, kind) {
+  const status = byId("report-status");
+  status.textContent = text || "";
+  status.hidden = !text;
+  status.classList.toggle("report-status--error", kind === "error");
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Pide el reporte del periodo visible, sondea su estado y lo descarga al quedar
+ * READY. El CSV lo arma analytics en segundo plano (Celery), en el idioma de la
+ * pagina (`Accept-Language`).
+ */
+async function downloadReport() {
+  const button = byId("report-download");
+  await busy(button, async () => {
+    reportStatus(format(gettext("Preparando el reporte de %(period)s…"), { period: periodLabel(state.period) }));
+    try {
+      const created = await api("/analytics/reports/", {
+        method: "POST", body: { period: state.period }, localized: true, premiumRedirect: false,
+      });
+      const deadline = Date.now() + REPORT_TIMEOUT_MS;
+      let report = created;
+      while (report.status === "PENDING") {
+        if (Date.now() > deadline) {
+          reportStatus(gettext("El reporte sigue en preparación. Intenta descargarlo de nuevo en un momento."), "error");
+          return;
+        }
+        await wait(REPORT_POLL_MS);
+        report = await api(`/analytics/reports/${created.id}/`);
+      }
+      if (report.status !== "READY") {
+        reportStatus(gettext("No pudimos generar el reporte. Intenta de nuevo."), "error");
+        return;
+      }
+      await download(`/analytics/reports/${created.id}/download/`, report.filename);
+      reportStatus(gettext("Reporte descargado."));
+    } catch (error) {
+      reportStatus(errorMessage(error), "error");
+    }
+  });
+}
+
 // --- Arranque ------------------------------------------------------------------------
 
 async function start() {
@@ -555,6 +605,7 @@ async function start() {
   }
 
   bindAccountDialog();
+  byId("report-download").addEventListener("click", downloadReport);
   byId("period-prev").addEventListener("click", () => changePeriod(-1));
   byId("period-next").addEventListener("click", () => changePeriod(1));
   renderPeriodControls();

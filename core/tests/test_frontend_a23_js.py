@@ -30,6 +30,35 @@ TRAZO_SVG = re.compile(r"[MmLlHhVvCcSsQqTtAaZz][MmLlHhVvCcSsQqTtAaZz0-9.,\s-]*")
 GETTEXT = re.compile(r"(?<![\w.$])n?gettext\(\s*$")
 
 
+def es_inicio_de_regex(fuente, i):
+    """Un `/` abre una expresion regular si lo precede un operador, un
+    delimitador o `return` (y no un valor, como en una division)."""
+    antes = fuente[:i].rstrip()
+    return not antes or antes[-1] in "(,=:[!&|?{};+-*%<>~^" or re.search(r"\breturn$", antes) is not None
+
+
+def fin_de_regex(fuente, i):
+    """Posicion despues del `/` que cierra la regex que empieza en `i` (y sus
+    banderas). Las comillas dentro de la regex no abren cadenas."""
+    j, en_clase = i + 1, False
+    while j < len(fuente) and fuente[j] != "\n":
+        d = fuente[j]
+        if d == "\\":
+            j += 2
+            continue
+        if d == "[":
+            en_clase = True
+        elif d == "]":
+            en_clase = False
+        elif d == "/" and not en_clase:
+            j += 1
+            while j < len(fuente) and fuente[j].isalpha():
+                j += 1
+            return j
+        j += 1
+    return j
+
+
 def literales(fuente):
     """`[(texto, linea)]` de cada cadena y plantilla de `fuente` que no es
     argumento de gettext/ngettext. En las plantillas, `${...}` se descarta."""
@@ -48,6 +77,9 @@ def literales(fuente):
             fin = fuente.find("*/", i + 2)
             linea += fuente.count("\n", i, fin)
             i = n if fin < 0 else fin + 2
+            continue
+        if c == "/" and es_inicio_de_regex(fuente, i):
+            i = fin_de_regex(fuente, i)
             continue
         if c in "\"'`":
             inicio, texto, j, profundidad = linea, [], i + 1, 0
@@ -135,6 +167,9 @@ class TestA23JavaScript:
         ('/* Bloque "Con texto" */ const b = "PREMIUM";', []),
         ('svg.setAttribute("viewBox", "0 0 24 24")', []),
         ('path.setAttribute("d", "M3 6h18v12H3zM12 9.5a2.5 2.5 0 110 5")', []),
+        ('const m = /filename="([^"]+)"/.exec(x); el.textContent = "Hola mundo";', ["Hola mundo"]),
+        ("const r = a / b; const s = c / d; t.textContent = 'Sin datos';", ["Sin datos"]),
+        ('return /^[\\w"]+$/.test(v) ? "ok" : "Texto con error";', ["Texto con error"]),
     ])
     def test_el_detector_distingue_lo_traducido(self, fuente, esperado):
         assert [texto for texto, _ in textos_quemados(fuente)] == esperado

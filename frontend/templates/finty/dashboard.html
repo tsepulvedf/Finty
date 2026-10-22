@@ -18,8 +18,11 @@
         <option value="USD">USD</option>
       </select>
     </label>
+    {# Reporte mensual (E2-M7): lo genera Celery; el boton sondea su estado. #}
+    <button type="button" class="btn btn--secondary" id="report-download">{% translate "Descargar reporte" %}</button>
   </div>
 </div>
+<p class="report-status" id="report-status" role="status" aria-live="polite" hidden></p>
 
 <div id="period-notice"></div>
 

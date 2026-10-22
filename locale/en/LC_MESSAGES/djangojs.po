@@ -299,7 +299,7 @@ msgstr "Your average monthly surplus is %(surplus)s. Before investing, build sav
 
 #: .\frontend\static\finty\js\codes.js
 msgid "Para un perfil %(profile)s, Finty sugiere este tipo de instrumento según tu excedente mensual."
-msgstr "For a %(profile)s profile, Finty suggests this type of instrument based on your monthly surplus."
+msgstr "For your %(profile)s profile, Finty suggests this type of instrument based on your monthly surplus."
 
 #: .\frontend\static\finty\js\codes.js
 msgid "Esta es una orientación general por tipo de instrumento, no una asesoría financiera ni una recomendación de un producto o entidad específica."
@@ -946,7 +946,7 @@ msgstr "%(instrument)s · %(months)s"
 
 #: .\frontend\static\finty\js\pages\investments.js
 msgid "Creado con perfil %(profile)s"
-msgstr "Created with a %(profile)s profile"
+msgstr "Created with the %(profile)s profile"
 
 #: .\frontend\static\finty\js\pages\investments.js
 msgid "Aporte mensual"

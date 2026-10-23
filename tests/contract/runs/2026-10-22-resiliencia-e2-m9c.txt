@@ -1,0 +1,48 @@
+# Ensayo de las demos de resiliencia (docs/SUSTENTACION.md §3) contra el stack local, E2-M9c
+# Fecha: 2026-10-22T20:06:39-05:00
+## 1. categorization-service detenido
+  $ docker compose stop categorization-service
+  POST /transactions/ (Uber al aeropuerto) -> 201 en 1.9 s [X-Finty-Route: finance] {"id":"b688ced0-73c7-480a-8122-32636522adfc","account":"a343d524-7a26-4102-8bd6-51364d8f0857","account_name":"Bancolombia Ahorros","amount":"12000.00","type":"expense","category":"a001cf7a-175e-4897-bbbf-7cc3bfe1799a","category_name":"Transporte","description":"Uber al aeropuerto","occurred_on":"2026-10-22","categorization_sourc
+  log: finance-service-1  | categorization-service no utilizable (URLError: <urlopen error [Errno -2] Name or service not known>); clasifica el respaldo local
+  $ docker compose start categorization-service
+## 2. Redis detenido
+  $ docker compose stop redis
+  POST /transactions/ -> 201 en 0.5 s [X-Finty-Route: finance] {"id":"85e31dd4-bfab-42a4-83e2-9573b5809696","account":"a343d524-7a26-4102-8bd6-51364d8f0857","account_name":"Bancolombi
+  GET /analytics/dashboard/ -> 200 en 9.1 s [X-Finty-Route: analytics] {"period":"2026-10","currencies":[{"currency":"COP","income":"4200000.00","expense":"3112400.00","ne
+  GET /analytics/insights/ -> 200 en 8.0 s [X-Finty-Route: analytics] {"period":"2026-10","insights":[{"type":"CATEGORY_SPIKE","code":"category_spike","severity":"warning
+  GET /exchange-rates/ -> 200 en 9.4 s [X-Finty-Route: recommendation] {"base":"USD","target":"COP","rate":"3191.47","source":"live","valid_from":"2026-10-22","valid_until":"2026-10-22","fetc
+  POST /analytics/reports/ -> 202 en 4.3 s [X-Finty-Route: analytics] {"id":"d409ab85-20b8-4156-86ce-0c82a416d409","period":"2026-10","language":"es","status":"PENDING","created_at":"2026-10
+  GET /recommendations/ -> 200 en 8.3 s [X-Finty-Route: recommendation] {"period":"2026-10","degraded":false,"risk_profile_type":"moderate","display_currency":null,"exchang
+  $ docker compose start redis
+  el movimiento aparece en el dashboard tras volver Redis: 1 s
+  el reporte pedido con Redis caido pasa a READY (requeue cada 60 s, PENDING de mas de 60 s): 106 s
+## 3. analytics-celery detenido
+  $ docker compose stop analytics-celery
+  POST /analytics/reports/ -> 202 en 0.1 s [X-Finty-Route: analytics] {"id":"30194fa2-ad69-4bb5-a959-7292017bbc87","period":"2026-10","language":"es","status":"PENDING","created_at":"2026-10
+  5 s despues, sin worker -> PENDING
+  mensajes en la cola analytics: 1
+  $ docker compose start analytics-celery
+  el reporte pasa a READY tras volver el worker: 4 s
+## 4. subscription-service detenido
+  $ docker compose stop subscription-service
+  (35 s: vence la cache de derechos)
+  GET /analytics/dashboard/ (gratuito) -> 200 en 1.3 s [X-Finty-Route: analytics] {"period":"2026-10","currencies":[{"currency":"COP","income"
+  GET /analytics/insights/ (premium) -> 503 en 1.3 s [X-Finty-Route: analytics] {"error":{"code":"entitlements_unavailable","message":"No pudimos verificar tu suscripción en este momento. Las funciones PREMIUM no están disponibles; intenta de nuevo en unos minutos."}}
+  GET /recommendations/ -> 200 en 1.3 s [X-Finty-Route: recommendation] {"period":"2026-10","degraded":false,"risk_profile_type":"moderate","display_currency":null,"exchange_rates":[],"locked":[{"kind":"investment","code":"entitlements_unavailable"}],"recommendations":[{"code":"reduce_category","kind":"optimization","source":"insi
+  GET /investment-plans/ -> 503 en 1.3 s [X-Finty-Route: recommendation] {"error":{"code":"entitlements_unavailable","message":"No pudimos verificar tu suscripción en este momento. Las funcione
+  GET /subscriptions/me/ (el Gateway) -> 503 en 1.3 s [X-Finty-Route: subscription] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailable"}
+  $ docker compose start subscription-service
+  insights vuelve a 200: 2 s
+## 5. django (identity) detenido, sin reiniciar Nginx
+  $ docker compose stop django
+  GET /accounts/ #1 -> 503 en 2.0 s [X-Finty-Route: finance] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailable"}
+  GET /accounts/ #2 -> 503 en 2.0 s [X-Finty-Route: finance] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailable"}
+  GET /accounts/ #3 -> 503 en 2.0 s [X-Finty-Route: finance] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailable"}
+  GET /api/v1/health/ -> 503 en 2.0 s [X-Finty-Route: monolith] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailable"}
+  GET / (frontend) -> 503 en 2.0 s [X-Finty-Route: monolith] {"detail":"El servicio no está disponible en este momento. Intenta de nuevo en unos minutos.","code":"service_unavailabl
+  GET /api/v1/public/spending-summary/ -> 200 en 0.0 s [X-Finty-Route: public] {"period":"2026-10","min_users":3,"categories":[{"category_n
+  $ docker compose start django
+  GET /accounts/ vuelve a 200 sin reiniciar Nginx: 1 s
+  GET / -> 200 en 0.1 s <!doctype html>
+<html lang="es
+## Limpieza: 2 movimientos de prueba borrados

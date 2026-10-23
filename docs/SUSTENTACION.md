@@ -4,7 +4,7 @@ Guía para presentar la Entrega 2 en unos **15 minutos**, en el orden de los cri
 
 | | |
 |---|---|
-| Aplicación | `http://3.95.100.48` (EC2 del AWS Academy Learner Lab, `us-east-1`) |
+| Aplicación | `http://3.95.100.48` (EC2 del AWS Academy Learner Lab, `us-east-1`: Ubuntu Server 24.04 LTS, `t3.medium`, 30 GB `gp3`, grupo de seguridad `finty-sg` con 22 y 80) |
 | Repositorio | `https://github.com/tsepulvedf/Finty`, rama `main` |
 | Usuario Free | `demo-free@finty.co`: Laura Gómez, 2 meses de datos |
 | Usuario Premium | `demo-premium@finty.co`: Andrés Restrepo, 6 meses de datos, perfil de riesgo moderado y un plan de inversión |
@@ -19,8 +19,9 @@ Guía para presentar la Entrega 2 en unos **15 minutos**, en el orden de los cri
    - En EC2 → Instances, la instancia debe estar **Running**. Si estaba detenida, enciéndela: la IP elástica no cambia.
 2. **Contenedores:**
 
+   Entra con **EC2 Instance Connect**: instancia → Connect → EC2 Instance Connect, usuario `ubuntu`.
+
    ```bash
-   ssh -i labsuser.pem ec2-user@3.95.100.48
    cd Finty && git pull && docker compose up -d --build   # solo si hubo cambios desde el último despliegue
    docker compose ps                                       # todos Up; los servicios Flask (healthy)
    ```
@@ -48,7 +49,7 @@ Guía para presentar la Entrega 2 en unos **15 minutos**, en el orden de los cri
 5. **Pestañas abiertas:**
    - el navegador en `http://3.95.100.48/` (una ventana normal para Andrés y una de incógnito para Laura);
    - el editor con el repositorio;
-   - una terminal con SSH a la instancia, para las demos de resiliencia;
+   - una terminal de EC2 Instance Connect en la instancia, para las demos de resiliencia;
    - esta guía.
 6. **Comprobar el idioma:** el selector ES/EN debe estar visible y debe cambiar la pantalla completa.
 

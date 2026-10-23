@@ -8,8 +8,8 @@ flowchart TB
 
     subgraph AWS["AWS Academy · Learner Lab · región us-east-1"]
         EIP(["IP elástica 3.95.100.48"])
-        subgraph SG["Grupo de seguridad: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
-            subgraph EC2["Instancia EC2 · Docker Engine + Compose v2"]
+        subgraph SG["Grupo de seguridad finty-sg: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
+            subgraph EC2["EC2 t3.medium · Ubuntu 24.04 LTS · 30 GB gp3 · Docker Engine + Compose v2"]
                 subgraph NET["Red de Compose finty_default (bridge, DNS interno)"]
                     NGX["nginx · API Gateway<br/>único puerto publicado: 80<br/>auth_request · limit_req · estáticos con hash"]
                     DJ["django<br/>identity · frontend · /internal/"]
@@ -61,41 +61,43 @@ flowchart TB
     ONE --> PG
 ```
 
-> Los comandos para instalar Docker dependen de la AMI. Los de abajo son **un ejemplo para Amazon Linux 2023** (usuario `ec2-user`). En Ubuntu se usa `apt` y el usuario `ubuntu`. El resto de los pasos es igual en cualquier AMI.
+| La instancia | |
+|---|---|
+| Sistema | Ubuntu Server 24.04 LTS (usuario `ubuntu`) |
+| Tipo | `t3.medium` (2 vCPU, 4 GB) |
+| Disco | 30 GB `gp3` |
+| Red | IP elástica `3.95.100.48` y grupo de seguridad `finty-sg` (entrada solo por 22 y 80) |
+| Acceso | EC2 Instance Connect, desde la consola |
 
 ## 1. Encender el laboratorio
 
 1. Entra al curso de AWS Academy, abre **Learner Lab** y pulsa **Start Lab**. Espera a que el indicador quede en verde.
 2. Pulsa **AWS** para abrir la consola, y ve a EC2 → Instances.
 3. Las sesiones del Learner Lab duran unas horas. Al cerrarse, la instancia se detiene, pero **la IP elástica se conserva**, y con ella la dirección de la entrega.
+4. Para entrar a la máquina: selecciona la instancia → **Connect** → pestaña **EC2 Instance Connect**, usuario `ubuntu` → **Connect**. Se abre una terminal en el navegador, sin llaves locales. Por eso el grupo de seguridad deja abierto el 22.
 
 ## 2. Crear la instancia (una sola vez)
 
 | Opción | Valor |
 |---|---|
-| AMI | Amazon Linux 2023 (o Ubuntu 24.04) |
-| Tipo | Con al menos 4 GB de memoria (por ejemplo, `t3.medium`): son 15 contenedores de larga vida más los pasos de migración |
-| Disco | 20 GB o más (imágenes y volúmenes de PostgreSQL y Redis) |
-| Par de llaves | `vockey` (la llave del laboratorio: `labsuser.pem`, en **AWS Details**) |
-| Grupo de seguridad | Entrada **solo** por el 22/TCP (SSH, para administrar) y el 80/TCP (HTTP, el Gateway) |
+| AMI | Ubuntu Server 24.04 LTS |
+| Tipo | `t3.medium`: 4 GB de memoria para 15 contenedores de larga vida más los pasos de migración |
+| Disco | 30 GB `gp3` (imágenes y volúmenes de PostgreSQL y Redis) |
+| Grupo de seguridad | `finty-sg`: entrada **solo** por el 22/TCP (EC2 Instance Connect, para administrar) y el 80/TCP (HTTP, el Gateway) |
 
 Después, en **Elastic IPs**: *Allocate Elastic IP address* y luego *Associate* con la instancia. Así la dirección no cambia al detener y encender la instancia.
 
 ## 3. Preparar la máquina (una sola vez)
 
-```bash
-ssh -i labsuser.pem ec2-user@3.95.100.48
+En la terminal de EC2 Instance Connect:
 
-# Ejemplo para Amazon Linux 2023
-sudo dnf install -y docker git
-sudo systemctl enable --now docker
-sudo usermod -aG docker ec2-user          # sal y vuelve a entrar para que aplique
-sudo mkdir -p /usr/local/lib/docker/cli-plugins
-sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-     -o /usr/local/lib/docker/cli-plugins/docker-compose
-sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```bash
+curl -fsSL https://get.docker.com | sh       # Docker Engine y el plugin de Compose
+sudo usermod -aG docker ubuntu                # cierra la terminal y vuelve a conectar para que aplique
 docker compose version
 ```
+
+Ubuntu 24.04 ya trae `git` y `python3` (este último lo usa `tools/seed_demo.py`).
 
 ## 4. Código y configuración (una sola vez)
 

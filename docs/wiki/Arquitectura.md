@@ -80,8 +80,8 @@ flowchart TB
 
     subgraph AWS["AWS Academy · Learner Lab · región us-east-1"]
         EIP(["IP elástica 3.95.100.48"])
-        subgraph SG["Grupo de seguridad: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
-            subgraph EC2["Instancia EC2 · Docker Engine + Compose v2"]
+        subgraph SG["Grupo de seguridad finty-sg: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
+            subgraph EC2["EC2 t3.medium · Ubuntu 24.04 LTS · 30 GB gp3 · Docker Engine + Compose v2"]
                 subgraph NET["Red de Compose finty_default (bridge, DNS interno)"]
                     NGX["nginx · API Gateway<br/>único puerto publicado: 80<br/>auth_request · limit_req · estáticos con hash"]
                     DJ["django<br/>identity · frontend · /internal/"]

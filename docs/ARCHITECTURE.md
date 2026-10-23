@@ -64,6 +64,8 @@ Las filas C-01 a C-19 registran los cambios respecto a v1 (Entrega 1). Las filas
 | C-40 | Wiki y sustentación (E2-M9b) | La Wiki se escribiría al final | **`docs/wiki/`** como fuente versionada de la Wiki de GitHub (`tools/publish-wiki.sh`), **`docs/SUSTENTACION.md`** y el comando `tools/seed_demo.py` para los usuarios de demo | Entrega y sustentación |
 | C-41 | Resolución de los backends en Nginx (E2-M9c) | Bloques `upstream` con `server … resolve` y `keepalive` | **`proxy_pass http://$finty_backend`**, con el backend fijado por cada `location`, `resolver 127.0.0.11 valid=10s`, `resolver_timeout 2s` y `proxy_connect_timeout 2s`. Se pierden los pools `keepalive`, despreciables en la red interna | En el ensayo de E2-M9b, con Django detenido, las peticiones quedaban colgadas contra la IP vieja del contenedor; ahora responden en unos 2 s y el Gateway se recupera sin reiniciarse |
 | C-42 | Errores del Gateway cuando un servicio no responde (E2-M9c) | El 502, 503 y 504 de Nginx en HTML, y un 500 cuando Django no respondía a `auth_request` | **503 `{"detail": ..., "code": "service_unavailable"}`** con `X-Finty-Route` y `Retry-After`, en todos los bloques (`@gateway_unavailable`). Sin `proxy_intercept_errors`, así que un 503 propio de un servicio (`entitlements_unavailable`) pasa tal cual. El frontend lo traduce por `code` (`codes.js`) | Un servicio caído se ve igual en todas las rutas, y nunca pasa una petición sin verificar |
+| C-43 | Recuperación de reportes (E2-M9c) | Reencolado cada 2 minutos de los PENDING de más de 2 minutos, fijo | **Cada `REPORT_REQUEUE_EVERY_SECONDS` (60 s) los de más de `REPORT_STALE_AFTER_SECONDS` (60 s)**, configurables; un valor menor a 1 s impide arrancar | Un reporte pedido con el broker caído se completa a lo sumo unos 2 minutos después de que vuelva, no 4 |
+| C-44 | Datos de la instancia EC2 (E2-M9c) | Pasos de ejemplo para Amazon Linux | **Ubuntu Server 24.04 LTS, `t3.medium`, 30 GB `gp3`, `finty-sg` (22 y 80), EC2 Instance Connect y Docker por `get.docker.com`** (ADR-16) | La Wiki y el guion describen la máquina real |
 
 ---
 
@@ -498,7 +500,7 @@ Diagramas en §9.9 (publicación) y §9.10 (de punta a punta, del registro al da
 ### ADR-16 — Despliegue en Docker Compose sobre EC2
 
 **Decisión:** todo el sistema corre en Docker Compose (Django, servicios Flask, Nginx, PostgreSQL, Redis y workers de Celery) en una instancia EC2 de AWS Academy con IP elástica. Las imágenes Python parten de `python:3.11-slim`. Solo Nginx publica un puerto en el host; el resto se comunica por la red interna de Compose.
-**Implementación:** una instancia EC2 de AWS Academy (Learner Lab, región `us-east-1`) con la IP elástica **3.95.100.48**. Su grupo de seguridad admite solo el puerto 22 (SSH, para administrar) y el 80 (HTTP, el Gateway). En la instancia, `git pull` y `docker compose up -d --build` despliegan una versión nueva: los pasos de un solo uso (`db-init`, `migrate`, `finance-migrate`, `analytics-migrate`, `recommendation-migrate` y `subscription-migrate`) dejan las bases y los esquemas al día antes de que arranque cada servicio. Paso a paso en la Wiki (`docs/wiki/Despliegue-en-EC2.md`). Diagrama en §9.4.
+**Implementación:** una instancia EC2 de AWS Academy (Learner Lab, región `us-east-1`): Ubuntu Server 24.04 LTS, `t3.medium`, 30 GB `gp3`, con la IP elástica **3.95.100.48**. Su grupo de seguridad, `finty-sg`, admite solo el puerto 22 (EC2 Instance Connect, para administrar) y el 80 (HTTP, el Gateway). Docker se instaló con `curl -fsSL https://get.docker.com | sh`, y el usuario `ubuntu` está en el grupo `docker`. En la instancia, `git pull` y `docker compose up -d --build` despliegan una versión nueva: los pasos de un solo uso (`db-init`, `migrate`, `finance-migrate`, `analytics-migrate`, `recommendation-migrate` y `subscription-migrate`) dejan las bases y los esquemas al día antes de que arranque cada servicio. Paso a paso en la Wiki (`docs/wiki/Despliegue-en-EC2.md`). Diagrama en §9.4.
 **Estado:** aceptada e implementada. `curl http://3.95.100.48/api/v1/health/` responde 200 desde AWS, y la instancia sirve los mismos estáticos con hash que el stack local (verificado el 2026-10-22, A-24). La instancia debe estar encendida durante la sustentación (`docs/SUSTENTACION.md`).
 
 ---
@@ -1397,8 +1399,8 @@ flowchart TB
 
     subgraph AWS["AWS Academy · Learner Lab · región us-east-1"]
         EIP(["IP elástica 3.95.100.48"])
-        subgraph SG["Grupo de seguridad: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
-            subgraph EC2["Instancia EC2 · Docker Engine + Compose v2"]
+        subgraph SG["Grupo de seguridad finty-sg: entrada 22/tcp (SSH) y 80/tcp (HTTP)"]
+            subgraph EC2["EC2 t3.medium · Ubuntu 24.04 LTS · 30 GB gp3 · Docker Engine + Compose v2"]
                 subgraph NET["Red de Compose finty_default (bridge, DNS interno)"]
                     NGX["nginx · API Gateway<br/>único puerto publicado: 80<br/>auth_request · limit_req · estáticos con hash"]
                     DJ["django<br/>identity · frontend · /internal/"]
@@ -1451,7 +1453,7 @@ flowchart TB
 ```
 
 - **Contenedores:** son exactamente los de `docker-compose.yml`. Los seis pasos de un solo uso terminan antes de que arranque el servicio que depende de ellos: crean las bases que falten y migran cada esquema.
-- **Puertos:** solo `nginx` publica uno en el host, el 80 (A-17). El grupo de seguridad admite además el 22, para administrar la instancia por SSH.
+- **Puertos:** solo `nginx` publica uno en el host, el 80 (A-17). El grupo de seguridad (`finty-sg`) admite además el 22, para administrar la instancia por EC2 Instance Connect.
 - **Red:** todos los contenedores comparten la red por defecto de Compose y se encuentran por nombre (`django`, `finance-service`, …). Nginx los resuelve en tiempo de ejecución (`proxy_pass` a una variable, con el DNS interno de Docker y 10 s de validez), así que un contenedor que se reinicia o cambia de IP vuelve a ser alcanzable sin reiniciar Nginx (C-41).
 - **Bases:** cada servicio conoce solo la URL de **su** base lógica (ADR-10, A-21). `categorization-service` no tiene base: sus reglas viven en código.
 - **Redis:** la base 0 guarda el stream de eventos y las cachés de derechos y de tasas; la 1 es el broker de Celery (ADR-15). Lo verifica `tests/services/test_compose_celery.py`.

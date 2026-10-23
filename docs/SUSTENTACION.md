@@ -99,6 +99,7 @@ Guía para presentar la Entrega 2 en unos **15 minutos**, en el orden de los cri
 |---|---|---|
 | Dashboard → **Descargar reporte**: queda PENDING y luego descarga el CSV | [`services/analytics-service/tasks.py:32`](../services/analytics-service/tasks.py#L32) | "El reporte es una tarea de Celery sobre Redis. La tarea solo llama al caso de uso." |
 | Una demo de resiliencia de §3 (la de `categorization-service` es la más rápida) | [`services/finance-service/infra/categorization_client.py:73`](../services/finance-service/infra/categorization_client.py#L73) | "Si un servicio cae, el usuario no lo nota o ve un estado claro, nunca un 500." |
+| `curl -i` a una ruta con el servicio detenido (§3.5) | [`deploy/nginx/conf.d/finty.conf`](../deploy/nginx/conf.d/finty.conf), `location @gateway_unavailable` | "Si un servicio no responde, el Gateway contesta 503 en JSON con `code: service_unavailable` en 2 s, y se recupera solo cuando el servicio vuelve: resuelve los nombres en tiempo de ejecución." |
 | — | [`services/finance-service/services.py:665`](../services/finance-service/services.py#L665) | "Los eventos van al **outbox** en la misma transacción que el movimiento. Un relay los publica en Redis Streams, y analytics los consume de forma idempotente." |
 | Cambia a EN con el selector: toda la pantalla cambia, también los errores | [`frontend/static/finty/js/codes.js`](../frontend/static/finty/js/codes.js) | "i18n completo con gettext. Los servicios responden un `code` y el frontend lo traduce." |
 | — | [`core/tests/test_frontend.py:398`](../core/tests/test_frontend.py#L398) | "Un test falla si queda un texto quemado (A-23)." |
@@ -110,7 +111,9 @@ Guía para presentar la Entrega 2 en unos **15 minutos**, en el orden de los cri
 
 ## 3. Demos de resiliencia en vivo
 
-Se corren en la terminal de la instancia, dentro de `Finty/`. Cada demo **termina levantando lo que se detuvo**. Ensayadas en el stack local el 2026-10-22, con los resultados que se describen.
+Se corren en la terminal de la instancia, dentro de `Finty/`. Cada demo **termina levantando lo que se detuvo**.
+
+Se ensayaron en el stack local el 2026-10-22, con los resultados que se describen. Los tiempos medidos están en [`tests/contract/runs/2026-10-22-resiliencia-e2-m9c.txt`](../tests/contract/runs/2026-10-22-resiliencia-e2-m9c.txt).
 
 ### 3.1 `categorization-service` detenido
 
@@ -137,13 +140,13 @@ docker compose logs --tail 5 finance-outbox-relay analytics-worker
 
 **Mientras Redis está abajo:**
 - El movimiento se guarda (201) y su evento queda en el **outbox**, en PostgreSQL.
-- Dashboard, Insights y recomendaciones responden 200, con los datos que analytics ya tenía.
+- Dashboard, Insights y recomendaciones responden 200, con los datos que analytics ya tenía. Tardan **unos 8 a 9 s**: cada intento de usar la caché de Redis espera 4 s a que el DNS de Docker diga que `redis` no existe. Avísalo antes de abrir la pantalla.
 - La caché de derechos premium y la de tasas se saltan: se consulta directo a `subscription-service` y a la TRM.
 - Pedir un reporte responde 202 y queda **PENDING**: el broker está caído y no hay quien lo tome.
 
 **Al volver Redis:**
 - El relay publica lo pendiente y analytics se pone al día: el movimiento aparece en el Dashboard.
-- El reporte PENDING lo retoma `analytics.requeue_pending_reports`. Corre cada 2 minutos y toma los que llevan más de 2 minutos pendientes, así que puede tardar hasta unos 4 minutos.
+- El reporte PENDING lo retoma `analytics.requeue_pending_reports`. Corre cada minuto y toma los que llevan más de un minuto pendientes (`REPORT_REQUEUE_EVERY_SECONDS` y `REPORT_STALE_AFTER_SECONDS`), así que tarda **a lo sumo unos 2 minutos**. En el ensayo tardó 106 s.
 
 ### 3.3 `analytics-celery` detenido
 
@@ -174,9 +177,31 @@ docker compose start subscription-service
 | Dashboard (gratuito) | Sigue funcionando |
 | Insights y planes de inversión (premium) | 503 `entitlements_unavailable`: la pantalla dice **"intenta de nuevo"**, nunca invita a pagar a quien ya pagó (fail-closed, INV-06) |
 | Recomendaciones | 200: las de optimización se muestran, y la parte de inversión llega en `locked` con `entitlements_unavailable` |
-| Planes y Ajustes (las rutas propias de `subscription-service`) | 502 del Gateway: la región muestra su estado de error |
+| Planes y Ajustes (las rutas propias de `subscription-service`) | 503 del Gateway en JSON, `code: service_unavailable`: la región muestra "El servicio no está disponible en este momento. Intenta de nuevo en unos minutos." |
 
 En los primeros 30 s, la caché aún dice "Premium" y todo funciona: esa es la caché corta que protege de caídas breves.
+
+### 3.5 Django (identity) detenido, sin reiniciar Nginx
+
+```bash
+docker compose stop django
+curl -i -H "Authorization: Token cualquiera" http://3.95.100.48/api/v1/accounts/
+curl -i http://3.95.100.48/api/v1/health/
+curl "http://3.95.100.48/api/v1/public/spending-summary/?period=2026-10"
+docker compose start django
+curl -i http://3.95.100.48/api/v1/health/       # 200 en un par de segundos, sin tocar Nginx
+```
+
+**Qué debe verse:**
+
+| Petición | Respuesta |
+|---|---|
+| Lo autenticado (`/accounts/`) | En unos 2 s, **503** `{"detail": "El servicio no está disponible…", "code": "service_unavailable"}` con `X-Finty-Route: finance`. Nadie puede verificar el token, así que la petición no pasa: fail-closed |
+| Las rutas de Django (`/api/v1/health/`, `/`) | El mismo 503, con `X-Finty-Route: monolith` |
+| El endpoint público | Sigue en 200: no depende de Django |
+| Al volver Django | En el ensayo, `/accounts/` respondió 200 un segundo después, sin reiniciar Nginx. Resuelve los nombres en tiempo de ejecución, con 10 s de validez |
+
+El navegador no puede cargar pantallas mientras Django está abajo: las plantillas las sirve él. Por eso esta demo se hace con `curl`.
 
 ---
 
@@ -215,6 +240,9 @@ Para que cada servicio sea dueño de sus datos y se pueda cambiar o desplegar si
 **¿Por qué no hay pasarela de pago real?**
 Es un ejercicio académico y no debe recibir datos de tarjeta reales. Evaluamos Wompi en sandbox y lo descartamos (ADR-14): la consulta que necesitábamos no está documentada, la redirección no sirve para validar y los webhooks exigen HTTPS. Quedaron el puerto `PaymentGateway` y su Factory, así que una pasarela real sería otro adaptador.
 
+**¿Qué ve el usuario si un servicio no responde?**
+Nunca una página de error de Nginx. El Gateway contesta 503 en JSON con `code: service_unavailable` y `X-Finty-Route` del bloque que falló, y el frontend lo traduce por `code`. Como resuelve los nombres en tiempo de ejecución con timeouts de 2 s, una caída no deja peticiones colgadas, y cuando el servicio vuelve Nginx lo encuentra solo.
+
 **¿Cómo se mide el 70% del bono?**
 De tres formas, y en las tres se supera:
 - **Clases del dominio:** 18 de 20 fuera del monolito (90%).
@@ -236,11 +264,11 @@ Con tres capas:
 | `categorization-service` | `finance-service` clasifica con su respaldo local (`rule`); el usuario no lo nota |
 | `analytics-service` o su worker | Los movimientos se siguen registrando; el dashboard no carga o queda atrasado, y se pone al día al volver. Las recomendaciones salen con `degraded: true` (A-28) |
 | `recommendation-service` | Inversiones y Perfil de riesgo muestran error, y el Dashboard se queda sin el equivalente en otra moneda; lo demás funciona |
-| `subscription-service` | Lo gratuito funciona; lo premium dice "intenta de nuevo" (503), nunca "paga" |
+| `subscription-service` | Lo gratuito funciona; lo premium dice "intenta de nuevo" (503 `entitlements_unavailable`), nunca "paga". Planes y Ajustes reciben el 503 `service_unavailable` del Gateway |
 | La TRM | Se usa la última tasa conocida o la fija de 3200, marcada `cached` o `fallback` |
-| Redis | Los movimientos se guardan en el outbox; los reportes quedan PENDING; las cachés se saltan. Todo se recupera al volver |
+| Redis | Los movimientos se guardan en el outbox; los reportes quedan PENDING; las cachés se saltan, aunque cada lectura espera 4 s al DNS. Todo se recupera al volver, y el reporte se completa en a lo sumo unos 2 minutos |
 | `analytics-celery` | El reporte espera PENDING en la cola y se completa al volver el worker |
-| Django (identity) | Es el punto único de autenticación: sin él no hay páginas (502) ni validación de tokens. `auth_request` no obtiene respuesta y el Gateway devuelve 500 a todo lo autenticado; nunca deja pasar una petición sin verificar (fail-closed). Hasta que Nginx vuelve a resolver el nombre del contenedor, las primeras peticiones pueden quedar colgadas unos segundos: por eso no es una de las demos en vivo. Los correos pendientes se reintentan con espera creciente hasta que vuelva |
+| Django (identity) | Es el punto único de autenticación: sin él no hay páginas ni validación de tokens. El Gateway responde 503 `service_unavailable` en 2 s a todo lo que depende de Django y nunca deja pasar una petición sin verificar (fail-closed). Al volver, se recupera sin reiniciar Nginx (§3.5). Los correos pendientes se reintentan con espera creciente |
 | PostgreSQL | El servicio afectado responde error; Compose lo reinicia y los pasos de migración no dejan arrancar contra un esquema incompleto |
 
 **¿Y el servicio del equipo aliado?**

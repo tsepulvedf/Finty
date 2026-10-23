@@ -4,17 +4,17 @@ Mapea cada criterio del **Anexo A** de [`ARCHITECTURE.md`](ARCHITECTURE.md) al t
 
 **Desde E2-M3a** el contexto `finance` ya no vive en el monolito: lo sirve `services/finance-service/` (ADR-08). **Desde E2-M3b** la categorización (los categorizadores y `CategorizerFactory`) vive en `services/categorization-service/`, y `finance-service` la consume por HTTP con un respaldo local. Por eso los criterios de la Entrega 1 que hablaban de cuentas, transacciones, categorización y balance se verifican ahora en la suite de ese servicio. En el monolito quedan `core` e `identity`. El criterio autoritativo de capas sigue siendo el análisis del AST (A-15 en el monolito, A-16 en el servicio); un `grep` es solo una comprobación rápida.
 
-Estado a la fecha de este documento (2026-10-22, E2-M9b):
+Estado a la fecha de este documento (2026-10-22, E2-M9c):
 
 | Suite | Tests | Cómo se corre |
 |---|---|---|
-| Monolito (`core`, `identity`, frontend) | **369**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
+| Monolito (`core`, `identity`, frontend) | **371**, todos en verde (incluye los tests de Node de `frontend/tests/js/`) | `pytest` en la raíz |
 | `finance-service` | **744**, todos en verde | `pytest` en `services/finance-service/` (ver README) |
 | `categorization-service` | **853**, todos en verde | `pytest` en `services/categorization-service/`, sin base de datos |
-| `analytics-service` | **260**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
+| `analytics-service` | **278**, todos en verde | `pytest` en `services/analytics-service/` con `ANALYTICS_TEST_DATABASE_URL` (ver README) |
 | `recommendation-service` | **197**, todos en verde | `pytest` en `services/recommendation-service/` con `RECOMMENDATION_TEST_DATABASE_URL` (ver README) |
 | `subscription-service` | **155**, todos en verde | `pytest` en `services/subscription-service/` con `SUBSCRIPTION_TEST_DATABASE_URL` (ver README) |
-| Contrato de caja negra (A-20) | **172**, más 8 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28 y los dos de A-32) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
+| Contrato de caja negra (A-20) | **172**, más 17 opcionales (2 de throttling, A-13, dos de A-22, la degradación de A-28, los dos de A-32 y los 9 del 503 del Gateway en `test_gateway_errors.py`) | `CONTRACT_BASE_URL=http://localhost pytest` en `tests/contract/` |
 | Contratos estáticos entre servicios y documentación | **20** (incluye la convención de Celery en Compose, que se omite sin Docker, y la compilación de los diagramas Mermaid, que se omite sin `tools/mermaid/node_modules`) | `pytest` en `tests/services/` |
 
 En las tablas, `fs/` abrevia `services/finance-service/tests/`, `cs/` abrevia `services/categorization-service/tests/`, `as/` abrevia `services/analytics-service/tests/`, `rs/` abrevia `services/recommendation-service/tests/` y `ss/` abrevia `services/subscription-service/tests/`.
@@ -36,7 +36,7 @@ Cada requisito de la Entrega 2, con su evidencia y su estado al cierre. ✅ cump
 | Infraestructura (30%) | Desplegado en EC2 de AWS Academy | `http://3.95.100.48` (A-24, verificado el 2026-10-22); paso a paso en la Wiki, Despliegue en EC2 | ✅ |
 | Infraestructura (30%) | Nginx como API Gateway | `deploy/nginx/`: ruteo, `auth_request` y `limit_req` (A-18, A-19, `tests/contract/test_routing.py`, `test_auth.py`, `test_throttling.py`) | ✅ |
 | Resiliencia y UX (20%) | Tareas asíncronas con Redis y Celery (reportes, notificaciones) | A-33 a A-36; `runs/2026-10-22-tareas-asincronas.txt` | ✅ |
-| Resiliencia y UX (20%) | Resiliencia ante la caída de servicios | A-22, A-28, A-32, A-35; ensayo de la sustentación en `runs/2026-10-22-resiliencia-sustentacion.txt` | ✅ |
+| Resiliencia y UX (20%) | Resiliencia ante la caída de servicios | A-22, A-28, A-32, A-35; 503 del Gateway en JSON (`tests/contract/test_gateway_errors.py`); ensayo de la sustentación en `runs/2026-10-22-resiliencia-e2-m9c.txt` (el de E2-M9b, en `runs/2026-10-22-resiliencia-sustentacion.txt`) | ✅ |
 | Resiliencia y UX (20%) | Auditoría de UI/UX | `docs/UX-AUDIT.md`; `docs/ux-audit/antes.json` y `despues.json` | ✅ |
 | Resiliencia y UX (20%) | i18n bilingüe completo con gettext, sin textos quemados | A-23: `TestA23SinTextosQuemados`, `test_frontend_a23_js.py`, `TestCatalogos` | ✅ |
 | Bono | Más del 70% de los servicios y la lógica en microservicios Flask | 18 de 20 clases del dominio (90%), 4 de 5 contextos (80%) y la mayoría de los endpoints; la métrica oficial está por confirmar con el profesor (ARCHITECTURE.md ADR-08) | ✅ |
@@ -203,13 +203,34 @@ curl -sI http://localhost/static/finty/js/pages/dashboard.js | grep -i cache-con
 | Cada bloque Mermaid del repositorio compila | `tools/mermaid/check-mermaid.mjs` (mermaid-cli 12.0.0); en la suite, `tests/services/test_docs.py::test_cada_bloque_mermaid_compila` | ✅ |
 | La Wiki no tiene enlaces internos rotos, ni citas de archivo y línea desactualizadas | `tools/check_wiki_links.py`; en la suite, `tests/services/test_docs.py::test_la_wiki_no_tiene_enlaces_rotos` | ✅ |
 | `seed-demo` es idempotente | `tests/contract/runs/2026-10-22-seed-demo.txt`: la primera corrida crea 67 movimientos, la segunda 0 | ✅ |
-| Las demos de resiliencia de la sustentación se comportan como dice el guion | `tests/contract/runs/2026-10-22-resiliencia-sustentacion.txt` | ✅ |
+| Las demos de resiliencia de la sustentación se comportan como dice el guion | `tests/contract/runs/2026-10-22-resiliencia-e2-m9c.txt`, con los tiempos medidos (el ensayo anterior a E2-M9c, en `2026-10-22-resiliencia-sustentacion.txt`) | ✅ |
 
 ```bash
 cd tools/mermaid && npm install && node check-mermaid.mjs    # usa el Chrome instalado (CHROME_PATH)
 python tools/check_wiki_links.py
 python tools/seed_demo.py --base-url http://localhost        # dos veces: la segunda no crea nada
 ```
+
+---
+
+## Correcciones de cierre (E2-M9c)
+
+| Requisito | Verificación | Estado |
+|---|---|---|
+| Un servicio que no responde da 503 en JSON con `code: service_unavailable`, no el HTML de Nginx | `tests/contract/test_gateway_errors.py`: `CONTRACT_SUBSCRIPTION_DOWN=1` y `CONTRACT_ANALYTICS_DOWN=1`, cada uno con su servicio detenido | ✅ |
+| Con Django detenido, lo autenticado da 503 en JSON (no el 500 de `auth_request`) y nunca pasa sin verificar | `test_gateway_errors.py::TestIdentityCaido` con `CONTRACT_IDENTITY_DOWN=1` | ✅ |
+| Ninguna respuesta queda colgada: el 503 llega en menos de 5 s | `assert_unavailable` de `test_gateway_errors.py`; en el ensayo, 2,0 s | ✅ |
+| Django caído y de vuelta se recupera sin reiniciar Nginx | Ensayo `runs/2026-10-22-resiliencia-e2-m9c.txt`, §5: `/accounts/` vuelve a 200 un segundo después de `docker compose start django` | ✅ |
+| El frontend traduce `service_unavailable` | `core/tests/test_frontend.py::TestErroresDelGateway` | ✅ |
+| El reencolado de reportes corre cada 60 s con los PENDING de más de 60 s, configurables | `as/api/test_reports.py::TestReencolar`, `as/domain/test_report.py::TestRecuperacion`, `as/test_tasks.py::TestBeat`; en el ensayo, un reporte pedido con Redis caído pasó a READY 106 s después de que Redis volviera | ✅ |
+
+```bash
+docker compose stop django
+cd tests/contract && CONTRACT_IDENTITY_DOWN=1 CONTRACT_BASE_URL=http://localhost python -m pytest test_gateway_errors.py -v
+docker compose start django
+```
+
+**Limitación conocida:** con Redis detenido, las rutas que usan su caché (derechos premium, tasas) responden bien, pero tardan unos 8 s. Cada búsqueda DNS de `redis` espera 4 s a que el DNS de Docker diga que no existe, y ningún timeout de socket acota esa espera. Está documentado en el guion (§3.2) y queda abierto.
 
 ---
 
@@ -228,4 +249,4 @@ El último **debe ir anclado a inicio de sentencia**. Sin anclar, `serializer.is
 
 ---
 
-*Finty · Guía de verificación · Entrega 2 (E2-M9b)*
+*Finty · Guía de verificación · Entrega 2 (E2-M9c)*

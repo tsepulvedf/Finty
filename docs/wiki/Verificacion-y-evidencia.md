@@ -8,13 +8,13 @@ Estado al 2026-10-22, todas en verde:
 
 | Suite | Tests | Qué cubre |
 |---|---|---|
-| Monolito (`core`, `identity`, frontend) | 369 | Identidad, verificación interna del token, plantillas, i18n (A-23), checkout sin datos de tarjeta, tests de Node del JavaScript y reglas de capas por AST (A-15) |
+| Monolito (`core`, `identity`, frontend) | 371 | Identidad, verificación interna del token, plantillas, i18n (A-23), checkout sin datos de tarjeta, tests de Node del JavaScript y reglas de capas por AST (A-15) |
 | `finance-service` | 744 | Builder e invariantes, saldo bajo bloqueo (`FOR UPDATE`), propiedad, categorización remota con respaldo, outbox y relay |
 | `categorization-service` | 853 | Factory por entorno, LSP con entradas hostiles, procedencia veraz |
-| `analytics-service` | 260 | Proyección idempotente, dashboard, insights, gating premium, reportes y tareas |
+| `analytics-service` | 278 | Proyección idempotente, dashboard, insights, gating premium, reportes y tareas |
 | `recommendation-service` | 197 | Perfil de riesgo, recomendaciones explicables, cadena de degradación de la TRM y gating |
 | `subscription-service` | 155 | INV-05, idempotencia del pago, rechazo de datos de tarjeta, avisos una sola vez (reloj controlado) |
-| Contrato de caja negra (`tests/contract/`) | 172 + 8 opcionales | El sistema completo a través del Gateway, sin importar código |
+| Contrato de caja negra (`tests/contract/`) | 172 + 17 opcionales | El sistema completo a través del Gateway, sin importar código, incluido el 503 en JSON del Gateway con un servicio detenido |
 | Contratos estáticos y documentación (`tests/services/`) | 20 | Eventos entre servicios, catálogo de categorías, convención de Celery en Compose, diagramas Mermaid y enlaces de esta Wiki |
 
 **Arquitectura verificada por AST en cada servicio:**
@@ -33,7 +33,7 @@ docker compose up -d --build
 cd tests/contract && CONTRACT_BASE_URL=http://localhost python -m pytest -q
 ```
 
-Los 8 tests opcionales necesitan preparar el entorno. Por ejemplo, `CONTRACT_CATEGORIZATION_DOWN=1` exige detener `categorization-service`. El throttling y los modos del categorizador también se ejercitan aparte.
+Los 17 tests opcionales necesitan preparar el entorno. Por ejemplo, `CONTRACT_CATEGORIZATION_DOWN=1` exige detener `categorization-service`, y `CONTRACT_IDENTITY_DOWN=1` exige detener `django`. El throttling y los modos del categorizador también se ejercitan aparte.
 
 ## Evidencia en `tests/contract/runs/`
 
@@ -48,7 +48,8 @@ Corridas reales guardadas como texto, con fecha:
 | `2026-10-21-suscripciones-y-gating.txt` | De Free a Premium, gating y `subscription-service` caído |
 | `2026-10-22-tareas-asincronas.txt` | Reporte asíncrono, correo de bienvenida y resiliencia de Celery |
 | `2026-10-22-seed-demo.txt` | Datos de demostración idempotentes |
-| `2026-10-22-resiliencia-sustentacion.txt` | El ensayo de las demos de resiliencia de la sustentación |
+| `2026-10-22-resiliencia-sustentacion.txt` | El primer ensayo de las demos de resiliencia (E2-M9b) |
+| `2026-10-22-resiliencia-e2-m9c.txt` | El ensayo final, con tiempos medidos: el 503 en JSON del Gateway, Django caído y de vuelta sin reiniciar Nginx, y el reencolado de reportes en 106 s |
 
 Están en [`tests/contract/runs/`](https://github.com/tsepulvedf/Finty/tree/main/tests/contract/runs).
 
